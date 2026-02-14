@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TC Manager - مدیریت دیوایس‌ها</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-right">
+            <h1 class="logo">TC Manager</h1>
+            <span class="header-subtitle">سامانه مدیریت ترافیک هوشمند</span>
+        </div>
+        <div class="header-left">
+            <span class="status-badge online" id="system-status">سیستم فعال</span>
+            <span class="device-count" id="device-count-header">0 دیوایس</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <button class="nav-btn active" data-view="dashboard">
+                    <span class="nav-icon">&#9635;</span>
+                    داشبورد
+                </button>
+                <button class="nav-btn" data-view="devices">
+                    <span class="nav-icon">&#9881;</span>
+                    دیوایس‌ها
+                </button>
+                <button class="nav-btn" data-view="map">
+                    <span class="nav-icon">&#9678;</span>
+                    نقشه
+                </button>
+            </nav>
+
+            <div class="sidebar-filters">
+                <h3>فیلتر وضعیت</h3>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-filter="online"> آنلاین
+                    <span class="filter-count" id="count-online">0</span>
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-filter="offline"> آفلاین
+                    <span class="filter-count" id="count-offline">0</span>
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-filter="warning"> هشدار
+                    <span class="filter-count" id="count-warning">0</span>
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-filter="error"> خطا
+                    <span class="filter-count" id="count-error">0</span>
+                </label>
+            </div>
+
+            <div class="sidebar-filters">
+                <h3>فیلتر نوع</h3>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-type-filter="camera"> دوربین
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-type-filter="sensor"> سنسور
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-type-filter="traffic-light"> چراغ راهنمایی
+                </label>
+                <label class="filter-item">
+                    <input type="checkbox" checked data-type-filter="controller"> کنترلر
+                </label>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <!-- Dashboard View -->
+            <section class="view active" id="view-dashboard">
+                <div class="view-header">
+                    <h2>داشبورد</h2>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total">0</div>
+                        <div class="stat-label">کل دیوایس‌ها</div>
+                    </div>
+                    <div class="stat-card stat-online">
+                        <div class="stat-value" id="stat-online">0</div>
+                        <div class="stat-label">آنلاین</div>
+                    </div>
+                    <div class="stat-card stat-warning">
+                        <div class="stat-value" id="stat-warning">0</div>
+                        <div class="stat-label">هشدار</div>
+                    </div>
+                    <div class="stat-card stat-error">
+                        <div class="stat-value" id="stat-error">0</div>
+                        <div class="stat-label">خطا</div>
+                    </div>
+                </div>
+
+                <div class="recent-section">
+                    <h3>آخرین رویدادها</h3>
+                    <div class="event-list" id="event-list"></div>
+                </div>
+            </section>
+
+            <!-- Devices View -->
+            <section class="view" id="view-devices">
+                <div class="view-header">
+                    <h2>مدیریت دیوایس‌ها</h2>
+                    <div class="view-actions">
+                        <input type="text" class="search-input" id="device-search" placeholder="جستجوی دیوایس...">
+                        <button class="btn btn-primary" id="btn-add-device">+ افزودن دیوایس</button>
+                    </div>
+                </div>
+
+                <div class="device-table-wrapper">
+                    <table class="device-table">
+                        <thead>
+                            <tr>
+                                <th>شناسه</th>
+                                <th>نام</th>
+                                <th>نوع</th>
+                                <th>وضعیت</th>
+                                <th>آدرس IP</th>
+                                <th>موقعیت</th>
+                                <th>آخرین اتصال</th>
+                                <th>عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="device-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Map View -->
+            <section class="view" id="view-map">
+                <div class="view-header">
+                    <h2>نقشه دیوایس‌ها</h2>
+                </div>
+                <div class="map-placeholder" id="map-container">
+                    <div class="map-grid" id="map-grid"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Device Detail Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="device-modal">
+            <div class="modal-header">
+                <h3 id="modal-title">جزئیات دیوایس</h3>
+                <button class="modal-close" id="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modal-cancel">بستن</button>
+                <button class="btn btn-primary" id="modal-save" style="display:none;">ذخیره</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div class="modal-overlay" id="add-modal-overlay">
+        <div class="modal" id="add-device-modal">
+            <div class="modal-header">
+                <h3>افزودن دیوایس جدید</h3>
+                <button class="modal-close" id="add-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="add-device-form">
+                    <div class="form-group">
+                        <label for="new-device-name">نام دیوایس</label>
+                        <input type="text" id="new-device-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-device-type">نوع</label>
+                        <select id="new-device-type">
+                            <option value="camera">دوربین</option>
+                            <option value="sensor">سنسور</option>
+                            <option value="traffic-light">چراغ راهنمایی</option>
+                            <option value="controller">کنترلر</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-device-ip">آدرس IP</label>
+                        <input type="text" id="new-device-ip" placeholder="192.168.1.100" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-device-location">موقعیت</label>
+                        <input type="text" id="new-device-location" placeholder="تقاطع ولیعصر - انقلاب">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-device-lat">عرض جغرافیایی</label>
+                        <input type="number" step="any" id="new-device-lat" placeholder="35.6892">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-device-lng">طول جغرافیایی</label>
+                        <input type="number" step="any" id="new-device-lng" placeholder="51.3890">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="add-modal-cancel">انصراف</button>
+                <button class="btn btn-primary" id="add-modal-save">افزودن</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="data/devices.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

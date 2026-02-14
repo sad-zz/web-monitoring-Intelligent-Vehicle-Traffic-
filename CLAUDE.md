@@ -2,57 +2,90 @@
 
 ## Project Overview
 
-**Web Monitoring for Intelligent Vehicle Traffic** - A web-based system for monitoring and analyzing intelligent vehicle traffic. This project provides real-time traffic monitoring, data visualization, and analytics for intelligent vehicle systems.
-
-## Repository Status
-
-This is a newly initialized repository. The codebase is being built from the ground up.
+**TC Manager - Web Monitoring for Intelligent Vehicle Traffic** - A web-based dashboard for monitoring and managing traffic control devices (cameras, sensors, traffic lights, controllers). Provides real-time device status, performance metrics, location mapping, and device management.
 
 ## Project Structure
 
 ```
 web-monitoring-Intelligent-Vehicle-Traffic-/
-├── CLAUDE.md          # AI assistant guide (this file)
-└── .git/              # Git repository
+├── CLAUDE.md              # AI assistant guide (this file)
+├── index.html             # Main dashboard (RTL, Persian UI)
+├── css/
+│   └── style.css          # All styles (layout, components, responsive)
+├── js/
+│   └── app.js             # Application logic (navigation, rendering, CRUD)
+└── data/
+    └── devices.js         # Sample device data (DEVICE_DATA array)
 ```
 
-> **Note:** Update this section as the project grows with actual directories and files.
+## Architecture
+
+- **Pure HTML/CSS/JS** - No build tools, no frameworks, no dependencies
+- **RTL layout** - Persian (Farsi) interface, right-to-left direction
+- **Client-side only** - Device data is loaded from `data/devices.js` as a global `DEVICE_DATA` array
+- **IIFE pattern** - `app.js` uses an immediately invoked function to avoid polluting the global scope
+
+### Key Views
+
+| View | ID | Description |
+|------|----|-------------|
+| Dashboard | `#view-dashboard` | Stats cards + recent events |
+| Devices | `#view-devices` | Searchable/filterable device table with CRUD |
+| Map | `#view-map` | Visual device placement with color-coded markers |
+
+### Device Model
+
+Each device object in `data/devices.js` has:
+- `id`, `name`, `type` (camera/sensor/traffic-light/controller)
+- `status` (online/offline/warning/error)
+- `ip`, `location`, `lat`, `lng`
+- `firmware`, `uptime`
+- `metrics` ({ cpu, memory, bandwidth } as percentages)
 
 ## Development Setup
 
 ### Prerequisites
 
-- Git
+- A web browser
+- Any static file server (or just open `index.html` directly)
 
-### Getting Started
+### Running Locally
 
 ```bash
-git clone <repository-url>
-cd web-monitoring-Intelligent-Vehicle-Traffic-
+# Option 1: Open directly
+open index.html
+
+# Option 2: Simple HTTP server
+python3 -m http.server 8000
+# Then visit http://localhost:8000
 ```
-
-> **Note:** Add specific setup instructions (package installation, environment variables, database setup, etc.) as the project takes shape.
-
-## Git Workflow
-
-- **Main branch:** `main`
-- Feature branches should follow the pattern: `feature/<description>`
-- Bug fix branches: `fix/<description>`
-- Write clear, descriptive commit messages
-- Keep commits atomic and focused on a single change
 
 ## Conventions
 
 ### Code Style
 
-- Follow consistent naming conventions across the codebase
-- Keep functions small and single-purpose
-- Add comments only where logic is non-obvious
+- Vanilla JS, no ES6 modules (script tags in HTML)
+- `escapeHtml()` used for all dynamic content to prevent XSS
+- CSS custom properties (variables) defined in `:root` for theming
+- BEM-like class naming: `.device-status`, `.stat-card`, `.map-marker`
 
 ### File Naming
 
 - Use lowercase with hyphens for file names (e.g., `traffic-monitor.js`)
-- Use PascalCase for component files if using a component framework
+
+### Localization
+
+- All UI text is in Persian (Farsi)
+- Status labels and type labels are mapped via `STATUS_LABELS` and `TYPE_LABELS` objects in `app.js`
+- Dates/IPs use `direction: ltr` inline for correct display in RTL context
+
+## Git Workflow
+
+- **Main branch:** `main`
+- Feature branches: `feature/<description>`
+- Bug fix branches: `fix/<description>`
+- Write clear, descriptive commit messages
+- Keep commits atomic and focused on a single change
 
 ## AI Assistant Guidelines
 
@@ -61,6 +94,8 @@ When working on this codebase:
 1. **Read before modifying** - Always read existing files before suggesting changes
 2. **Minimal changes** - Only make changes that are directly requested or clearly necessary
 3. **No over-engineering** - Keep solutions simple and focused on the task at hand
-4. **Security first** - Avoid introducing vulnerabilities (XSS, injection, etc.)
-5. **Test changes** - Run any available tests/linters after making changes
-6. **Update this file** - Keep CLAUDE.md in sync as the project evolves with new structure, dependencies, and conventions
+4. **Security first** - Always use `escapeHtml()` for dynamic content; avoid `innerHTML` with unescaped data
+5. **RTL aware** - Maintain right-to-left layout; use `direction: ltr` only for IPs, dates, and numbers
+6. **Persian UI** - All user-facing text must be in Persian (Farsi)
+7. **Test changes** - Open `index.html` in a browser to verify UI changes
+8. **Update this file** - Keep CLAUDE.md in sync as the project evolves
