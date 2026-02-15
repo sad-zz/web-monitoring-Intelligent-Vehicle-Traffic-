@@ -1,10 +1,10 @@
 (function () {
     "use strict";
 
-    // --- State ---
+    // --- Data copies ---
+    var routes = JSON.parse(JSON.stringify(ROUTE_DATA));
     var devices = JSON.parse(JSON.stringify(DEVICE_DATA));
-    var activeFilters = { online: true, offline: true, warning: true, error: true };
-    var activeTypeFilters = { camera: true, sensor: true, "traffic-light": true, controller: true };
+    var reports = JSON.parse(JSON.stringify(REPORT_DATA));
 
     var TYPE_LABELS = {
         camera: "دوربین",
@@ -20,329 +20,681 @@
         error: "خطا"
     };
 
-    var TYPE_ICONS = {
-        camera: "\uD83D\uDCF7",
-        sensor: "\uD83D\uDCE1",
-        "traffic-light": "\uD83D\uDEA6",
-        controller: "\uD83D\uDDA5"
+    var VIEW_TITLES = {
+        home: "خانه",
+        routes: "محورها",
+        devices: "دستگاه‌ها",
+        reports: "گزارشات",
+        settings: "تنظیمات"
     };
 
-    // --- DOM Refs ---
+    var PAGE_SIZE = 10;
+
+    // --- DOM Helpers ---
     var $ = function (sel) { return document.querySelector(sel); };
     var $$ = function (sel) { return document.querySelectorAll(sel); };
 
+    function escapeHtml(str) {
+        if (str == null) return "";
+        var div = document.createElement("div");
+        div.appendChild(document.createTextNode(String(str)));
+        return div.innerHTML;
+    }
+
+    function formatNumber(n) {
+        return Number(n).toLocaleString("fa-IR");
+    }
+
+    function formatTime(iso) {
+        if (!iso) return "-";
+        var d = new Date(iso);
+        var h = String(d.getHours()).padStart(2, "0");
+        var m = String(d.getMinutes()).padStart(2, "0");
+        var mo = String(d.getMonth() + 1).padStart(2, "0");
+        var dy = String(d.getDate()).padStart(2, "0");
+        return d.getFullYear() + "/" + mo + "/" + dy + " " + h + ":" + m;
+    }
+
     // --- Navigation ---
-    $$(".nav-btn").forEach(function (btn) {
+    $$(".nav-item").forEach(function (btn) {
         btn.addEventListener("click", function () {
-            $$(".nav-btn").forEach(function (b) { b.classList.remove("active"); });
-            btn.classList.add("active");
             var view = btn.getAttribute("data-view");
-            $$(".view").forEach(function (v) { v.classList.remove("active"); });
-            $("#view-" + view).classList.add("active");
-            if (view === "map") renderMap();
+            switchView(view);
         });
     });
 
-    // --- Filters ---
-    $$("[data-filter]").forEach(function (cb) {
-        cb.addEventListener("change", function () {
-            activeFilters[cb.getAttribute("data-filter")] = cb.checked;
-            renderDeviceTable();
-            renderMap();
-        });
+    function switchView(view) {
+        $$(".nav-item").forEach(function (b) { b.classList.remove("active"); });
+        var activeBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
+        if (activeBtn) activeBtn.classList.add("active");
+
+        $$(".view").forEach(function (v) { v.classList.remove("active"); });
+        var target = $("#view-" + view);
+        if (target) target.classList.add("active");
+
+        $("#topbar-title").textContent = VIEW_TITLES[view] || view;
+
+        // Render specific view data
+        if (view === "home") renderHome();
+        if (view === "routes") renderRoutes();
+        if (view === "devices") renderDevices();
+        if (view === "reports") renderReports();
+    }
+
+    // --- Sidebar Toggle (mobile) ---
+    $("#sidebar-toggle").addEventListener("click", function () {
+        $("#sidebar").classList.toggle("open");
     });
 
-    $$("[data-type-filter]").forEach(function (cb) {
-        cb.addEventListener("change", function () {
-            activeTypeFilters[cb.getAttribute("data-type-filter")] = cb.checked;
-            renderDeviceTable();
-            renderMap();
+    // --- Clock ---
+    function updateClock() {
+        var now = new Date();
+        var h = String(now.getHours()).padStart(2, "0");
+        var m = String(now.getMinutes()).padStart(2, "0");
+        var s = String(now.getSeconds()).padStart(2, "0");
+        $("#topbar-time").textContent = h + ":" + m + ":" + s;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ============================================================
+    // UI1: Home
+    // ============================================================
+    var homeState = { page: 1, search: "", sortKey: "name", sortDir: "asc" };
+
+    function renderHome() {
+        // Stats
+        var totalVehicles = routes.reduce(function (s, r) { return s + r.totalVehicles; }, 0);
+        var activeRoutes = routes.filter(function (r) { return r.status === "online"; }).length;
+        var totalErrors = routes.reduce(function (s, r) { return s + r.errors; }, 0);
+        var speeds = routes.filter(function (r) { return r.avgSpeed > 0; });
+        var avgSpeed = speeds.length ? Math.round(speeds.reduce(function (s, r) { return s + r.avgSpeed; }, 0) / speeds.length) : 0;
+
+        $("#stat-total-vehicles").textContent = formatNumber(totalVehicles);
+        $("#stat-avg-speed").textContent = formatNumber(avgSpeed);
+        $("#stat-active-routes").textContent = formatNumber(activeRoutes);
+        $("#stat-errors").textContent = formatNumber(totalErrors);
+
+        // Footer
+        var onlineDevices = devices.filter(function (d) { return d.status === "online"; }).length;
+        $("#footer-device-count").textContent = onlineDevices + " دستگاه فعال";
+
+        renderHomeTable();
+    }
+
+    function getFilteredRoutes() {
+        var q = homeState.search.toLowerCase();
+        return routes.filter(function (r) {
+            if (!q) return true;
+            return r.name.toLowerCase().indexOf(q) !== -1;
         });
+    }
+
+    function renderHomeTable() {
+        var filtered = getFilteredRoutes();
+        filtered = sortArray(filtered, homeState.sortKey, homeState.sortDir);
+
+        var total = filtered.length;
+        var start = (homeState.page - 1) * PAGE_SIZE;
+        var paged = filtered.slice(start, start + PAGE_SIZE);
+
+        var tbody = $("#home-table-body");
+        tbody.innerHTML = paged.map(function (r) {
+            return "<tr>" +
+                "<td>" + escapeHtml(r.name) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatTime(r.lastUpdate)) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatNumber(r.totalVehicles)) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.avgSpeed) + " km/h</td>" +
+                '<td><span class="status-badge ' + (r.errors > 0 ? "error" : "online") + '">' +
+                    escapeHtml(r.errors > 0 ? r.errors + " خطا" : "بدون خطا") + "</span></td>" +
+                "</tr>";
+        }).join("");
+
+        renderTableInfo("home", start, paged.length, total);
+        renderPagination("home", homeState, total);
+        applySortHeaders("home-table", homeState);
+    }
+
+    $("#home-search").addEventListener("input", function () {
+        homeState.search = this.value.trim();
+        homeState.page = 1;
+        renderHomeTable();
     });
 
-    // --- Search ---
-    $("#device-search").addEventListener("input", function () {
+    bindTableSort("home-table", homeState, renderHomeTable);
+
+    // ============================================================
+    // UI2: Routes
+    // ============================================================
+    var routeState = { page: 1, search: "", sortKey: "name", sortDir: "asc" };
+
+    function renderRoutes() { renderRouteTable(); }
+
+    function getFilteredRoutesForTable() {
+        var q = routeState.search.toLowerCase();
+        return routes.filter(function (r) {
+            if (!q) return true;
+            return r.name.toLowerCase().indexOf(q) !== -1 ||
+                   r.origin.toLowerCase().indexOf(q) !== -1 ||
+                   r.destination.toLowerCase().indexOf(q) !== -1;
+        });
+    }
+
+    function renderRouteTable() {
+        var filtered = getFilteredRoutesForTable();
+        filtered = sortArray(filtered, routeState.sortKey, routeState.sortDir);
+
+        var total = filtered.length;
+        var start = (routeState.page - 1) * PAGE_SIZE;
+        var paged = filtered.slice(start, start + PAGE_SIZE);
+
+        var tbody = $("#routes-table-body");
+        tbody.innerHTML = paged.map(function (r, i) {
+            return "<tr>" +
+                "<td>" + (start + i + 1) + "</td>" +
+                "<td><strong>" + escapeHtml(r.name) + "</strong></td>" +
+                "<td>" + escapeHtml(r.origin) + "</td>" +
+                "<td>" + escapeHtml(r.destination) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.length) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.deviceCount) + "</td>" +
+                '<td><span class="status-badge ' + r.status + '">' + escapeHtml(STATUS_LABELS[r.status]) + "</span></td>" +
+                "<td>" +
+                    '<div class="action-btns">' +
+                        '<button class="btn btn-sm btn-primary btn-route-detail" data-id="' + escapeHtml(r.id) + '">جزئیات</button>' +
+                        '<button class="btn btn-sm btn-danger btn-route-delete" data-id="' + escapeHtml(r.id) + '">حذف</button>' +
+                    "</div>" +
+                "</td>" +
+                "</tr>";
+        }).join("");
+
+        // Bind events
+        tbody.querySelectorAll(".btn-route-detail").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var r = routes.find(function (x) { return x.id === btn.getAttribute("data-id"); });
+                if (r) showRouteDetail(r);
+            });
+        });
+
+        tbody.querySelectorAll(".btn-route-delete").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var id = btn.getAttribute("data-id");
+                if (confirm("آیا از حذف این محور مطمئن هستید؟")) {
+                    routes = routes.filter(function (x) { return x.id !== id; });
+                    renderRouteTable();
+                }
+            });
+        });
+
+        renderTableInfo("routes", start, paged.length, total);
+        renderPagination("routes", routeState, total);
+        applySortHeaders("routes-table", routeState);
+    }
+
+    $("#routes-search").addEventListener("input", function () {
+        routeState.search = this.value.trim();
+        routeState.page = 1;
+        renderRouteTable();
+    });
+
+    bindTableSort("routes-table", routeState, renderRouteTable);
+
+    function showRouteDetail(r) {
+        $("#modal-title").textContent = r.name;
+        $("#modal-save").style.display = "none";
+        $("#modal-body").innerHTML =
+            '<div class="detail-grid">' +
+                '<div class="detail-item"><span class="detail-label">شناسه</span><span class="detail-value">' + escapeHtml(r.id) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">مبدأ</span><span class="detail-value">' + escapeHtml(r.origin) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">مقصد</span><span class="detail-value">' + escapeHtml(r.destination) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">طول</span><span class="detail-value" dir="ltr">' + escapeHtml(r.length) + ' km</span></div>' +
+                '<div class="detail-item"><span class="detail-label">تعداد دستگاه</span><span class="detail-value">' + escapeHtml(r.deviceCount) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">وضعیت</span><span class="detail-value"><span class="status-badge ' + r.status + '">' + escapeHtml(STATUS_LABELS[r.status]) + '</span></span></div>' +
+                '<div class="detail-item"><span class="detail-label">خودروهای عبوری</span><span class="detail-value">' + escapeHtml(formatNumber(r.totalVehicles)) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">سرعت متوسط</span><span class="detail-value" dir="ltr">' + escapeHtml(r.avgSpeed) + ' km/h</span></div>' +
+            '</div>';
+        $("#modal-overlay").classList.add("active");
+    }
+
+    // Add route
+    $("#btn-add-route").addEventListener("click", function () {
+        $("#add-modal-title").textContent = "افزودن محور جدید";
+        $("#add-modal-body").innerHTML =
+            '<form id="add-route-form">' +
+                '<div class="form-group"><label>نام محور</label><input type="text" id="new-route-name" required></div>' +
+                '<div class="form-group"><label>مبدأ</label><input type="text" id="new-route-origin"></div>' +
+                '<div class="form-group"><label>مقصد</label><input type="text" id="new-route-dest"></div>' +
+                '<div class="form-group"><label>طول (km)</label><input type="number" id="new-route-length" dir="ltr"></div>' +
+            '</form>';
+        currentAddMode = "route";
+        $("#add-modal-overlay").classList.add("active");
+    });
+
+    // ============================================================
+    // UI3: Devices
+    // ============================================================
+    var deviceState = { page: 1, search: "", sortKey: "name", sortDir: "asc" };
+
+    function renderDevices() { renderDeviceTable(); }
+
+    function getFilteredDevices() {
+        var q = deviceState.search.toLowerCase();
+        return devices.filter(function (d) {
+            if (!q) return true;
+            return d.name.toLowerCase().indexOf(q) !== -1 ||
+                   d.id.toLowerCase().indexOf(q) !== -1 ||
+                   d.ip.indexOf(q) !== -1;
+        });
+    }
+
+    function renderDeviceTable() {
+        var filtered = getFilteredDevices();
+        filtered = sortArray(filtered, deviceState.sortKey, deviceState.sortDir);
+
+        var total = filtered.length;
+        var start = (deviceState.page - 1) * PAGE_SIZE;
+        var paged = filtered.slice(start, start + PAGE_SIZE);
+
+        var tbody = $("#devices-table-body");
+        tbody.innerHTML = paged.map(function (d, i) {
+            var routeObj = routes.find(function (r) { return r.id === d.route; });
+            var routeName = routeObj ? routeObj.name : d.route;
+            return "<tr>" +
+                "<td>" + (start + i + 1) + "</td>" +
+                "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
+                '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
+                "<td>" + escapeHtml(routeName) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(d.ip) + "</td>" +
+                '<td><span class="status-badge ' + d.status + '">' + escapeHtml(STATUS_LABELS[d.status]) + "</span></td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatTime(d.lastSeen)) + "</td>" +
+                "<td>" +
+                    '<div class="action-btns">' +
+                        '<button class="btn btn-sm btn-primary btn-dev-detail" data-id="' + escapeHtml(d.id) + '">جزئیات</button>' +
+                        '<button class="btn btn-sm btn-danger btn-dev-delete" data-id="' + escapeHtml(d.id) + '">حذف</button>' +
+                    "</div>" +
+                "</td>" +
+                "</tr>";
+        }).join("");
+
+        tbody.querySelectorAll(".btn-dev-detail").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var d = devices.find(function (x) { return x.id === btn.getAttribute("data-id"); });
+                if (d) showDeviceDetail(d);
+            });
+        });
+
+        tbody.querySelectorAll(".btn-dev-delete").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var id = btn.getAttribute("data-id");
+                if (confirm("آیا از حذف این دستگاه مطمئن هستید؟")) {
+                    devices = devices.filter(function (x) { return x.id !== id; });
+                    renderDeviceTable();
+                }
+            });
+        });
+
+        renderTableInfo("devices", start, paged.length, total);
+        renderPagination("devices", deviceState, total);
+        applySortHeaders("devices-table", deviceState);
+    }
+
+    $("#devices-search").addEventListener("input", function () {
+        deviceState.search = this.value.trim();
+        deviceState.page = 1;
         renderDeviceTable();
     });
 
-    // --- Filtered devices ---
-    function getFilteredDevices() {
-        var search = ($("#device-search").value || "").trim().toLowerCase();
-        return devices.filter(function (d) {
-            if (!activeFilters[d.status]) return false;
-            if (!activeTypeFilters[d.type]) return false;
-            if (search && d.name.toLowerCase().indexOf(search) === -1 &&
-                d.id.toLowerCase().indexOf(search) === -1 &&
-                d.ip.indexOf(search) === -1 &&
-                d.location.toLowerCase().indexOf(search) === -1) {
-                return false;
-            }
+    bindTableSort("devices-table", deviceState, renderDeviceTable);
+
+    function showDeviceDetail(d) {
+        var routeObj = routes.find(function (r) { return r.id === d.route; });
+        var routeName = routeObj ? routeObj.name : d.route;
+
+        $("#modal-title").textContent = d.name;
+        $("#modal-save").style.display = "none";
+        $("#modal-body").innerHTML =
+            '<div class="detail-grid">' +
+                '<div class="detail-item"><span class="detail-label">شناسه</span><span class="detail-value">' + escapeHtml(d.id) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">نوع</span><span class="detail-value">' + escapeHtml(TYPE_LABELS[d.type]) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">محور</span><span class="detail-value">' + escapeHtml(routeName) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">آدرس IP</span><span class="detail-value" dir="ltr">' + escapeHtml(d.ip) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">وضعیت</span><span class="detail-value"><span class="status-badge ' + d.status + '">' + escapeHtml(STATUS_LABELS[d.status]) + '</span></span></div>' +
+                '<div class="detail-item"><span class="detail-label">نسخه فریمور</span><span class="detail-value" dir="ltr">' + escapeHtml(d.firmware) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">آخرین اتصال</span><span class="detail-value" dir="ltr">' + escapeHtml(formatTime(d.lastSeen)) + '</span></div>' +
+            '</div>';
+        $("#modal-overlay").classList.add("active");
+    }
+
+    // Add device
+    $("#btn-add-device").addEventListener("click", function () {
+        $("#add-modal-title").textContent = "افزودن دستگاه جدید";
+        var routeOptions = routes.map(function (r) {
+            return '<option value="' + escapeHtml(r.id) + '">' + escapeHtml(r.name) + '</option>';
+        }).join("");
+
+        $("#add-modal-body").innerHTML =
+            '<form id="add-device-form">' +
+                '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" required></div>' +
+                '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
+                    '<option value="camera">دوربین</option>' +
+                    '<option value="sensor">سنسور</option>' +
+                    '<option value="traffic-light">چراغ راهنمایی</option>' +
+                    '<option value="controller">کنترلر</option>' +
+                '</select></div>' +
+                '<div class="form-group"><label>محور</label><select id="new-dev-route">' + routeOptions + '</select></div>' +
+                '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" dir="ltr" placeholder="192.168.x.x"></div>' +
+            '</form>';
+        currentAddMode = "device";
+        $("#add-modal-overlay").classList.add("active");
+    });
+
+    // ============================================================
+    // UI4: Reports
+    // ============================================================
+    var reportState = { page: 1 };
+
+    function renderReports() {
+        // Populate route dropdown
+        var sel = $("#report-route");
+        sel.innerHTML = '<option value="">همه محورها</option>';
+        routes.forEach(function (r) {
+            sel.innerHTML += '<option value="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</option>';
+        });
+
+        renderReportTable();
+    }
+
+    function getFilteredReports() {
+        var routeFilter = $("#report-route").value;
+        var from = $("#report-from").value;
+        var to = $("#report-to").value;
+        return reports.filter(function (r) {
+            if (routeFilter && r.route !== routeFilter) return false;
+            if (from && r.date < from) return false;
+            if (to && r.date > to) return false;
             return true;
         });
     }
 
-    // --- Dashboard Stats ---
-    function renderStats() {
-        var total = devices.length;
-        var online = devices.filter(function (d) { return d.status === "online"; }).length;
-        var warn = devices.filter(function (d) { return d.status === "warning"; }).length;
-        var err = devices.filter(function (d) { return d.status === "error"; }).length;
-        var offline = devices.filter(function (d) { return d.status === "offline"; }).length;
+    function renderReportTable() {
+        var filtered = getFilteredReports();
+        var total = filtered.length;
+        var start = (reportState.page - 1) * PAGE_SIZE;
+        var paged = filtered.slice(start, start + PAGE_SIZE);
 
-        $("#stat-total").textContent = total;
-        $("#stat-online").textContent = online;
-        $("#stat-warning").textContent = warn;
-        $("#stat-error").textContent = err;
-
-        $("#count-online").textContent = online;
-        $("#count-offline").textContent = offline;
-        $("#count-warning").textContent = warn;
-        $("#count-error").textContent = err;
-
-        $("#device-count-header").textContent = total + " دیوایس";
-    }
-
-    // --- Events ---
-    function renderEvents() {
-        var container = $("#event-list");
-        var events = [];
-
-        devices.forEach(function (d) {
-            var msg = "";
-            if (d.status === "error") msg = d.name + " دچار خطا شده است";
-            else if (d.status === "warning") msg = d.name + " هشدار عملکرد دارد";
-            else if (d.status === "offline") msg = d.name + " آفلاین شده است";
-            else msg = d.name + " به درستی کار می‌کند";
-
-            events.push({
-                status: d.status,
-                message: msg,
-                time: formatTime(d.lastSeen)
-            });
-        });
-
-        events.sort(function (a, b) { return a.time > b.time ? -1 : 1; });
-
-        container.innerHTML = events.slice(0, 8).map(function (e) {
-            return '<div class="event-item">' +
-                '<span class="event-dot ' + e.status + '"></span>' +
-                '<span>' + escapeHtml(e.message) + '</span>' +
-                '<span class="event-time">' + escapeHtml(e.time) + '</span>' +
-                '</div>';
-        }).join("");
-    }
-
-    // --- Device Table ---
-    function renderDeviceTable() {
-        var tbody = $("#device-table-body");
-        var filtered = getFilteredDevices();
-
-        tbody.innerHTML = filtered.map(function (d) {
-            return '<tr>' +
-                '<td><strong>' + escapeHtml(d.id) + '</strong></td>' +
-                '<td>' + escapeHtml(d.name) + '</td>' +
-                '<td><span class="device-type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + '</span></td>' +
-                '<td><span class="device-status ' + d.status + '">' + escapeHtml(STATUS_LABELS[d.status]) + '</span></td>' +
-                '<td style="direction:ltr;text-align:right;">' + escapeHtml(d.ip) + '</td>' +
-                '<td>' + escapeHtml(d.location) + '</td>' +
-                '<td style="direction:ltr;text-align:right;">' + escapeHtml(formatTime(d.lastSeen)) + '</td>' +
-                '<td>' +
-                    '<div class="action-btns">' +
-                        '<button class="btn btn-sm btn-primary btn-detail" data-id="' + escapeHtml(d.id) + '">جزئیات</button>' +
-                        '<button class="btn btn-sm btn-danger btn-delete" data-id="' + escapeHtml(d.id) + '">حذف</button>' +
-                    '</div>' +
-                '</td>' +
-                '</tr>';
+        var tbody = $("#report-table-body");
+        tbody.innerHTML = paged.map(function (r) {
+            return "<tr>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.date) + "</td>" +
+                "<td>" + escapeHtml(r.route) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatNumber(r.vehicles)) + "</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.avgSpeed) + " km/h</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.maxSpeed) + " km/h</td>" +
+                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.violations) + "</td>" +
+                "</tr>";
         }).join("");
 
-        // Bind detail buttons
-        tbody.querySelectorAll(".btn-detail").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var device = devices.find(function (d) { return d.id === btn.getAttribute("data-id"); });
-                if (device) showDeviceDetail(device);
-            });
-        });
-
-        // Bind delete buttons
-        tbody.querySelectorAll(".btn-delete").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var id = btn.getAttribute("data-id");
-                if (confirm("آیا از حذف دیوایس " + id + " مطمئن هستید؟")) {
-                    devices = devices.filter(function (d) { return d.id !== id; });
-                    renderAll();
-                }
-            });
-        });
+        renderTableInfo("report", start, paged.length, total);
+        renderPagination("report", reportState, total);
     }
 
-    // --- Device Detail Modal ---
-    function showDeviceDetail(device) {
-        $("#modal-title").textContent = device.name;
-        $("#modal-save").style.display = "none";
-
-        var cpuClass = device.metrics.cpu < 60 ? "good" : device.metrics.cpu < 80 ? "medium" : "bad";
-        var memClass = device.metrics.memory < 60 ? "good" : device.metrics.memory < 80 ? "medium" : "bad";
-        var bwClass = device.metrics.bandwidth < 60 ? "good" : device.metrics.bandwidth < 80 ? "medium" : "bad";
-
-        $("#modal-body").innerHTML =
-            '<div class="detail-grid">' +
-                '<div class="detail-item"><span class="detail-label">شناسه</span><span class="detail-value">' + escapeHtml(device.id) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">نوع</span><span class="detail-value">' + escapeHtml(TYPE_LABELS[device.type]) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">وضعیت</span><span class="detail-value"><span class="device-status ' + device.status + '">' + escapeHtml(STATUS_LABELS[device.status]) + '</span></span></div>' +
-                '<div class="detail-item"><span class="detail-label">آدرس IP</span><span class="detail-value" style="direction:ltr">' + escapeHtml(device.ip) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">موقعیت</span><span class="detail-value">' + escapeHtml(device.location) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">نسخه فریمور</span><span class="detail-value" style="direction:ltr">' + escapeHtml(device.firmware) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">آپتایم</span><span class="detail-value">' + escapeHtml(device.uptime) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">آخرین اتصال</span><span class="detail-value" style="direction:ltr">' + escapeHtml(formatTime(device.lastSeen)) + '</span></div>' +
-            '</div>' +
-            '<div class="detail-section">' +
-                '<h4>معیارهای عملکرد</h4>' +
-                '<div class="metric-bar">' +
-                    '<span class="metric-label">CPU</span>' +
-                    '<div class="metric-track"><div class="metric-fill ' + cpuClass + '" style="width:' + device.metrics.cpu + '%"></div></div>' +
-                    '<span class="metric-value">' + device.metrics.cpu + '%</span>' +
-                '</div>' +
-                '<div class="metric-bar">' +
-                    '<span class="metric-label">حافظه</span>' +
-                    '<div class="metric-track"><div class="metric-fill ' + memClass + '" style="width:' + device.metrics.memory + '%"></div></div>' +
-                    '<span class="metric-value">' + device.metrics.memory + '%</span>' +
-                '</div>' +
-                '<div class="metric-bar">' +
-                    '<span class="metric-label">پهنای باند</span>' +
-                    '<div class="metric-track"><div class="metric-fill ' + bwClass + '" style="width:' + device.metrics.bandwidth + '%"></div></div>' +
-                    '<span class="metric-value">' + device.metrics.bandwidth + '%</span>' +
-                '</div>' +
-            '</div>';
-
-        $("#modal-overlay").classList.add("active");
-    }
-
-    // --- Map ---
-    function renderMap() {
-        var container = $("#map-grid");
-        var filtered = getFilteredDevices();
-
-        // Normalize lat/lng to viewport positions
-        var lats = filtered.map(function (d) { return d.lat; });
-        var lngs = filtered.map(function (d) { return d.lng; });
-        var minLat = Math.min.apply(null, lats) - 0.01;
-        var maxLat = Math.max.apply(null, lats) + 0.01;
-        var minLng = Math.min.apply(null, lngs) - 0.01;
-        var maxLng = Math.max.apply(null, lngs) + 0.01;
-
-        container.innerHTML = filtered.map(function (d) {
-            var top = 100 - ((d.lat - minLat) / (maxLat - minLat)) * 80 - 10;
-            var left = ((d.lng - minLng) / (maxLng - minLng)) * 80 + 10;
-
-            return '<div class="map-marker ' + d.status + '" ' +
-                'style="top:' + top + '%;left:' + left + '%;" ' +
-                'data-id="' + escapeHtml(d.id) + '" title="' + escapeHtml(d.name) + '">' +
-                (TYPE_ICONS[d.type] || "?") +
-                '<span class="map-marker-label">' + escapeHtml(d.name) + '</span>' +
-                '</div>';
-        }).join("");
-
-        container.querySelectorAll(".map-marker").forEach(function (marker) {
-            marker.addEventListener("click", function () {
-                var device = devices.find(function (d) { return d.id === marker.getAttribute("data-id"); });
-                if (device) showDeviceDetail(device);
-            });
-        });
-    }
-
-    // --- Add Device ---
-    $("#btn-add-device").addEventListener("click", function () {
-        $("#add-device-form").reset();
-        $("#add-modal-overlay").classList.add("active");
+    $("#btn-generate-report").addEventListener("click", function () {
+        reportState.page = 1;
+        renderReportTable();
     });
+
+    // ============================================================
+    // UI5: Settings (event handlers)
+    // ============================================================
+    $("#btn-save-settings").addEventListener("click", function () {
+        alert("تنظیمات عمومی ذخیره شد.");
+    });
+
+    $("#btn-save-alerts").addEventListener("click", function () {
+        alert("تنظیمات هشدار ذخیره شد.");
+    });
+
+    // ============================================================
+    // Add Modal (shared)
+    // ============================================================
+    var currentAddMode = "";
 
     $("#add-modal-save").addEventListener("click", function () {
-        var name = $("#new-device-name").value.trim();
-        var type = $("#new-device-type").value;
-        var ip = $("#new-device-ip").value.trim();
-        var location = $("#new-device-location").value.trim();
-        var lat = parseFloat($("#new-device-lat").value) || 35.7 + Math.random() * 0.1;
-        var lng = parseFloat($("#new-device-lng").value) || 51.35 + Math.random() * 0.1;
-
-        if (!name || !ip) {
-            alert("لطفا نام و آدرس IP را وارد کنید");
-            return;
+        if (currentAddMode === "route") {
+            var name = ($("#new-route-name") || {}).value;
+            if (!name || !name.trim()) { alert("لطفا نام محور را وارد کنید"); return; }
+            var maxNum = 0;
+            routes.forEach(function (r) {
+                var n = parseInt(r.id.split("-")[1], 10);
+                if (n > maxNum) maxNum = n;
+            });
+            routes.push({
+                id: "R-" + String(maxNum + 1).padStart(3, "0"),
+                name: name.trim(),
+                origin: ($("#new-route-origin") || {}).value || "",
+                destination: ($("#new-route-dest") || {}).value || "",
+                length: parseFloat(($("#new-route-length") || {}).value) || 0,
+                deviceCount: 0,
+                status: "online",
+                totalVehicles: 0,
+                avgSpeed: 0,
+                errors: 0,
+                lastUpdate: new Date().toISOString()
+            });
+            $("#add-modal-overlay").classList.remove("active");
+            renderRouteTable();
+        } else if (currentAddMode === "device") {
+            var dname = ($("#new-dev-name") || {}).value;
+            var ip = ($("#new-dev-ip") || {}).value;
+            if (!dname || !dname.trim() || !ip || !ip.trim()) { alert("لطفا نام و IP را وارد کنید"); return; }
+            var type = ($("#new-dev-type") || {}).value || "camera";
+            var prefix = { camera: "CAM", sensor: "SEN", "traffic-light": "TL", controller: "CTR" }[type] || "DEV";
+            var dmax = 0;
+            devices.forEach(function (d) {
+                if (d.id.indexOf(prefix + "-") === 0) {
+                    var num = parseInt(d.id.split("-")[1], 10);
+                    if (num > dmax) dmax = num;
+                }
+            });
+            devices.push({
+                id: prefix + "-" + String(dmax + 1).padStart(3, "0"),
+                name: dname.trim(),
+                type: type,
+                route: ($("#new-dev-route") || {}).value || "",
+                ip: ip.trim(),
+                status: "online",
+                lastSeen: new Date().toISOString(),
+                firmware: "v1.0.0"
+            });
+            $("#add-modal-overlay").classList.remove("active");
+            renderDeviceTable();
         }
-
-        var prefix = { camera: "CAM", sensor: "SEN", "traffic-light": "TL", controller: "CTR" }[type] || "DEV";
-        var maxNum = 0;
-        devices.forEach(function (d) {
-            if (d.id.indexOf(prefix + "-") === 0) {
-                var num = parseInt(d.id.split("-")[1], 10);
-                if (num > maxNum) maxNum = num;
-            }
-        });
-        var newId = prefix + "-" + String(maxNum + 1).padStart(3, "0");
-
-        devices.push({
-            id: newId,
-            name: name,
-            type: type,
-            status: "online",
-            ip: ip,
-            location: location || "نامشخص",
-            lat: lat,
-            lng: lng,
-            lastSeen: new Date().toISOString(),
-            firmware: "v1.0.0",
-            uptime: "0 روز",
-            metrics: { cpu: 10, memory: 15, bandwidth: 5 }
-        });
-
-        $("#add-modal-overlay").classList.remove("active");
-        renderAll();
     });
 
-    // --- Modal Close ---
+    // ============================================================
+    // Modal close handlers
+    // ============================================================
     ["modal-close", "modal-cancel"].forEach(function (id) {
-        $("#" + id).addEventListener("click", function () {
-            $("#modal-overlay").classList.remove("active");
-        });
+        var el = $("#" + id);
+        if (el) el.addEventListener("click", function () { $("#modal-overlay").classList.remove("active"); });
     });
 
     ["add-modal-close", "add-modal-cancel"].forEach(function (id) {
-        $("#" + id).addEventListener("click", function () {
-            $("#add-modal-overlay").classList.remove("active");
-        });
+        var el = $("#" + id);
+        if (el) el.addEventListener("click", function () { $("#add-modal-overlay").classList.remove("active"); });
     });
 
-    // Close on overlay click
     ["modal-overlay", "add-modal-overlay"].forEach(function (id) {
-        $("#" + id).addEventListener("click", function (e) {
-            if (e.target === this) this.classList.remove("active");
+        var el = $("#" + id);
+        if (el) el.addEventListener("click", function (e) {
+            if (e.target === el) el.classList.remove("active");
         });
     });
 
-    // --- Helpers ---
-    function formatTime(iso) {
-        if (!iso) return "-";
-        var d = new Date(iso);
-        var hours = String(d.getHours()).padStart(2, "0");
-        var mins = String(d.getMinutes()).padStart(2, "0");
-        var month = String(d.getMonth() + 1).padStart(2, "0");
-        var day = String(d.getDate()).padStart(2, "0");
-        return d.getFullYear() + "/" + month + "/" + day + " " + hours + ":" + mins;
+    // ============================================================
+    // Export Buttons
+    // ============================================================
+    $$(".export-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var action = btn.getAttribute("data-action");
+            var table = btn.closest(".panel").querySelector(".data-table");
+            if (!table) return;
+
+            if (action === "copy") {
+                copyTableToClipboard(table);
+            } else if (action === "csv") {
+                downloadTableAsCSV(table);
+            } else if (action === "excel") {
+                downloadTableAsCSV(table, "xls");
+            } else if (action === "pdf" || action === "print") {
+                printTable(table);
+            }
+        });
+    });
+
+    function copyTableToClipboard(table) {
+        var text = tableToText(table);
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(function () {
+                alert("کپی شد!");
+            });
+        }
     }
 
-    function escapeHtml(str) {
-        var div = document.createElement("div");
-        div.appendChild(document.createTextNode(str));
-        return div.innerHTML;
+    function downloadTableAsCSV(table, ext) {
+        var text = tableToCSV(table);
+        var blob = new Blob(["\uFEFF" + text], { type: "text/csv;charset=utf-8;" });
+        var link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "export." + (ext || "csv");
+        link.click();
     }
 
-    // --- Render All ---
-    function renderAll() {
-        renderStats();
-        renderEvents();
-        renderDeviceTable();
+    function printTable(table) {
+        var win = window.open("", "_blank");
+        win.document.write('<html dir="rtl"><head><title>چاپ</title><style>body{font-family:Tahoma,sans-serif;direction:rtl}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:8px;text-align:right}th{background:#f0f0f0}</style></head><body>');
+        win.document.write(table.outerHTML);
+        win.document.write("</body></html>");
+        win.document.close();
+        win.print();
     }
 
-    // --- Init ---
-    renderAll();
+    function tableToText(table) {
+        var rows = table.querySelectorAll("tr");
+        var lines = [];
+        rows.forEach(function (row) {
+            var cells = [];
+            row.querySelectorAll("th, td").forEach(function (cell) {
+                cells.push(cell.textContent.trim());
+            });
+            lines.push(cells.join("\t"));
+        });
+        return lines.join("\n");
+    }
+
+    function tableToCSV(table) {
+        var rows = table.querySelectorAll("tr");
+        var lines = [];
+        rows.forEach(function (row) {
+            var cells = [];
+            row.querySelectorAll("th, td").forEach(function (cell) {
+                var val = cell.textContent.trim().replace(/"/g, '""');
+                cells.push('"' + val + '"');
+            });
+            lines.push(cells.join(","));
+        });
+        return lines.join("\n");
+    }
+
+    // ============================================================
+    // Shared: Pagination, Sorting, Table Info
+    // ============================================================
+    function renderTableInfo(prefix, start, count, total) {
+        var el = $("#" + prefix + "-table-info");
+        if (!el) return;
+        if (total === 0) {
+            el.textContent = "داده‌ای یافت نشد";
+        } else {
+            el.textContent = "نمایش " + (start + 1) + " تا " + (start + count) + " از " + total + " ردیف";
+        }
+    }
+
+    function renderPagination(prefix, state, total) {
+        var container = $("#" + prefix + "-pagination");
+        if (!container) return;
+        var pages = Math.ceil(total / PAGE_SIZE);
+        if (pages <= 1) { container.innerHTML = ""; return; }
+
+        var html = "";
+        html += '<button class="page-btn" data-p="prev" ' + (state.page <= 1 ? "disabled" : "") + '>&laquo;</button>';
+        for (var i = 1; i <= pages; i++) {
+            html += '<button class="page-btn ' + (i === state.page ? "active" : "") + '" data-p="' + i + '">' + i + '</button>';
+        }
+        html += '<button class="page-btn" data-p="next" ' + (state.page >= pages ? "disabled" : "") + '>&raquo;</button>';
+        container.innerHTML = html;
+
+        container.querySelectorAll(".page-btn").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var p = btn.getAttribute("data-p");
+                if (p === "prev") state.page = Math.max(1, state.page - 1);
+                else if (p === "next") state.page = Math.min(pages, state.page + 1);
+                else state.page = parseInt(p, 10);
+
+                // Re-render
+                if (prefix === "home") renderHomeTable();
+                else if (prefix === "routes") renderRouteTable();
+                else if (prefix === "devices") renderDeviceTable();
+                else if (prefix === "report") renderReportTable();
+            });
+        });
+    }
+
+    function sortArray(arr, key, dir) {
+        return arr.slice().sort(function (a, b) {
+            var va = a[key] != null ? a[key] : "";
+            var vb = b[key] != null ? b[key] : "";
+            if (typeof va === "number" && typeof vb === "number") {
+                return dir === "asc" ? va - vb : vb - va;
+            }
+            va = String(va).toLowerCase();
+            vb = String(vb).toLowerCase();
+            if (va < vb) return dir === "asc" ? -1 : 1;
+            if (va > vb) return dir === "asc" ? 1 : -1;
+            return 0;
+        });
+    }
+
+    function bindTableSort(tableId, state, renderFn) {
+        var table = $("#" + tableId);
+        if (!table) return;
+        table.querySelectorAll("th[data-sort]").forEach(function (th) {
+            th.addEventListener("click", function () {
+                var key = th.getAttribute("data-sort");
+                if (state.sortKey === key) {
+                    state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+                } else {
+                    state.sortKey = key;
+                    state.sortDir = "asc";
+                }
+                state.page = 1;
+                renderFn();
+            });
+        });
+    }
+
+    function applySortHeaders(tableId, state) {
+        var table = $("#" + tableId);
+        if (!table) return;
+        table.querySelectorAll("th[data-sort]").forEach(function (th) {
+            th.classList.remove("sort-asc", "sort-desc");
+            if (th.getAttribute("data-sort") === state.sortKey) {
+                th.classList.add("sort-" + state.sortDir);
+            }
+        });
+    }
+
+    // ============================================================
+    // Init
+    // ============================================================
+    renderHome();
 
 })();

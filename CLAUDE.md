@@ -2,45 +2,46 @@
 
 ## Project Overview
 
-**TC Manager - Web Monitoring for Intelligent Vehicle Traffic** - A web-based dashboard for monitoring and managing traffic control devices (cameras, sensors, traffic lights, controllers). Provides real-time device status, performance metrics, location mapping, and device management.
+**رهسام (RAHSAM) - TC Manager** - A web-based dashboard for monitoring and managing intelligent vehicle traffic. Tracks routes, devices (cameras, sensors, traffic lights, controllers), traffic reports, and system settings. Styled after the RAHSAM traffic management system.
 
 ## Project Structure
 
 ```
 web-monitoring-Intelligent-Vehicle-Traffic-/
 ├── CLAUDE.md              # AI assistant guide (this file)
-├── index.html             # Main dashboard (RTL, Persian UI)
+├── index.html             # Main dashboard (RTL, Persian UI, 5 views)
 ├── css/
-│   └── style.css          # All styles (layout, components, responsive)
+│   └── style.css          # All styles (sidebar, tables, modals, responsive)
 ├── js/
-│   └── app.js             # Application logic (navigation, rendering, CRUD)
+│   └── app.js             # Application logic (navigation, CRUD, pagination, export)
 └── data/
-    └── devices.js         # Sample device data (DEVICE_DATA array)
+    └── devices.js         # Sample data (ROUTE_DATA, DEVICE_DATA, REPORT_DATA)
 ```
 
 ## Architecture
 
 - **Pure HTML/CSS/JS** - No build tools, no frameworks, no dependencies
 - **RTL layout** - Persian (Farsi) interface, right-to-left direction
-- **Client-side only** - Device data is loaded from `data/devices.js` as a global `DEVICE_DATA` array
+- **Client-side only** - Data loaded from `data/devices.js` as global arrays
 - **IIFE pattern** - `app.js` uses an immediately invoked function to avoid polluting the global scope
 
-### Key Views
+### Key Views (5 pages)
 
 | View | ID | Description |
 |------|----|-------------|
-| Dashboard | `#view-dashboard` | Stats cards + recent events |
-| Devices | `#view-devices` | Searchable/filterable device table with CRUD |
-| Map | `#view-map` | Visual device placement with color-coded markers |
+| UI1: خانه (Home) | `#view-home` | Stats cards + route data table with export/search |
+| UI2: محورها (Routes) | `#view-routes` | Route management table with CRUD |
+| UI3: دستگاه‌ها (Devices) | `#view-devices` | Device management table with CRUD |
+| UI4: گزارشات (Reports) | `#view-reports` | Traffic reports with date/route filters |
+| UI5: تنظیمات (Settings) | `#view-settings` | System settings and alert configuration |
 
-### Device Model
+### Data Models
 
-Each device object in `data/devices.js` has:
-- `id`, `name`, `type` (camera/sensor/traffic-light/controller)
-- `status` (online/offline/warning/error)
-- `ip`, `location`, `lat`, `lng`
-- `firmware`, `uptime`
-- `metrics` ({ cpu, memory, bandwidth } as percentages)
+**Route** (`ROUTE_DATA`): `id`, `name`, `origin`, `destination`, `length`, `deviceCount`, `status`, `totalVehicles`, `avgSpeed`, `errors`, `lastUpdate`
+
+**Device** (`DEVICE_DATA`): `id`, `name`, `type` (camera/sensor/traffic-light/controller), `route`, `ip`, `status` (online/offline/warning/error), `lastSeen`, `firmware`
+
+**Report** (`REPORT_DATA`): `date`, `route`, `vehicles`, `avgSpeed`, `maxSpeed`, `violations`
 
 ## Development Setup
 
@@ -67,7 +68,7 @@ python3 -m http.server 8000
 - Vanilla JS, no ES6 modules (script tags in HTML)
 - `escapeHtml()` used for all dynamic content to prevent XSS
 - CSS custom properties (variables) defined in `:root` for theming
-- BEM-like class naming: `.device-status`, `.stat-card`, `.map-marker`
+- BEM-like class naming: `.status-badge`, `.stat-card`, `.nav-item`
 
 ### File Naming
 
