@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**رهسام (RAHSAM) - TC Manager** - A web-based dashboard for monitoring and managing intelligent vehicle traffic. Tracks routes, devices (cameras, sensors, traffic lights, controllers), traffic reports, and system settings. Styled after the RAHSAM traffic management system.
+**سیستان اکبری (Sistan Akbari) - TC Manager** - A web-based dashboard for monitoring and managing intelligent vehicle traffic. Tracks routes, devices (cameras, sensors, traffic lights, controllers), traffic reports, and system settings.
 
 ## Project Structure
 

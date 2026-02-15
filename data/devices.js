@@ -1,5 +1,5 @@
 /**
- * Route and device data for TC Manager (RAHSAM).
+ * Route and device data for TC Manager (Sistan Akbari).
  */
 
 var ROUTE_DATA = [
