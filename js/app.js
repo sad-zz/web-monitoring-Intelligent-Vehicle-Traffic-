@@ -1,6 +1,62 @@
 (function () {
     "use strict";
 
+    // ============================================================
+    // Authentication
+    // ============================================================
+    var loginOverlay = document.getElementById("login-overlay");
+    var loginForm = document.getElementById("login-form");
+    var loginError = document.getElementById("login-error");
+
+    function checkAuth() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/api/auth/check", true);
+        xhr.withCredentials = true;
+        xhr.onload = function () {
+            var data = JSON.parse(xhr.responseText);
+            if (data.loggedIn) {
+                loginOverlay.classList.add("hidden");
+                var userEl = document.getElementById("topbar-user");
+                if (userEl) userEl.textContent = data.username;
+                var nameEl = document.querySelector(".user-name");
+                if (nameEl) nameEl.textContent = data.username;
+            } else {
+                loginOverlay.classList.remove("hidden");
+            }
+        };
+        xhr.onerror = function () { loginOverlay.classList.remove("hidden"); };
+        xhr.send();
+    }
+
+    if (loginForm) {
+        loginForm.addEventListener("submit", function (e) {
+            e.preventDefault();
+            var user = document.getElementById("login-user").value;
+            var pass = document.getElementById("login-pass").value;
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "/api/auth/login", true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.withCredentials = true;
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    loginOverlay.classList.add("hidden");
+                    loginError.style.display = "none";
+                    var data = JSON.parse(xhr.responseText);
+                    var userEl = document.getElementById("topbar-user");
+                    if (userEl) userEl.textContent = data.username;
+                    var nameEl = document.querySelector(".user-name");
+                    if (nameEl) nameEl.textContent = data.username;
+                } else {
+                    loginError.textContent = "نام کاربری یا رمز عبور اشتباه است";
+                    loginError.style.display = "block";
+                }
+            };
+            xhr.send(JSON.stringify({ username: user, password: pass }));
+        });
+    }
+
+    checkAuth();
+
     // --- Data copies ---
     var routes = JSON.parse(JSON.stringify(ROUTE_DATA));
     var devices = JSON.parse(JSON.stringify(DEVICE_DATA));
@@ -454,6 +510,57 @@
 
     $("#btn-save-alerts").addEventListener("click", function () {
         alert("تنظیمات هشدار ذخیره شد.");
+    });
+
+    // --- Change Password ---
+    $("#btn-change-pass").addEventListener("click", function () {
+        var oldP = $("#setting-old-pass").value;
+        var newP = $("#setting-new-pass").value;
+        if (!oldP || !newP) { alert("لطفا هر دو فیلد را پر کنید"); return; }
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/auth/change-password", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.withCredentials = true;
+        xhr.onload = function () {
+            var r = JSON.parse(xhr.responseText);
+            if (xhr.status === 200) { alert("رمز عبور تغییر کرد"); $("#setting-old-pass").value = ""; $("#setting-new-pass").value = ""; }
+            else alert(r.error || "خطا");
+        };
+        xhr.send(JSON.stringify({ old_password: oldP, new_password: newP }));
+    });
+
+    // --- Logout ---
+    $("#btn-logout").addEventListener("click", function () {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/auth/logout", true);
+        xhr.withCredentials = true;
+        xhr.onload = function () { loginOverlay.classList.remove("hidden"); };
+        xhr.send();
+    });
+
+    // --- Backup Download ---
+    $("#btn-backup-download").addEventListener("click", function () {
+        window.location.href = "/api/backup/download";
+    });
+
+    // --- Backup Restore ---
+    $("#btn-backup-restore").addEventListener("click", function () {
+        var fileInput = $("#backup-file");
+        if (!fileInput.files || !fileInput.files[0]) { alert("لطفا فایل پشتیبان را انتخاب کنید"); return; }
+        var formData = new FormData();
+        formData.append("backup", fileInput.files[0]);
+        var statusEl = $("#backup-status");
+        statusEl.textContent = "در حال آپلود...";
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/backup/restore", true);
+        xhr.withCredentials = true;
+        xhr.onload = function () {
+            var r = JSON.parse(xhr.responseText);
+            if (xhr.status === 200) { statusEl.textContent = r.message || "بازیابی انجام شد"; statusEl.style.color = "#22c55e"; }
+            else { statusEl.textContent = r.error || "خطا در بازیابی"; statusEl.style.color = "#ef4444"; }
+        };
+        xhr.onerror = function () { statusEl.textContent = "خطا در ارتباط با سرور"; statusEl.style.color = "#ef4444"; };
+        xhr.send(formData);
     });
 
     // ============================================================

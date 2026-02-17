@@ -8,6 +8,29 @@
 </head>
 <body>
 
+    <!-- Login Page -->
+    <div class="login-overlay" id="login-overlay">
+        <div class="login-box">
+            <div class="login-logo">
+                <div class="logo-icon" style="width:56px;height:56px;font-size:22px;margin:0 auto 12px">TC</div>
+                <h2>سیستان اکبری</h2>
+                <p>سامانه مدیریت ترافیک هوشمند</p>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label>نام کاربری</label>
+                    <input type="text" id="login-user" required dir="ltr" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>رمز عبور</label>
+                    <input type="password" id="login-pass" required dir="ltr" autocomplete="current-password">
+                </div>
+                <div id="login-error" style="color:#ef4444;font-size:13px;margin-bottom:12px;display:none"></div>
+                <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">ورود</button>
+            </form>
+        </div>
+    </div>
+
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -66,6 +89,7 @@
             <div class="topbar-left">
                 <span class="topbar-time" id="topbar-time"></span>
                 <span class="topbar-badge online">متصل</span>
+                <span class="topbar-user-name" id="topbar-user" style="font-size:12px;color:#64748b"></span>
             </div>
         </header>
 
@@ -345,11 +369,46 @@
 
                     <div class="panel">
                         <div class="panel-header">
+                            <h3 class="panel-title">تغییر رمز عبور</h3>
+                        </div>
+                        <div class="panel-body">
+                            <div class="form-group">
+                                <label>رمز عبور فعلی</label>
+                                <input type="password" id="setting-old-pass" dir="ltr">
+                            </div>
+                            <div class="form-group">
+                                <label>رمز عبور جدید</label>
+                                <input type="password" id="setting-new-pass" dir="ltr">
+                            </div>
+                            <button class="btn btn-primary" id="btn-change-pass">تغییر رمز</button>
+                            <button class="btn btn-danger" id="btn-logout" style="margin-right:8px">خروج از حساب</button>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3 class="panel-title">پشتیبان‌گیری و بازیابی</h3>
+                        </div>
+                        <div class="panel-body">
+                            <div class="form-group">
+                                <button class="btn btn-primary" id="btn-backup-download">دانلود پشتیبان دیتابیس</button>
+                            </div>
+                            <div class="form-group">
+                                <label>بازیابی از فایل (.db یا .sql.gz)</label>
+                                <input type="file" id="backup-file" accept=".db,.sql,.gz,.sql.gz" style="margin-top:6px">
+                            </div>
+                            <button class="btn btn-danger" id="btn-backup-restore">آپلود و بازیابی</button>
+                            <div id="backup-status" style="margin-top:12px;font-size:13px;color:#475569"></div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
                             <h3 class="panel-title">درباره سامانه</h3>
                         </div>
                         <div class="panel-body about-info">
                             <p><strong>سامانه سیستان اکبری</strong></p>
-                            <p>نسخه: <span dir="ltr">1.0.0</span></p>
+                            <p>نسخه: <span dir="ltr">1.1.0</span></p>
                             <p>سامانه مدیریت و پایش ترافیک هوشمند</p>
                             <p>مدیریت دستگاه‌های کنترل ترافیک شامل دوربین، سنسور، چراغ راهنمایی و کنترلر</p>
                         </div>
