@@ -129,7 +129,51 @@ db.exec([
     "CREATE INDEX IF NOT EXISTS idx_traffic_time ON traffic_data(timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_rmto_unsent ON rmto_queue(sent, device_code);",
     "CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto8_unsent ON rmto_queue_8class(sent, device_code);"
+    "CREATE INDEX IF NOT EXISTS idx_rmto8_unsent ON rmto_queue_8class(sent, device_code);",
+
+    // irawdata table - matches iccore device_irawdata format
+    "CREATE TABLE IF NOT EXISTS irawdata (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  device_code TEXT NOT NULL,",
+    "  create_at TEXT NOT NULL,",
+    "  stop TEXT NOT NULL,",
+    "  lane INTEGER DEFAULT 1,",
+    "  is_read INTEGER DEFAULT 0,",
+    "  a INTEGER DEFAULT 0,",
+    "  b INTEGER DEFAULT 0,",
+    "  c INTEGER DEFAULT 0,",
+    "  d INTEGER DEFAULT 0,",
+    "  e INTEGER DEFAULT 0,",
+    "  x INTEGER DEFAULT 0,",
+    "  sa INTEGER DEFAULT 0,",
+    "  sb INTEGER DEFAULT 0,",
+    "  sc INTEGER DEFAULT 0,",
+    "  sd INTEGER DEFAULT 0,",
+    "  se INTEGER DEFAULT 0,",
+    "  sx INTEGER DEFAULT 0,",
+    "  sao INTEGER DEFAULT 0,",
+    "  sbo INTEGER DEFAULT 0,",
+    "  sco INTEGER DEFAULT 0,",
+    "  sdo INTEGER DEFAULT 0,",
+    "  seo INTEGER DEFAULT 0,",
+    "  sxo INTEGER DEFAULT 0,",
+    "  overtaking INTEGER DEFAULT 0,",
+    "  tooclose INTEGER DEFAULT 0,",
+    "  received_at TEXT DEFAULT (datetime('now'))",
+    ");",
+
+    // Mehvar (routes) table
+    "CREATE TABLE IF NOT EXISTS mehvar (",
+    "  code INTEGER PRIMARY KEY,",
+    "  name TEXT NOT NULL,",
+    "  send_enable INTEGER DEFAULT 1,",
+    "  repair INTEGER DEFAULT 0,",
+    "  ostan TEXT",
+    ");",
+
+    "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
+    "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
+    "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);"
 ].join("\n"));
 
 module.exports = db;

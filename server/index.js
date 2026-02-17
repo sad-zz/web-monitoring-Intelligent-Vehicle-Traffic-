@@ -124,13 +124,13 @@ app.use(express.static(path.join(__dirname, "..")));
 // ============================================================
 app.post("/api/data", function (req, res) {
     var b = req.body;
-    var code = b.device_code;
+    var code = String(b.device_code || b.device_id || b.code || "");
 
-    if (!code || !/^\d{4}$/.test(code)) {
-        return res.status(400).json({ error: "4-digit device_code required" });
+    if (!code || !/^\d+$/.test(code)) {
+        return res.status(400).json({ error: "device_code required" });
     }
 
-    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
+    autoRegisterDevice(code);
 
     var insert = db.prepare(
         "INSERT INTO traffic_data (device_code, timestamp, vehicle_class, speed, direction, lane, raw_payload) " +
@@ -138,7 +138,6 @@ app.post("/api/data", function (req, res) {
     );
 
     var count = 0;
-
     if (b.records && Array.isArray(b.records)) {
         var insertMany = db.transaction(function (records) {
             records.forEach(function (r) {
@@ -151,9 +150,61 @@ app.post("/api/data", function (req, res) {
         insert.run(code, b.timestamp || new Date().toISOString(), b.vehicle_class || 0, b.speed || 0, b.direction || 1, b.lane || 1, JSON.stringify(b));
         count = 1;
     }
-
     res.json({ success: true, received: count });
 });
+
+/**
+ * POST /api/irawdata - iccore format (5-class vehicle + speed)
+ * Body: { device_id, create_at, stop, lane, a,b,c,d,e,x, sa..sx, sao..sxo, overtaking, tooclose }
+ * Or batch: { device_id, records: [{...}, ...] }
+ * Vehicle: a=motorcycle b=car c=van d=bus e=truck x=unknown
+ * Speed: sa..sx = sum of speeds per class
+ * Violations: sao..sxo = over-speed count per class
+ */
+app.post("/api/irawdata", function (req, res) {
+    var b = req.body;
+    var code = String(b.device_id || b.device_code || b.code || "");
+    if (!code || !/^\d+$/.test(code)) return res.status(400).json({ error: "device_id required" });
+
+    autoRegisterDevice(code);
+
+    var insertRaw = db.prepare(
+        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    var insertTraffic = db.prepare(
+        "INSERT INTO traffic_data (device_code, timestamp, vehicle_class, speed, direction, lane, raw_payload) VALUES (?, ?, ?, ?, 1, ?, ?)"
+    );
+
+    var count = 0;
+    function insertOne(r) {
+        var now = new Date().toISOString();
+        var ca = r.create_at || r.start || now;
+        var st = r.stop || r.end || now;
+        var ln = r.lane || 1;
+        insertRaw.run(code, ca, st, ln, r.a||0, r.b||0, r.c||0, r.d||0, r.e||0, r.x||0, r.sa||0, r.sb||0, r.sc||0, r.sd||0, r.se||0, r.sx||0, r.sao||0, r.sbo||0, r.sco||0, r.sdo||0, r.seo||0, r.sxo||0, r.overtaking||0, r.tooclose||0);
+        count++;
+        // Also store in traffic_data for RMTO aggregation
+        var classes = [{cls:1,n:r.a||0,s:r.sa||0},{cls:2,n:r.b||0,s:r.sb||0},{cls:3,n:r.c||0,s:r.sc||0},{cls:4,n:r.d||0,s:r.sd||0},{cls:5,n:r.e||0,s:r.se||0}];
+        classes.forEach(function(c){ if(c.n>0) insertTraffic.run(code, ca, c.cls, c.s/c.n, ln, JSON.stringify(r)); });
+    }
+
+    if (b.records && Array.isArray(b.records)) {
+        db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+    } else {
+        insertOne(b);
+    }
+    res.json({ success: true, received: count });
+});
+
+// Auto-register unknown devices
+function autoRegisterDevice(code) {
+    var existing = db.prepare("SELECT device_code FROM devices WHERE device_code = ?").get(code);
+    if (!existing) {
+        try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'sensor', 'online')").run(code, "Device " + code); } catch(e){}
+    }
+    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
+}
 
 // ============================================================
 // All API below requires authentication
