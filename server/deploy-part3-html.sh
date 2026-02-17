@@ -1,0 +1,137 @@
+#!/bin/bash
+# Part 3: Deploy index.html
+set -e
+cd /opt/tc-manager
+
+echo "=== Deploying index.html ==="
+
+cat > index.html << 'ENDFILE'
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه سیستان اکبری - مدیریت ترافیک هوشمند</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <div class="logo-icon">TC</div>
+                <div class="logo-text">
+                    <span class="logo-title">سیستان اکبری</span>
+                    <span class="logo-sub">سامانه مدیریت ترافیک</span>
+                </div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-item active" data-view="home">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h1v7c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7h1a1 1 0 0 0 .7-1.7l-9-9a1 1 0 0 0-1.4 0l-9 9A1 1 0 0 0 3 13zm7 7v-5h4v5h-4zm2-15.6 7 7V20h-3v-5c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v5H5v-8.6l7-7z"/></svg>
+                <span>خانه</span>
+            </button>
+            <button class="nav-item" data-view="routes">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 15l-6 6-1.4-1.4L15.2 16H4v-2h11.2l-3.6-3.6L13 9l6 6zM5 9l6-6 1.4 1.4L8.8 8H20v2H8.8l3.6 3.6L11 15 5 9z"/></svg>
+                <span>محورها</span>
+            </button>
+            <button class="nav-item" data-view="devices">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+                <span>دستگاه‌ها</span>
+            </button>
+            <button class="nav-item" data-view="reports">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
+                <span>گزارشات</span>
+            </button>
+            <button class="nav-item" data-view="settings">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
+                <span>تنظیمات</span>
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user">
+                <div class="user-avatar">ا</div>
+                <div class="user-info">
+                    <span class="user-name">اپراتور سیستم</span>
+                    <span class="user-role">مدیر</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+    <div class="main-wrapper">
+        <header class="topbar">
+            <button class="topbar-toggle" id="sidebar-toggle">
+                <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </button>
+            <div class="topbar-title" id="topbar-title">خانه</div>
+            <div class="topbar-left">
+                <span class="topbar-time" id="topbar-time"></span>
+                <span class="topbar-badge online">متصل</span>
+            </div>
+        </header>
+        <main class="content">
+            <section class="view active" id="view-home">
+                <div class="stats-row">
+                    <div class="stat-card"><div class="stat-icon blue"><svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg></div><div class="stat-body"><div class="stat-value" id="stat-total-vehicles">0</div><div class="stat-label">کل خودروهای عبوری</div></div></div>
+                    <div class="stat-card"><div class="stat-icon green"><svg viewBox="0 0 24 24"><path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/></svg></div><div class="stat-body"><div class="stat-value" id="stat-avg-speed">0</div><div class="stat-label">سرعت متوسط (km/h)</div></div></div>
+                    <div class="stat-card"><div class="stat-icon orange"><svg viewBox="0 0 24 24"><path d="M23 8c0 1.1-.9 2-2 2-.18 0-.35-.02-.51-.07l-3.56 3.55c.05.16.07.34.07.52 0 1.1-.9 2-2 2s-2-.9-2-2c0-.18.02-.36.07-.52l-2.55-2.55c-.16.05-.34.07-.52.07s-.36-.02-.52-.07l-4.55 4.56c.05.16.07.33.07.51 0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2c.18 0 .35.02.51.07l4.56-4.55C8.02 9.36 8 9.18 8 9c0-1.1.9-2 2-2s2 .9 2 2c0 .18-.02.36-.07.52l2.55 2.55c.16-.05.34-.07.52-.07s.36.02.52.07l3.55-3.56C19.02 8.35 19 8.18 19 8c0-1.1.9-2 2-2s2 .9 2 2z"/></svg></div><div class="stat-body"><div class="stat-value" id="stat-active-routes">0</div><div class="stat-label">محورهای فعال</div></div></div>
+                    <div class="stat-card"><div class="stat-icon red"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></div><div class="stat-body"><div class="stat-value" id="stat-errors">0</div><div class="stat-label">خطاها</div></div></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">آخرین اطلاعات</h3>
+                        <div class="panel-tools">
+                            <div class="export-btns"><button class="export-btn" data-action="copy">کپی</button><button class="export-btn" data-action="csv">CSV</button><button class="export-btn" data-action="excel">اکسل</button><button class="export-btn" data-action="pdf">PDF</button><button class="export-btn" data-action="print">چاپ</button></div>
+                            <div class="search-box"><label>جستجو:</label><input type="text" id="home-search" class="search-input" placeholder=""></div>
+                        </div>
+                    </div>
+                    <div class="table-wrapper"><table class="data-table" id="home-table"><thead><tr><th data-sort="name">نام محور</th><th data-sort="lastUpdate">آخرین اطلاعات</th><th data-sort="totalVehicles">کل خودروهای عبوری</th><th data-sort="avgSpeed">سرعت متوسط کل</th><th data-sort="errors">خطا</th></tr></thead><tbody id="home-table-body"></tbody></table></div>
+                    <div class="table-footer"><div class="table-info" id="home-table-info"></div><div class="pagination" id="home-pagination"></div></div>
+                </div>
+            </section>
+            <section class="view" id="view-routes">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">مدیریت محورها</h3>
+                        <div class="panel-tools"><button class="btn btn-primary" id="btn-add-route">+ محور جدید</button><div class="search-box"><label>جستجو:</label><input type="text" id="routes-search" class="search-input"></div></div>
+                    </div>
+                    <div class="table-wrapper"><table class="data-table" id="routes-table"><thead><tr><th>ردیف</th><th data-sort="name">نام محور</th><th data-sort="origin">مبدأ</th><th data-sort="destination">مقصد</th><th data-sort="length">طول (km)</th><th data-sort="deviceCount">تعداد دستگاه</th><th data-sort="status">وضعیت</th><th>عملیات</th></tr></thead><tbody id="routes-table-body"></tbody></table></div>
+                    <div class="table-footer"><div class="table-info" id="routes-table-info"></div><div class="pagination" id="routes-pagination"></div></div>
+                </div>
+            </section>
+            <section class="view" id="view-devices">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">مدیریت دستگاه‌ها</h3>
+                        <div class="panel-tools"><button class="btn btn-primary" id="btn-add-device">+ دستگاه جدید</button><div class="export-btns"><button class="export-btn" data-action="csv" data-target="devices">CSV</button><button class="export-btn" data-action="excel" data-target="devices">اکسل</button></div><div class="search-box"><label>جستجو:</label><input type="text" id="devices-search" class="search-input"></div></div>
+                    </div>
+                    <div class="table-wrapper"><table class="data-table" id="devices-table"><thead><tr><th>ردیف</th><th data-sort="deviceCode">کد دستگاه</th><th data-sort="name">نام دستگاه</th><th data-sort="type">نوع</th><th data-sort="route">محور</th><th data-sort="ip">آدرس IP</th><th data-sort="status">وضعیت</th><th data-sort="lastSeen">آخرین اتصال</th><th>عملیات</th></tr></thead><tbody id="devices-table-body"></tbody></table></div>
+                    <div class="table-footer"><div class="table-info" id="devices-table-info"></div><div class="pagination" id="devices-pagination"></div></div>
+                </div>
+            </section>
+            <section class="view" id="view-reports">
+                <div class="report-filters"><div class="filter-group"><label>محور:</label><select id="report-route"><option value="">همه محورها</option></select></div><div class="filter-group"><label>از تاریخ:</label><input type="date" id="report-from"></div><div class="filter-group"><label>تا تاریخ:</label><input type="date" id="report-to"></div><button class="btn btn-primary" id="btn-generate-report">نمایش گزارش</button></div>
+                <div class="panel">
+                    <div class="panel-header"><h3 class="panel-title">گزارش ترافیک</h3><div class="panel-tools"><div class="export-btns"><button class="export-btn" data-action="csv" data-target="report">CSV</button><button class="export-btn" data-action="excel" data-target="report">اکسل</button><button class="export-btn" data-action="pdf" data-target="report">PDF</button><button class="export-btn" data-action="print" data-target="report">چاپ</button></div></div></div>
+                    <div class="table-wrapper"><table class="data-table" id="report-table"><thead><tr><th>تاریخ</th><th>محور</th><th>تعداد خودرو</th><th>سرعت متوسط</th><th>حداکثر سرعت</th><th>تخلفات</th></tr></thead><tbody id="report-table-body"></tbody></table></div>
+                    <div class="table-footer"><div class="table-info" id="report-table-info"></div><div class="pagination" id="report-pagination"></div></div>
+                </div>
+            </section>
+            <section class="view" id="view-settings">
+                <div class="settings-grid">
+                    <div class="panel"><div class="panel-header"><h3 class="panel-title">تنظیمات عمومی</h3></div><div class="panel-body"><div class="form-group"><label>نام سامانه</label><input type="text" id="setting-name" value="سیستان اکبری"></div><div class="form-group"><label>آدرس سرور</label><input type="text" id="setting-server" value="192.168.1.1" dir="ltr"></div><div class="form-group"><label>زمان بروزرسانی (ثانیه)</label><input type="number" id="setting-refresh" value="30" dir="ltr"></div><div class="form-group"><label>حداکثر سرعت مجاز (km/h)</label><input type="number" id="setting-max-speed" value="120" dir="ltr"></div><button class="btn btn-primary" id="btn-save-settings">ذخیره تنظیمات</button></div></div>
+                    <div class="panel"><div class="panel-header"><h3 class="panel-title">تنظیمات هشدار</h3></div><div class="panel-body"><div class="form-group"><label class="toggle-label"><input type="checkbox" id="setting-alert-offline" checked><span>هشدار قطع ارتباط دستگاه</span></label></div><div class="form-group"><label class="toggle-label"><input type="checkbox" id="setting-alert-speed" checked><span>هشدار سرعت غیرمجاز</span></label></div><div class="form-group"><label class="toggle-label"><input type="checkbox" id="setting-alert-error" checked><span>هشدار خطای دستگاه</span></label></div><div class="form-group"><label>حداکثر زمان قطعی (دقیقه)</label><input type="number" id="setting-timeout" value="5" dir="ltr"></div><button class="btn btn-primary" id="btn-save-alerts">ذخیره تنظیمات</button></div></div>
+                    <div class="panel"><div class="panel-header"><h3 class="panel-title">درباره سامانه</h3></div><div class="panel-body about-info"><p><strong>سامانه سیستان اکبری</strong></p><p>نسخه: <span dir="ltr">1.0.0</span></p><p>سامانه مدیریت و پایش ترافیک هوشمند</p><p>مدیریت دستگاه‌های کنترل ترافیک شامل دوربین، سنسور، چراغ راهنمایی و کنترلر</p></div></div>
+                </div>
+            </section>
+        </main>
+        <footer class="footer"><div class="footer-right">سامانه سیستان اکبری - مدیریت ترافیک هوشمند &copy; ۱۴۰۴</div><div class="footer-left"><span class="footer-status" id="footer-device-count">0 دستگاه فعال</span></div></footer>
+    </div>
+    <div class="modal-overlay" id="modal-overlay"><div class="modal"><div class="modal-header"><h3 id="modal-title">جزئیات</h3><button class="modal-close" id="modal-close">&times;</button></div><div class="modal-body" id="modal-body"></div><div class="modal-footer" id="modal-footer"><button class="btn btn-secondary" id="modal-cancel">بستن</button><button class="btn btn-primary" id="modal-save" style="display:none;">ذخیره</button></div></div></div>
+    <div class="modal-overlay" id="add-modal-overlay"><div class="modal"><div class="modal-header"><h3 id="add-modal-title">افزودن</h3><button class="modal-close" id="add-modal-close">&times;</button></div><div class="modal-body" id="add-modal-body"></div><div class="modal-footer"><button class="btn btn-secondary" id="add-modal-cancel">انصراف</button><button class="btn btn-primary" id="add-modal-save">ذخیره</button></div></div></div>
+    <script src="data/devices.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+ENDFILE
+
+echo "=== Part 3 done: index.html deployed ==="
