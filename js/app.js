@@ -300,6 +300,7 @@
             var routeName = routeObj ? routeObj.name : d.route;
             return "<tr>" +
                 "<td>" + (start + i + 1) + "</td>" +
+                '<td style="direction:ltr;text-align:right;font-weight:700">' + escapeHtml(d.deviceCode || "-") + "</td>" +
                 "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
                 '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
                 "<td>" + escapeHtml(routeName) + "</td>" +
@@ -354,6 +355,7 @@
         $("#modal-body").innerHTML =
             '<div class="detail-grid">' +
                 '<div class="detail-item"><span class="detail-label">شناسه</span><span class="detail-value">' + escapeHtml(d.id) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">کد دستگاه (۴ رقمی)</span><span class="detail-value" style="direction:ltr;font-weight:700;font-size:18px;color:#3b82f6">' + escapeHtml(d.deviceCode || "-") + '</span></div>' +
                 '<div class="detail-item"><span class="detail-label">نوع</span><span class="detail-value">' + escapeHtml(TYPE_LABELS[d.type]) + '</span></div>' +
                 '<div class="detail-item"><span class="detail-label">محور</span><span class="detail-value">' + escapeHtml(routeName) + '</span></div>' +
                 '<div class="detail-item"><span class="detail-label">آدرس IP</span><span class="detail-value" dir="ltr">' + escapeHtml(d.ip) + '</span></div>' +
@@ -373,6 +375,7 @@
 
         $("#add-modal-body").innerHTML =
             '<form id="add-device-form">' +
+                '<div class="form-group"><label>کد دستگاه (۴ رقمی)</label><input type="text" id="new-dev-code" maxlength="4" pattern="\\d{4}" dir="ltr" placeholder="مثال: 1001" required></div>' +
                 '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" required></div>' +
                 '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
                     '<option value="camera">دوربین</option>' +
@@ -483,9 +486,12 @@
             $("#add-modal-overlay").classList.remove("active");
             renderRouteTable();
         } else if (currentAddMode === "device") {
+            var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
             var ip = ($("#new-dev-ip") || {}).value;
+            if (!dcode || !/^\d{4}$/.test(dcode)) { alert("کد دستگاه باید ۴ رقمی باشد"); return; }
             if (!dname || !dname.trim() || !ip || !ip.trim()) { alert("لطفا نام و IP را وارد کنید"); return; }
+            if (devices.some(function (d) { return d.deviceCode === dcode; })) { alert("کد دستگاه تکراری است"); return; }
             var type = ($("#new-dev-type") || {}).value || "camera";
             var prefix = { camera: "CAM", sensor: "SEN", "traffic-light": "TL", controller: "CTR" }[type] || "DEV";
             var dmax = 0;
@@ -497,6 +503,7 @@
             });
             devices.push({
                 id: prefix + "-" + String(dmax + 1).padStart(3, "0"),
+                deviceCode: dcode,
                 name: dname.trim(),
                 type: type,
                 route: ($("#new-dev-route") || {}).value || "",
