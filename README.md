@@ -11,6 +11,27 @@
 
 ---
 
+---
+
+## 🚀 Quick Deploy | دیپلوی سریع
+
+### Deploy to Railway (5 minutes | 5 دقیقه)
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/web-monitoring-intelligent-vehicle-traffic)
+
+**یا:**
+
+1. Fork کنید این repo را
+2. به [Railway.app](https://railway.app) بروید
+3. New Project → Deploy from GitHub
+4. این repo را انتخاب کنید
+5. PostgreSQL اضافه کنید
+6. Variables را تنظیم کنید
+
+📖 [راهنمای کامل Railway](RAILWAY-QUICKSTART.md) | [راهنمای تست](docs/RAILWAY-TEST-GUIDE.md)
+
+---
+
 ## 🚀 Features | امکانات
 
 <div dir="rtl">
