@@ -214,6 +214,31 @@ app.use("/api/stats", requireAuth);
 app.use("/api/rmto", requireAuth);
 app.use("/api/traffic", requireAuth);
 app.use("/api/backup", requireAuth);
+app.use("/api/settings", requireAuth);
+
+// ============================================================
+// API: Settings
+// ============================================================
+app.get("/api/settings", function (req, res) {
+    var rows = db.prepare("SELECT key, value FROM settings").all();
+    var settings = {};
+    rows.forEach(function (r) { settings[r.key] = r.value; });
+    res.json(settings);
+});
+
+app.post("/api/settings", function (req, res) {
+    var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
+    var b = req.body;
+    var allowed = ["system_name", "server_ip", "server_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout"];
+    var updated = 0;
+    allowed.forEach(function (k) {
+        if (b[k] !== undefined) {
+            upsert.run(k, String(b[k]), String(b[k]));
+            updated++;
+        }
+    });
+    res.json({ success: true, updated: updated });
+});
 
 // ============================================================
 // API: Device Management
@@ -310,6 +335,106 @@ app.get("/api/traffic", function (req, res) {
 });
 
 // ============================================================
+// PostgreSQL Dump Importer
+// ============================================================
+function importPostgresDump(filePath) {
+    var zlib = require("zlib");
+    var raw;
+    if (filePath.endsWith(".gz")) {
+        raw = zlib.gunzipSync(fs.readFileSync(filePath)).toString("utf8");
+    } else {
+        raw = fs.readFileSync(filePath, "utf8");
+    }
+
+    var stats = { devices: 0, irawdata: 0, mehvar: 0 };
+    var lines = raw.split("\n");
+    var copyMode = null;
+    var copyColumns = [];
+
+    var insertDevice = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'offline')");
+    var insertIraw = db.prepare(
+        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    var insertMehvar = db.prepare("INSERT OR IGNORE INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)");
+
+    var importTx = db.transaction(function () {
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+
+            // Detect COPY ... FROM stdin
+            if (line.indexOf("COPY ") === 0 && line.indexOf("FROM stdin") !== -1) {
+                var match = line.match(/COPY\s+(\S+)\s*\(([^)]+)\)/);
+                if (match) {
+                    var tableName = match[1].replace(/^public\./, "");
+                    copyColumns = match[2].split(",").map(function (c) { return c.trim(); });
+                    if (tableName === "device_device" || tableName === "device_irawdata" || tableName === "device_mehvar") {
+                        copyMode = tableName;
+                    } else {
+                        copyMode = null;
+                    }
+                }
+                continue;
+            }
+
+            // End of COPY block
+            if (line === "\\." || line === "\\.") {
+                copyMode = null;
+                copyColumns = [];
+                continue;
+            }
+
+            if (!copyMode) continue;
+
+            var vals = line.split("\t");
+            if (vals.length < 2) continue;
+
+            function colVal(name) {
+                var idx = copyColumns.indexOf(name);
+                if (idx === -1) return null;
+                var v = vals[idx];
+                return (v === "\\N" || v === undefined) ? null : v;
+            }
+
+            if (copyMode === "device_device") {
+                var devCode = colVal("code");
+                if (devCode) {
+                    insertDevice.run(String(devCode), "Device " + devCode);
+                    stats.devices++;
+                }
+            } else if (copyMode === "device_irawdata") {
+                var devId = colVal("device_id");
+                var createAt = colVal("create_at") || new Date().toISOString();
+                var stop = colVal("stop") || createAt;
+                if (devId) {
+                    insertIraw.run(String(devId), createAt, stop,
+                        parseInt(colVal("lane")) || 1, parseInt(colVal("is_read")) || 0,
+                        parseInt(colVal("a")) || 0, parseInt(colVal("b")) || 0, parseInt(colVal("c")) || 0,
+                        parseInt(colVal("d")) || 0, parseInt(colVal("e")) || 0, parseInt(colVal("x")) || 0,
+                        parseInt(colVal("sa")) || 0, parseInt(colVal("sb")) || 0, parseInt(colVal("sc")) || 0,
+                        parseInt(colVal("sd")) || 0, parseInt(colVal("se")) || 0, parseInt(colVal("sx")) || 0,
+                        parseInt(colVal("sao")) || 0, parseInt(colVal("sbo")) || 0, parseInt(colVal("sco")) || 0,
+                        parseInt(colVal("sdo")) || 0, parseInt(colVal("seo")) || 0, parseInt(colVal("sxo")) || 0,
+                        parseInt(colVal("overtaking")) || 0, parseInt(colVal("tooclose")) || 0);
+                    stats.irawdata++;
+                }
+            } else if (copyMode === "device_mehvar") {
+                var mCode = colVal("code");
+                var mName = colVal("name");
+                if (mCode && mName) {
+                    insertMehvar.run(parseInt(mCode), mName, parseInt(colVal("send_enable")) || 1, parseInt(colVal("repair")) || 0, colVal("ostan_id") || "");
+                    stats.mehvar++;
+                }
+            }
+        }
+    });
+
+    importTx();
+    console.log("[Backup] Imported from PostgreSQL dump:", JSON.stringify(stats));
+    return stats;
+}
+
+// ============================================================
 // API: Backup & Restore
 // ============================================================
 
@@ -343,15 +468,16 @@ app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
             // Re-require db (Node caches modules, so we need to clear)
             delete require.cache[require.resolve("./db")];
             res.json({ success: true, message: "بازیابی انجام شد. سرویس باید ریستارت شود." });
-        } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz")) {
-            // SQL dump - save for processing
+        } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz") || origName.endsWith(".sql")) {
+            // PostgreSQL dump - decompress and parse
             var destPath = path.join(__dirname, "uploads", origName);
             fs.renameSync(tmpPath, destPath);
-            res.json({ success: true, message: "فایل آپلود شد: " + origName + " - نیاز به پردازش دستی دارد.", path: destPath });
-        } else if (origName.endsWith(".sql")) {
-            var destPath2 = path.join(__dirname, "uploads", origName);
-            fs.renameSync(tmpPath, destPath2);
-            res.json({ success: true, message: "فایل SQL آپلود شد: " + origName, path: destPath2 });
+            try {
+                var result = importPostgresDump(destPath);
+                res.json({ success: true, message: "بازیابی انجام شد. " + result.devices + " دستگاه و " + result.irawdata + " رکورد داده وارد شد.", details: result });
+            } catch (parseErr) {
+                res.json({ success: true, message: "فایل ذخیره شد ولی پردازش خودکار با خطا مواجه شد: " + parseErr.message, path: destPath });
+            }
         } else {
             fs.unlinkSync(tmpPath);
             return res.status(400).json({ error: "فرمت فایل پشتیبانی نمی‌شود. از .db یا .sql.gz استفاده کنید" });

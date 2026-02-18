@@ -1,1011 +1,27 @@
 #!/bin/bash
-# TC Manager - Complete Deployment Script (Noavaran Jonoob Shargh)
-# Usage: scp deploy-all.sh root@SERVER:/tmp/ && ssh root@SERVER bash /tmp/deploy-all.sh
+# =============================================================
+# TC Manager - Full Deployment Script
+# Noavaran Jonoob Shargh (نوآوران جنوب شرق)
+# Auto-generated deploy script - embeds ALL source files
+# =============================================================
 set -e
 
-BASE="/opt/tc-manager"
-echo "============================================"
-echo "  TC Manager - Full Deployment"
-echo "  Target: $BASE"
-echo "============================================"
-
-mkdir -p "$BASE/server/uploads"
-mkdir -p "$BASE/css"
-mkdir -p "$BASE/js"
-mkdir -p "$BASE/data"
-
-echo "[1/10] Writing server/package.json ..."
-cat > "$BASE/server/package.json" << 'ENDFILE_1'
-{
-  "name": "tc-manager-server",
-  "version": "1.0.0",
-  "description": "TC Manager - Backend server for traffic device data collection and RMTO integration",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "better-sqlite3": "^9.4.3",
-    "soap": "^1.0.0",
-    "node-cron": "^3.0.3",
-    "dotenv": "^16.4.1",
-    "express-session": "^1.17.3",
-    "multer": "^1.4.5-lts.1",
-    "bcryptjs": "^2.4.3"
-  }
-}
-ENDFILE_1
-
-echo "[2/10] Writing server/.env.example ..."
-cat > "$BASE/server/.env.example" << 'ENDFILE_2'
-# Server
-PORT=3000
-HOST=0.0.0.0
-
-# RMTO (OTF) SOAP Web Service
-RMTO_WSDL=http://otf.rmto.ir/Companies/Companies.asmx?WSDL
-RMTO_ENDPOINT=http://otf.rmto.ir/Companies/Companies.asmx
-RMTO_COMPANY_CODE=58
-RMTO_USERNAME=NOGSH
-RMTO_PASSWORD=CHANGE_ME_HERE
-
-# Data send interval (minutes)
-SEND_INTERVAL_MINUTES=15
-ENDFILE_2
-
-echo "[3/10] Writing server/db.js ..."
-cat > "$BASE/server/db.js" << 'ENDFILE_3'
-/**
- * Database module - SQLite via better-sqlite3
- * Stores devices, traffic data, and send logs.
- */
-var Database = require("better-sqlite3");
-var path = require("path");
-
-var DB_PATH = path.join(__dirname, "data.db");
-var db = new Database(DB_PATH);
-
-// Enable WAL mode for better concurrent read performance
-db.pragma("journal_mode = WAL");
-
-// --- Schema ---
-db.exec([
-    // Devices: each has a unique 4-digit code
-    "CREATE TABLE IF NOT EXISTS devices (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL UNIQUE,",
-    "  name TEXT NOT NULL,",
-    "  type TEXT NOT NULL DEFAULT 'sensor',",
-    "  route TEXT,",
-    "  ip TEXT,",
-    "  status TEXT NOT NULL DEFAULT 'offline',",
-    "  last_seen TEXT,",
-    "  firmware TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
-    ");",
-
-    // Raw traffic data received from devices
-    "CREATE TABLE IF NOT EXISTS traffic_data (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  timestamp TEXT NOT NULL,",
-    "  vehicle_class INTEGER DEFAULT 0,",
-    "  speed REAL DEFAULT 0,",
-    "  direction INTEGER DEFAULT 1,",
-    "  lane INTEGER DEFAULT 1,",
-    "  raw_payload TEXT,",
-    "  received_at TEXT DEFAULT (datetime('now')),",
-    "  FOREIGN KEY (device_code) REFERENCES devices(device_code)",
-    ");",
-
-    // Aggregated 15-minute data for RMTO (AddData - simple)
-    "CREATE TABLE IF NOT EXISTS rmto_queue (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  total_vehicles INTEGER DEFAULT 0,",
-    "  avg_speed REAL DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
-    ");",
-
-    // 5-class data for RMTO (AddData5)
-    "CREATE TABLE IF NOT EXISTS rmto_queue_5class (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  -- Volume classes (5 classes by vehicle size)",
-    "  class1_count INTEGER DEFAULT 0,",
-    "  class2_count INTEGER DEFAULT 0,",
-    "  class3_count INTEGER DEFAULT 0,",
-    "  class4_count INTEGER DEFAULT 0,",
-    "  class5_count INTEGER DEFAULT 0,",
-    "  -- Speed classes (5 classes by speed range)",
-    "  speed1_count INTEGER DEFAULT 0,",
-    "  speed2_count INTEGER DEFAULT 0,",
-    "  speed3_count INTEGER DEFAULT 0,",
-    "  speed4_count INTEGER DEFAULT 0,",
-    "  speed5_count INTEGER DEFAULT 0,",
-    "  -- Violation count",
-    "  violations INTEGER DEFAULT 0,",
-    "  avg_speed REAL DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
-    ");",
-
-    // 8-class data for RMTO (AddData8)
-    "CREATE TABLE IF NOT EXISTS rmto_queue_8class (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  class1_count INTEGER DEFAULT 0,",
-    "  class2_count INTEGER DEFAULT 0,",
-    "  class3_count INTEGER DEFAULT 0,",
-    "  class4_count INTEGER DEFAULT 0,",
-    "  class5_count INTEGER DEFAULT 0,",
-    "  class6_count INTEGER DEFAULT 0,",
-    "  class7_count INTEGER DEFAULT 0,",
-    "  class8_count INTEGER DEFAULT 0,",
-    "  speed1_count INTEGER DEFAULT 0,",
-    "  speed2_count INTEGER DEFAULT 0,",
-    "  speed3_count INTEGER DEFAULT 0,",
-    "  speed4_count INTEGER DEFAULT 0,",
-    "  speed5_count INTEGER DEFAULT 0,",
-    "  speed6_count INTEGER DEFAULT 0,",
-    "  speed7_count INTEGER DEFAULT 0,",
-    "  speed8_count INTEGER DEFAULT 0,",
-    "  violations INTEGER DEFAULT 0,",
-    "  avg_speed REAL DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
-    ");",
-
-    // Send log for auditing
-    "CREATE TABLE IF NOT EXISTS send_log (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  method TEXT NOT NULL,",
-    "  device_code TEXT NOT NULL,",
-    "  request_data TEXT,",
-    "  response_data TEXT,",
-    "  success INTEGER DEFAULT 0,",
-    "  error_message TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
-    ");",
-
-    // Indexes
-    "CREATE INDEX IF NOT EXISTS idx_traffic_device ON traffic_data(device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_traffic_time ON traffic_data(timestamp);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto_unsent ON rmto_queue(sent, device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto8_unsent ON rmto_queue_8class(sent, device_code);",
-
-    // irawdata table - matches iccore device_irawdata format
-    "CREATE TABLE IF NOT EXISTS irawdata (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  create_at TEXT NOT NULL,",
-    "  stop TEXT NOT NULL,",
-    "  lane INTEGER DEFAULT 1,",
-    "  is_read INTEGER DEFAULT 0,",
-    "  a INTEGER DEFAULT 0,",
-    "  b INTEGER DEFAULT 0,",
-    "  c INTEGER DEFAULT 0,",
-    "  d INTEGER DEFAULT 0,",
-    "  e INTEGER DEFAULT 0,",
-    "  x INTEGER DEFAULT 0,",
-    "  sa INTEGER DEFAULT 0,",
-    "  sb INTEGER DEFAULT 0,",
-    "  sc INTEGER DEFAULT 0,",
-    "  sd INTEGER DEFAULT 0,",
-    "  se INTEGER DEFAULT 0,",
-    "  sx INTEGER DEFAULT 0,",
-    "  sao INTEGER DEFAULT 0,",
-    "  sbo INTEGER DEFAULT 0,",
-    "  sco INTEGER DEFAULT 0,",
-    "  sdo INTEGER DEFAULT 0,",
-    "  seo INTEGER DEFAULT 0,",
-    "  sxo INTEGER DEFAULT 0,",
-    "  overtaking INTEGER DEFAULT 0,",
-    "  tooclose INTEGER DEFAULT 0,",
-    "  received_at TEXT DEFAULT (datetime('now'))",
-    ");",
-
-    // Mehvar (routes) table
-    "CREATE TABLE IF NOT EXISTS mehvar (",
-    "  code INTEGER PRIMARY KEY,",
-    "  name TEXT NOT NULL,",
-    "  send_enable INTEGER DEFAULT 1,",
-    "  repair INTEGER DEFAULT 0,",
-    "  ostan TEXT",
-    ");",
-
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);"
-].join("\n"));
-
-module.exports = db;
-ENDFILE_3
-
-echo "[4/10] Writing server/rmto-client.js ..."
-cat > "$BASE/server/rmto-client.js" << 'ENDFILE_4'
-/**
- * RMTO SOAP Client
- * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
- *
- * Methods:
- *   - AddData  (v1.02): Simple total count + avg speed per 15-min period
- *   - AddData5 (v1.01): 5-class volume + 5-class speed + violations
- *   - AddData8 (v1.00): 8-class volume + 8-class speed + violations
- */
-var soap = require("soap");
-
-var WSDL_URL = process.env.RMTO_WSDL || "http://otf.rmto.ir/Companies/Companies.asmx?WSDL";
-var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
-var USERNAME = process.env.RMTO_USERNAME || "";
-var PASSWORD = process.env.RMTO_PASSWORD || "";
-
-var soapClient = null;
-
-/**
- * Initialize SOAP client (called once at startup).
- */
-function initClient(callback) {
-    if (soapClient) return callback(null, soapClient);
-
-    soap.createClient(WSDL_URL, function (err, client) {
-        if (err) {
-            console.error("[RMTO] Failed to create SOAP client:", err.message);
-            return callback(err);
-        }
-        soapClient = client;
-        console.log("[RMTO] SOAP client initialized");
-        console.log("[RMTO] Available methods:", Object.keys(client.describe().CompanySoap || {}));
-        callback(null, client);
-    });
-}
-
-/**
- * AddData (v1.02) - Simple traffic data
- * @param {object} data
- * @param {string} data.deviceCode - 4-digit device code
- * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
- * @param {number} data.totalCount - Total vehicles in period
- * @param {number} data.avgSpeed   - Average speed in period
- */
-function sendAddData(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
-
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            Count: data.totalCount,
-            Speed: Math.round(data.avgSpeed)
-        };
-
-        console.log("[RMTO] AddData request:", JSON.stringify(args));
-
-        soapClient.AddData(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddDataResult;
-            console.log("[RMTO] AddData response:", response);
-            callback(null, response);
-        });
-    });
-}
-
-/**
- * AddData5 (v1.01) - 5-class traffic data
- * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
- * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
- * @param {number} data.violations
- * @param {number} data.avgSpeed
- */
-function sendAddData5(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
-
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            // 5 volume classes
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            // 5 speed classes
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            // Violation & speed
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
-        };
-
-        console.log("[RMTO] AddData5 request:", JSON.stringify(args));
-
-        soapClient.AddData5(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData5 error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddData5Result;
-            console.log("[RMTO] AddData5 response:", response);
-            callback(null, response);
-        });
-    });
-}
-
-/**
- * AddData8 (v1.00) - 8-class traffic data
- * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class8Count
- * @param {number} data.speed1Count .. data.speed8Count
- * @param {number} data.violations
- * @param {number} data.avgSpeed
- */
-function sendAddData8(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
-
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            C6: data.class6Count || 0,
-            C7: data.class7Count || 0,
-            C8: data.class8Count || 0,
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            S6: data.speed6Count || 0,
-            S7: data.speed7Count || 0,
-            S8: data.speed8Count || 0,
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
-        };
-
-        console.log("[RMTO] AddData8 request:", JSON.stringify(args));
-
-        soapClient.AddData8(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData8 error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddData8Result;
-            console.log("[RMTO] AddData8 response:", response);
-            callback(null, response);
-        });
-    });
-}
-
-function ensureClient(callback) {
-    if (soapClient) return callback(null);
-    initClient(function (err) { callback(err); });
-}
-
-module.exports = {
-    initClient: initClient,
-    sendAddData: sendAddData,
-    sendAddData5: sendAddData5,
-    sendAddData8: sendAddData8
-};
-ENDFILE_4
-
-echo "[5/10] Writing server/scheduler.js ..."
-cat > "$BASE/server/scheduler.js" << 'ENDFILE_5'
-/**
- * Scheduler - Aggregates traffic data every 15 minutes and sends to RMTO.
- */
-var cron = require("node-cron");
-var db = require("./db");
-var rmto = require("./rmto-client");
-
-var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 15;
-
-/**
- * Aggregate raw traffic_data into rmto_queue and rmto_queue_5class,
- * then send unsent records to RMTO.
- */
-function aggregateAndSend() {
-    console.log("[Scheduler] Starting aggregation cycle at", new Date().toISOString());
-
-    var now = new Date();
-    var periodEnd = new Date(now);
-    periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / INTERVAL) * INTERVAL, 0, 0);
-    var periodStart = new Date(periodEnd.getTime() - INTERVAL * 60 * 1000);
-
-    var startStr = periodStart.toISOString();
-    var endStr = periodEnd.toISOString();
-
-    // Get all active devices
-    var devices = db.prepare("SELECT device_code FROM devices WHERE status != 'offline'").all();
-
-    devices.forEach(function (dev) {
-        var code = dev.device_code;
-
-        // Aggregate raw data for this period
-        var agg = db.prepare(
-            "SELECT COUNT(*) as total, AVG(speed) as avg_speed, " +
-            "SUM(CASE WHEN vehicle_class = 1 THEN 1 ELSE 0 END) as c1, " +
-            "SUM(CASE WHEN vehicle_class = 2 THEN 1 ELSE 0 END) as c2, " +
-            "SUM(CASE WHEN vehicle_class = 3 THEN 1 ELSE 0 END) as c3, " +
-            "SUM(CASE WHEN vehicle_class = 4 THEN 1 ELSE 0 END) as c4, " +
-            "SUM(CASE WHEN vehicle_class = 5 THEN 1 ELSE 0 END) as c5, " +
-            "SUM(CASE WHEN speed < 60 THEN 1 ELSE 0 END) as s1, " +
-            "SUM(CASE WHEN speed >= 60 AND speed < 80 THEN 1 ELSE 0 END) as s2, " +
-            "SUM(CASE WHEN speed >= 80 AND speed < 100 THEN 1 ELSE 0 END) as s3, " +
-            "SUM(CASE WHEN speed >= 100 AND speed < 120 THEN 1 ELSE 0 END) as s4, " +
-            "SUM(CASE WHEN speed >= 120 THEN 1 ELSE 0 END) as s5, " +
-            "SUM(CASE WHEN speed > 120 THEN 1 ELSE 0 END) as violations " +
-            "FROM traffic_data WHERE device_code = ? AND timestamp >= ? AND timestamp < ?"
-        ).get(code, startStr, endStr);
-
-        if (!agg || agg.total === 0) return;
-
-        // Insert into simple queue
-        db.prepare(
-            "INSERT INTO rmto_queue (device_code, period_start, period_end, total_vehicles, avg_speed) " +
-            "VALUES (?, ?, ?, ?, ?)"
-        ).run(code, startStr, endStr, agg.total, Math.round(agg.avg_speed || 0));
-
-        // Insert into 5-class queue
-        db.prepare(
-            "INSERT INTO rmto_queue_5class (device_code, period_start, period_end, " +
-            "class1_count, class2_count, class3_count, class4_count, class5_count, " +
-            "speed1_count, speed2_count, speed3_count, speed4_count, speed5_count, " +
-            "violations, avg_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(code, startStr, endStr,
-            agg.c1, agg.c2, agg.c3, agg.c4, agg.c5,
-            agg.s1, agg.s2, agg.s3, agg.s4, agg.s5,
-            agg.violations, Math.round(agg.avg_speed || 0));
-    });
-
-    // Now send unsent records
-    sendUnsentData();
-}
-
-/**
- * Send all unsent aggregated data to RMTO.
- */
-function sendUnsentData() {
-    // --- Send simple AddData ---
-    var unsent = db.prepare("SELECT * FROM rmto_queue WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
-
-    unsent.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
-
-        rmto.sendAddData({
-            deviceCode: row.device_code,
-            dateTime: dt,
-            totalCount: row.total_vehicles,
-            avgSpeed: row.avg_speed
-        }, function (err, response) {
-            var success = !err && response;
-            db.prepare(
-                "UPDATE rmto_queue SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?"
-            ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
-
-            db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
-                "VALUES (?, ?, ?, ?, ?, ?)"
-            ).run("AddData", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
-        });
-    });
-
-    // --- Send 5-class AddData5 ---
-    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
-
-    unsent5.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
-
-        rmto.sendAddData5({
-            deviceCode: row.device_code,
-            dateTime: dt,
-            class1Count: row.class1_count,
-            class2Count: row.class2_count,
-            class3Count: row.class3_count,
-            class4Count: row.class4_count,
-            class5Count: row.class5_count,
-            speed1Count: row.speed1_count,
-            speed2Count: row.speed2_count,
-            speed3Count: row.speed3_count,
-            speed4Count: row.speed4_count,
-            speed5Count: row.speed5_count,
-            violations: row.violations,
-            avgSpeed: row.avg_speed
-        }, function (err, response) {
-            var success = !err && response;
-            db.prepare(
-                "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?"
-            ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
-
-            db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
-                "VALUES (?, ?, ?, ?, ?, ?)"
-            ).run("AddData5", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
-        });
-    });
-}
-
-/**
- * Format ISO date to RMTO format: "YYYY/MM/DD HH:mm"
- */
-function formatDateTime(isoStr) {
-    var d = new Date(isoStr);
-    var y = d.getFullYear();
-    var m = String(d.getMonth() + 1).padStart(2, "0");
-    var dy = String(d.getDate()).padStart(2, "0");
-    var h = String(d.getHours()).padStart(2, "0");
-    var mn = String(d.getMinutes()).padStart(2, "0");
-    return y + "/" + m + "/" + dy + " " + h + ":" + mn;
-}
-
-/**
- * Start the scheduler.
- */
-function start() {
-    // Run every INTERVAL minutes
-    var cronExpr = "*/" + INTERVAL + " * * * *";
-    console.log("[Scheduler] Starting with cron:", cronExpr);
-
-    cron.schedule(cronExpr, function () {
-        aggregateAndSend();
-    });
-
-    // Also allow manual retry of unsent data every hour
-    cron.schedule("5 * * * *", function () {
-        console.log("[Scheduler] Retry unsent data...");
-        sendUnsentData();
-    });
-}
-
-module.exports = {
-    start: start,
-    aggregateAndSend: aggregateAndSend,
-    sendUnsentData: sendUnsentData
-};
-ENDFILE_5
-
-echo "[6/10] Writing server/index.js ..."
-cat > "$BASE/server/index.js" << 'ENDFILE_6'
-/**
- * TC Manager Server (Noavaran Jonoob Shargh)
- * - Login authentication
- * - Backup / Restore
- * - Receives data from 100+ devices
- * - Aggregates and sends to RMTO via SOAP
- */
-require("dotenv").config();
-
-var express = require("express");
-var cors = require("cors");
-var path = require("path");
-var fs = require("fs");
-var crypto = require("crypto");
-var session = require("express-session");
-var multer = require("multer");
-var bcrypt = require("bcryptjs");
-var db = require("./db");
-var rmto = require("./rmto-client");
-var scheduler = require("./scheduler");
-
-var app = express();
-var PORT = process.env.PORT || 3000;
-var HOST = process.env.HOST || "0.0.0.0";
-
-// --- Session & Auth Setup ---
-var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
-var ADMIN_USER = process.env.ADMIN_USER || "admin";
-var ADMIN_PASS_HASH = null;
-
-// Initialize admin password
-(function initAdmin() {
-    // Check if users table exists
-    db.exec([
-        "CREATE TABLE IF NOT EXISTS users (",
-        "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-        "  username TEXT NOT NULL UNIQUE,",
-        "  password_hash TEXT NOT NULL,",
-        "  role TEXT DEFAULT 'admin',",
-        "  created_at TEXT DEFAULT (datetime('now'))",
-        ");"
-    ].join("\n"));
-
-    var admin = db.prepare("SELECT * FROM users WHERE username = ?").get(ADMIN_USER);
-    if (!admin) {
-        var defaultPass = process.env.ADMIN_PASS || "admin123";
-        var hash = bcrypt.hashSync(defaultPass, 10);
-        db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(ADMIN_USER, hash, "admin");
-        console.log("[Auth] Default admin user created (user: " + ADMIN_USER + ", pass: " + defaultPass + ")");
-    }
-})();
-
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
-app.use(session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
-}));
-
-// Multer for file uploads (backup restore)
-var upload = multer({ dest: path.join(__dirname, "uploads/"), limits: { fileSize: 500 * 1024 * 1024 } });
-
-// ============================================================
-// Auth Middleware
-// ============================================================
-function requireAuth(req, res, next) {
-    if (req.session && req.session.user) return next();
-    return res.status(401).json({ error: "unauthorized" });
-}
-
-// ============================================================
-// Auth API
-// ============================================================
-app.post("/api/auth/login", function (req, res) {
-    var username = (req.body.username || "").trim();
-    var password = req.body.password || "";
-
-    var user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
-    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-        return res.status(401).json({ error: "نام کاربری یا رمز عبور اشتباه است" });
-    }
-
-    req.session.user = { id: user.id, username: user.username, role: user.role };
-    res.json({ success: true, username: user.username, role: user.role });
-});
-
-app.post("/api/auth/logout", function (req, res) {
-    req.session.destroy();
-    res.json({ success: true });
-});
-
-app.get("/api/auth/check", function (req, res) {
-    if (req.session && req.session.user) {
-        return res.json({ loggedIn: true, username: req.session.user.username, role: req.session.user.role });
-    }
-    res.json({ loggedIn: false });
-});
-
-app.post("/api/auth/change-password", requireAuth, function (req, res) {
-    var oldPass = req.body.old_password || "";
-    var newPass = req.body.new_password || "";
-
-    if (newPass.length < 4) return res.status(400).json({ error: "رمز عبور باید حداقل ۴ کاراکتر باشد" });
-
-    var user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.session.user.id);
-    if (!bcrypt.compareSync(oldPass, user.password_hash)) {
-        return res.status(401).json({ error: "رمز عبور فعلی اشتباه است" });
-    }
-
-    var hash = bcrypt.hashSync(newPass, 10);
-    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, user.id);
-    res.json({ success: true });
-});
-
-// ============================================================
-// Serve Frontend (login page is public, dashboard requires auth)
-// ============================================================
-app.use(express.static(path.join(__dirname, "..")));
-
-// ============================================================
-// Device data reception - NO AUTH (devices send data here)
-// ============================================================
-app.post("/api/data", function (req, res) {
-    var b = req.body;
-    var code = String(b.device_code || b.device_id || b.code || "");
-
-    if (!code || !/^\d+$/.test(code)) {
-        return res.status(400).json({ error: "device_code required" });
-    }
-
-    autoRegisterDevice(code);
-
-    var insert = db.prepare(
-        "INSERT INTO traffic_data (device_code, timestamp, vehicle_class, speed, direction, lane, raw_payload) " +
-        "VALUES (?, ?, ?, ?, ?, ?, ?)"
-    );
-
-    var count = 0;
-    if (b.records && Array.isArray(b.records)) {
-        var insertMany = db.transaction(function (records) {
-            records.forEach(function (r) {
-                insert.run(code, r.timestamp || new Date().toISOString(), r.vehicle_class || 0, r.speed || 0, r.direction || 1, r.lane || 1, JSON.stringify(r));
-                count++;
-            });
-        });
-        insertMany(b.records);
-    } else {
-        insert.run(code, b.timestamp || new Date().toISOString(), b.vehicle_class || 0, b.speed || 0, b.direction || 1, b.lane || 1, JSON.stringify(b));
-        count = 1;
-    }
-    res.json({ success: true, received: count });
-});
-
-/**
- * POST /api/irawdata - iccore format (5-class vehicle + speed)
- * Body: { device_id, create_at, stop, lane, a,b,c,d,e,x, sa..sx, sao..sxo, overtaking, tooclose }
- * Or batch: { device_id, records: [{...}, ...] }
- * Vehicle: a=motorcycle b=car c=van d=bus e=truck x=unknown
- * Speed: sa..sx = sum of speeds per class
- * Violations: sao..sxo = over-speed count per class
- */
-app.post("/api/irawdata", function (req, res) {
-    var b = req.body;
-    var code = String(b.device_id || b.device_code || b.code || "");
-    if (!code || !/^\d+$/.test(code)) return res.status(400).json({ error: "device_id required" });
-
-    autoRegisterDevice(code);
-
-    var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
-        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    );
-    var insertTraffic = db.prepare(
-        "INSERT INTO traffic_data (device_code, timestamp, vehicle_class, speed, direction, lane, raw_payload) VALUES (?, ?, ?, ?, 1, ?, ?)"
-    );
-
-    var count = 0;
-    function insertOne(r) {
-        var now = new Date().toISOString();
-        var ca = r.create_at || r.start || now;
-        var st = r.stop || r.end || now;
-        var ln = r.lane || 1;
-        insertRaw.run(code, ca, st, ln, r.a||0, r.b||0, r.c||0, r.d||0, r.e||0, r.x||0, r.sa||0, r.sb||0, r.sc||0, r.sd||0, r.se||0, r.sx||0, r.sao||0, r.sbo||0, r.sco||0, r.sdo||0, r.seo||0, r.sxo||0, r.overtaking||0, r.tooclose||0);
-        count++;
-        // Also store in traffic_data for RMTO aggregation
-        var classes = [{cls:1,n:r.a||0,s:r.sa||0},{cls:2,n:r.b||0,s:r.sb||0},{cls:3,n:r.c||0,s:r.sc||0},{cls:4,n:r.d||0,s:r.sd||0},{cls:5,n:r.e||0,s:r.se||0}];
-        classes.forEach(function(c){ if(c.n>0) insertTraffic.run(code, ca, c.cls, c.s/c.n, ln, JSON.stringify(r)); });
-    }
-
-    if (b.records && Array.isArray(b.records)) {
-        db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
-    } else {
-        insertOne(b);
-    }
-    res.json({ success: true, received: count });
-});
-
-// Auto-register unknown devices
-function autoRegisterDevice(code) {
-    var existing = db.prepare("SELECT device_code FROM devices WHERE device_code = ?").get(code);
-    if (!existing) {
-        try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'sensor', 'online')").run(code, "Device " + code); } catch(e){}
-    }
-    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
-}
-
-// ============================================================
-// All API below requires authentication
-// ============================================================
-app.use("/api/devices", requireAuth);
-app.use("/api/stats", requireAuth);
-app.use("/api/rmto", requireAuth);
-app.use("/api/traffic", requireAuth);
-app.use("/api/backup", requireAuth);
-
-// ============================================================
-// API: Device Management
-// ============================================================
-app.get("/api/devices", function (req, res) {
-    res.json(db.prepare("SELECT * FROM devices ORDER BY device_code").all());
-});
-
-app.get("/api/devices/:code", function (req, res) {
-    var row = db.prepare("SELECT * FROM devices WHERE device_code = ?").get(req.params.code);
-    if (!row) return res.status(404).json({ error: "not found" });
-    res.json(row);
-});
-
-app.post("/api/devices", function (req, res) {
-    var b = req.body;
-    if (!b.device_code || !b.name) return res.status(400).json({ error: "device_code and name required" });
-    if (!/^\d{4}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 4 digits" });
-    try {
-        db.prepare("INSERT INTO devices (device_code, name, type, route, ip, status, firmware) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.device_code, b.name, b.type || "sensor", b.route || "", b.ip || "", "offline", b.firmware || "");
-        res.json({ success: true, device_code: b.device_code });
-    } catch (e) {
-        if (e.message.indexOf("UNIQUE") !== -1) return res.status(409).json({ error: "duplicate device_code" });
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.put("/api/devices/:code", function (req, res) {
-    var b = req.body;
-    db.prepare("UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), route = COALESCE(?, route), ip = COALESCE(?, ip), firmware = COALESCE(?, firmware) WHERE device_code = ?").run(b.name, b.type, b.route, b.ip, b.firmware, req.params.code);
-    res.json({ success: true });
-});
-
-app.delete("/api/devices/:code", function (req, res) {
-    db.prepare("DELETE FROM devices WHERE device_code = ?").run(req.params.code);
-    res.json({ success: true });
-});
-
-// ============================================================
-// API: Dashboard Stats
-// ============================================================
-app.get("/api/stats", function (req, res) {
-    var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
-    var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
-    var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    var todayVehicles = db.prepare("SELECT COUNT(*) as c FROM traffic_data WHERE timestamp >= ?").get(todayStart.toISOString()).c;
-    var todayAvgSpeed = db.prepare("SELECT AVG(speed) as avg FROM traffic_data WHERE timestamp >= ? AND speed > 0").get(todayStart.toISOString()).avg || 0;
-    var unsentCount = db.prepare("SELECT COUNT(*) as c FROM rmto_queue WHERE sent = 0").get().c;
-    var unsent5Count = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0").get().c;
-    res.json({ totalDevices: totalDevices, onlineDevices: onlineDevices, todayVehicles: todayVehicles, todayAvgSpeed: Math.round(todayAvgSpeed), unsentRMTO: unsentCount, unsentRMTO5: unsent5Count });
-});
-
-// ============================================================
-// API: RMTO
-// ============================================================
-app.get("/api/rmto/logs", function (req, res) {
-    var limit = parseInt(req.query.limit, 10) || 50;
-    res.json(db.prepare("SELECT * FROM send_log ORDER BY created_at DESC LIMIT ?").all(limit));
-});
-
-app.post("/api/rmto/send-now", function (req, res) {
-    scheduler.sendUnsentData();
-    res.json({ success: true });
-});
-
-app.post("/api/rmto/aggregate", function (req, res) {
-    scheduler.aggregateAndSend();
-    res.json({ success: true });
-});
-
-app.get("/api/rmto/queue", function (req, res) {
-    var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
-    var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();
-    res.json({ unsent: unsent, sent: sent });
-});
-
-// ============================================================
-// API: Traffic Data Query
-// ============================================================
-app.get("/api/traffic", function (req, res) {
-    var code = req.query.device_code || "";
-    var from = req.query.from || "";
-    var to = req.query.to || "";
-    var limit = parseInt(req.query.limit, 10) || 100;
-    var sql = "SELECT * FROM traffic_data WHERE 1=1";
-    var params = [];
-    if (code) { sql += " AND device_code = ?"; params.push(code); }
-    if (from) { sql += " AND timestamp >= ?"; params.push(from); }
-    if (to) { sql += " AND timestamp <= ?"; params.push(to); }
-    sql += " ORDER BY timestamp DESC LIMIT ?";
-    params.push(limit);
-    var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
-    res.json(rows);
-});
-
-// ============================================================
-// API: Backup & Restore
-// ============================================================
-
-// Download backup (copy of SQLite DB file)
-app.get("/api/backup/download", function (req, res) {
-    var dbPath = path.join(__dirname, "data.db");
-    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: "database not found" });
-
-    // Checkpoint WAL before backup
-    try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch (e) { /* ok */ }
-
-    var timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    var filename = "tc-manager-backup-" + timestamp + ".db";
-    res.download(dbPath, filename);
-});
-
-// Restore from uploaded .sql.gz or .db file
-app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
-    if (!req.file) return res.status(400).json({ error: "فایل بکاپ الزامی است" });
-
-    var tmpPath = req.file.path;
-    var origName = req.file.originalname || "";
-    var dbPath = path.join(__dirname, "data.db");
-
-    try {
-        if (origName.endsWith(".db")) {
-            // Direct SQLite DB file - replace
-            db.pragma("wal_checkpoint(TRUNCATE)");
-            db.close();
-            fs.copyFileSync(tmpPath, dbPath);
-            // Re-require db (Node caches modules, so we need to clear)
-            delete require.cache[require.resolve("./db")];
-            res.json({ success: true, message: "بازیابی انجام شد. سرویس باید ریستارت شود." });
-        } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz")) {
-            // SQL dump - save for processing
-            var destPath = path.join(__dirname, "uploads", origName);
-            fs.renameSync(tmpPath, destPath);
-            res.json({ success: true, message: "فایل آپلود شد: " + origName + " - نیاز به پردازش دستی دارد.", path: destPath });
-        } else if (origName.endsWith(".sql")) {
-            var destPath2 = path.join(__dirname, "uploads", origName);
-            fs.renameSync(tmpPath, destPath2);
-            res.json({ success: true, message: "فایل SQL آپلود شد: " + origName, path: destPath2 });
-        } else {
-            fs.unlinkSync(tmpPath);
-            return res.status(400).json({ error: "فرمت فایل پشتیبانی نمی‌شود. از .db یا .sql.gz استفاده کنید" });
-        }
-    } catch (e) {
-        res.status(500).json({ error: "خطا در بازیابی: " + e.message });
-    }
-});
-
-// List uploaded backup files
-app.get("/api/backup/list", function (req, res) {
-    var uploadsDir = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadsDir)) { fs.mkdirSync(uploadsDir, { recursive: true }); return res.json([]); }
-    var files = fs.readdirSync(uploadsDir).filter(function (f) {
-        return f.endsWith(".db") || f.endsWith(".sql") || f.endsWith(".gz");
-    }).map(function (f) {
-        var stat = fs.statSync(path.join(uploadsDir, f));
-        return { name: f, size: stat.size, date: stat.mtime.toISOString() };
-    });
-    res.json(files);
-});
-
-// ============================================================
-// Start Server
-// ============================================================
-app.listen(PORT, HOST, function () {
-    console.log("============================================");
-    console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
-    console.log("  http://" + HOST + ":" + PORT);
-    console.log("  Default login: admin / admin123");
-    console.log("============================================");
-
-    rmto.initClient(function (err) {
-        if (err) console.error("[RMTO] Will retry on first send");
-    });
-
-    scheduler.start();
-});
-ENDFILE_6
-
-echo "[7/10] Writing index.html ..."
-cat > "$BASE/index.html" << 'ENDFILE_7'
+APP_DIR="/opt/tc-manager"
+echo "========================================"
+echo "  TC Manager Deployment"
+echo "  Noavaran Jonoob Shargh"
+echo "========================================"
+echo ""
+
+# Create directory structure
+echo "[1/7] Creating directories..."
+mkdir -p $APP_DIR/css
+mkdir -p $APP_DIR/js
+mkdir -p $APP_DIR/data
+mkdir -p $APP_DIR/server/uploads
+
+echo "[+] Writing index.html..."
+cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -1328,8 +344,12 @@ cat > "$BASE/index.html" << 'ENDFILE_7'
                                 <input type="text" id="setting-name" value="نوآوران جنوب شرق">
                             </div>
                             <div class="form-group">
-                                <label>آدرس سرور</label>
-                                <input type="text" id="setting-server" value="192.168.1.1" dir="ltr">
+                                <label>آدرس IP سرور</label>
+                                <input type="text" id="setting-server" value="0.0.0.0" dir="ltr">
+                            </div>
+                            <div class="form-group">
+                                <label>پورت سرور</label>
+                                <input type="number" id="setting-port" value="3000" dir="ltr">
                             </div>
                             <div class="form-group">
                                 <label>زمان بروزرسانی (ثانیه)</label>
@@ -1468,10 +488,10 @@ cat > "$BASE/index.html" << 'ENDFILE_7'
     <script src="js/app.js"></script>
 </body>
 </html>
-ENDFILE_7
+ENDOFFILE_INDEX_HTML
 
-echo "[8/10] Writing css/style.css ..."
-cat > "$BASE/css/style.css" << 'ENDFILE_8'
+echo "[+] Writing css/style.css..."
+cat > "/css/style.css" << 'ENDOFFILE_CSS_STYLE_CSS'
 /* === Reset === */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
@@ -2210,10 +1230,10 @@ body {
     font-size: 13px;
     color: var(--text-light);
 }
-ENDFILE_8
+ENDOFFILE_CSS_STYLE_CSS
 
-echo "[9/10] Writing js/app.js ..."
-cat > "$BASE/js/app.js" << 'ENDFILE_9'
+echo "[+] Writing js/app.js..."
+cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
 (function () {
     "use strict";
 
@@ -2717,12 +1737,58 @@ cat > "$BASE/js/app.js" << 'ENDFILE_9'
     // ============================================================
     // UI5: Settings (event handlers)
     // ============================================================
+    // --- Load Settings from Server ---
+    function loadSettings() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/api/settings", true);
+        xhr.withCredentials = true;
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                var s = JSON.parse(xhr.responseText);
+                if (s.system_name) $("#setting-name").value = s.system_name;
+                if (s.server_ip) $("#setting-server").value = s.server_ip;
+                if (s.server_port) $("#setting-port").value = s.server_port;
+                if (s.refresh_interval) $("#setting-refresh").value = s.refresh_interval;
+                if (s.max_speed) $("#setting-max-speed").value = s.max_speed;
+                if (s.offline_timeout) $("#setting-timeout").value = s.offline_timeout;
+                var ao = $("#setting-alert-offline"); if (ao) ao.checked = s.alert_offline !== "0";
+                var as = $("#setting-alert-speed"); if (as) as.checked = s.alert_speed !== "0";
+                var ae = $("#setting-alert-error"); if (ae) ae.checked = s.alert_error !== "0";
+            }
+        };
+        xhr.send();
+    }
+    loadSettings();
+
+    function saveSettings(data, msg) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/settings", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.withCredentials = true;
+        xhr.onload = function () {
+            if (xhr.status === 200) alert(msg || "ذخیره شد");
+            else alert("خطا در ذخیره تنظیمات");
+        };
+        xhr.send(JSON.stringify(data));
+    }
+
     $("#btn-save-settings").addEventListener("click", function () {
-        alert("تنظیمات عمومی ذخیره شد.");
+        saveSettings({
+            system_name: $("#setting-name").value,
+            server_ip: $("#setting-server").value,
+            server_port: $("#setting-port").value,
+            refresh_interval: $("#setting-refresh").value,
+            max_speed: $("#setting-max-speed").value
+        }, "تنظیمات عمومی ذخیره شد.");
     });
 
     $("#btn-save-alerts").addEventListener("click", function () {
-        alert("تنظیمات هشدار ذخیره شد.");
+        saveSettings({
+            alert_offline: $("#setting-alert-offline").checked ? "1" : "0",
+            alert_speed: $("#setting-alert-speed").checked ? "1" : "0",
+            alert_error: $("#setting-alert-error").checked ? "1" : "0",
+            offline_timeout: $("#setting-timeout").value
+        }, "تنظیمات هشدار ذخیره شد.");
     });
 
     // --- Change Password ---
@@ -3024,10 +2090,10 @@ cat > "$BASE/js/app.js" << 'ENDFILE_9'
     renderHome();
 
 })();
-ENDFILE_9
+ENDOFFILE_JS_APP_JS
 
-echo "[10/10] Writing data/devices.js ..."
-cat > "$BASE/data/devices.js" << 'ENDFILE_10'
+echo "[+] Writing data/devices.js..."
+cat > "/data/devices.js" << 'ENDOFFILE_DATA_DEVICES_JS'
 /**
  * Route and device data for TC Manager (Sistan Akbari).
  */
@@ -3229,25 +2295,1169 @@ var REPORT_DATA = [
     { date: "2026-02-13", route: "بزرگراه همت", vehicles: 87600, avgSpeed: 59, maxSpeed: 125, violations: 10 },
     { date: "2026-02-13", route: "بزرگراه صدر", vehicles: 65400, avgSpeed: 50, maxSpeed: 118, violations: 14 }
 ];
-ENDFILE_10
+ENDOFFILE_DATA_DEVICES_JS
 
+echo "[+] Writing server/index.js..."
+cat > "/server/index.js" << 'ENDOFFILE_SERVER_INDEX_JS'
+/**
+ * TC Manager Server (Noavaran Jonoob Shargh)
+ * - Login authentication
+ * - Backup / Restore
+ * - Receives data from 100+ devices
+ * - Aggregates and sends to RMTO via SOAP
+ */
+require("dotenv").config();
 
-echo "[*] Setting up environment ..."
+var express = require("express");
+var cors = require("cors");
+var path = require("path");
+var fs = require("fs");
+var crypto = require("crypto");
+var session = require("express-session");
+var multer = require("multer");
+var bcrypt = require("bcryptjs");
+var db = require("./db");
+var rmto = require("./rmto-client");
+var scheduler = require("./scheduler");
 
-# Setup .env if not exists
-if [ ! -f "$BASE/server/.env" ]; then
-    cp "$BASE/server/.env.example" "$BASE/server/.env"
-    echo "[!] Created .env - edit RMTO credentials in $BASE/server/.env"
+var app = express();
+var PORT = process.env.PORT || 3000;
+var HOST = process.env.HOST || "0.0.0.0";
+
+// --- Session & Auth Setup ---
+var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+var ADMIN_USER = process.env.ADMIN_USER || "admin";
+var ADMIN_PASS_HASH = null;
+
+// Initialize admin password
+(function initAdmin() {
+    // Check if users table exists
+    db.exec([
+        "CREATE TABLE IF NOT EXISTS users (",
+        "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+        "  username TEXT NOT NULL UNIQUE,",
+        "  password_hash TEXT NOT NULL,",
+        "  role TEXT DEFAULT 'admin',",
+        "  created_at TEXT DEFAULT (datetime('now'))",
+        ");"
+    ].join("\n"));
+
+    var admin = db.prepare("SELECT * FROM users WHERE username = ?").get(ADMIN_USER);
+    if (!admin) {
+        var defaultPass = process.env.ADMIN_PASS || "admin123";
+        var hash = bcrypt.hashSync(defaultPass, 10);
+        db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(ADMIN_USER, hash, "admin");
+        console.log("[Auth] Default admin user created (user: " + ADMIN_USER + ", pass: " + defaultPass + ")");
+    }
+})();
+
+app.use(cors({ origin: true, credentials: true }));
+app.use(express.json());
+app.use(session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+}));
+
+// Multer for file uploads (backup restore)
+var upload = multer({ dest: path.join(__dirname, "uploads/"), limits: { fileSize: 500 * 1024 * 1024 } });
+
+// ============================================================
+// Auth Middleware
+// ============================================================
+function requireAuth(req, res, next) {
+    if (req.session && req.session.user) return next();
+    return res.status(401).json({ error: "unauthorized" });
+}
+
+// ============================================================
+// Auth API
+// ============================================================
+app.post("/api/auth/login", function (req, res) {
+    var username = (req.body.username || "").trim();
+    var password = req.body.password || "";
+
+    var user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+        return res.status(401).json({ error: "نام کاربری یا رمز عبور اشتباه است" });
+    }
+
+    req.session.user = { id: user.id, username: user.username, role: user.role };
+    res.json({ success: true, username: user.username, role: user.role });
+});
+
+app.post("/api/auth/logout", function (req, res) {
+    req.session.destroy();
+    res.json({ success: true });
+});
+
+app.get("/api/auth/check", function (req, res) {
+    if (req.session && req.session.user) {
+        return res.json({ loggedIn: true, username: req.session.user.username, role: req.session.user.role });
+    }
+    res.json({ loggedIn: false });
+});
+
+app.post("/api/auth/change-password", requireAuth, function (req, res) {
+    var oldPass = req.body.old_password || "";
+    var newPass = req.body.new_password || "";
+
+    if (newPass.length < 4) return res.status(400).json({ error: "رمز عبور باید حداقل ۴ کاراکتر باشد" });
+
+    var user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.session.user.id);
+    if (!bcrypt.compareSync(oldPass, user.password_hash)) {
+        return res.status(401).json({ error: "رمز عبور فعلی اشتباه است" });
+    }
+
+    var hash = bcrypt.hashSync(newPass, 10);
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, user.id);
+    res.json({ success: true });
+});
+
+// ============================================================
+// Serve Frontend (login page is public, dashboard requires auth)
+// ============================================================
+app.use(express.static(path.join(__dirname, "..")));
+
+// ============================================================
+// Device data reception - NO AUTH (devices send data here)
+// ============================================================
+app.post("/api/data", function (req, res) {
+    var b = req.body;
+    var code = String(b.device_code || b.device_id || b.code || "");
+
+    if (!code || !/^\d+$/.test(code)) {
+        return res.status(400).json({ error: "device_code required" });
+    }
+
+    autoRegisterDevice(code);
+
+    var insert = db.prepare(
+        "INSERT INTO traffic_data (device_code, timestamp, vehicle_class, speed, direction, lane, raw_payload) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?)"
+    );
+
+    var count = 0;
+    if (b.records && Array.isArray(b.records)) {
+        var insertMany = db.transaction(function (records) {
+            records.forEach(function (r) {
+                insert.run(code, r.timestamp || new Date().toISOString(), r.vehicle_class || 0, r.speed || 0, r.direction || 1, r.lane || 1, JSON.stringify(r));
+                count++;
+            });
+        });
+        insertMany(b.records);
+    } else {
+        insert.run(code, b.timestamp || new Date().toISOString(), b.vehicle_class || 0, b.speed || 0, b.direction || 1, b.lane || 1, JSON.stringify(b));
+        count = 1;
+    }
+    res.json({ success: true, received: count });
+});
+
+/**
+ * POST /api/irawdata - iccore format (5-class vehicle + speed)
+ * Body: { device_id, create_at, stop, lane, a,b,c,d,e,x, sa..sx, sao..sxo, overtaking, tooclose }
+ * Or batch: { device_id, records: [{...}, ...] }
+ * Vehicle: a=motorcycle b=car c=van d=bus e=truck x=unknown
+ * Speed: sa..sx = sum of speeds per class
+ * Violations: sao..sxo = over-speed count per class
+ */
+app.post("/api/irawdata", function (req, res) {
+    var b = req.body;
+    var code = String(b.device_id || b.device_code || b.code || "");
+    if (!code || !/^\d+$/.test(code)) return res.status(400).json({ error: "device_id required" });
+
+    autoRegisterDevice(code);
+
+    var insertRaw = db.prepare(
+        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    var insertTraffic = db.prepare(
+        "INSERT INTO traffic_data (device_code, timestamp, vehicle_class, speed, direction, lane, raw_payload) VALUES (?, ?, ?, ?, 1, ?, ?)"
+    );
+
+    var count = 0;
+    function insertOne(r) {
+        var now = new Date().toISOString();
+        var ca = r.create_at || r.start || now;
+        var st = r.stop || r.end || now;
+        var ln = r.lane || 1;
+        insertRaw.run(code, ca, st, ln, r.a||0, r.b||0, r.c||0, r.d||0, r.e||0, r.x||0, r.sa||0, r.sb||0, r.sc||0, r.sd||0, r.se||0, r.sx||0, r.sao||0, r.sbo||0, r.sco||0, r.sdo||0, r.seo||0, r.sxo||0, r.overtaking||0, r.tooclose||0);
+        count++;
+        // Also store in traffic_data for RMTO aggregation
+        var classes = [{cls:1,n:r.a||0,s:r.sa||0},{cls:2,n:r.b||0,s:r.sb||0},{cls:3,n:r.c||0,s:r.sc||0},{cls:4,n:r.d||0,s:r.sd||0},{cls:5,n:r.e||0,s:r.se||0}];
+        classes.forEach(function(c){ if(c.n>0) insertTraffic.run(code, ca, c.cls, c.s/c.n, ln, JSON.stringify(r)); });
+    }
+
+    if (b.records && Array.isArray(b.records)) {
+        db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+    } else {
+        insertOne(b);
+    }
+    res.json({ success: true, received: count });
+});
+
+// Auto-register unknown devices
+function autoRegisterDevice(code) {
+    var existing = db.prepare("SELECT device_code FROM devices WHERE device_code = ?").get(code);
+    if (!existing) {
+        try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'sensor', 'online')").run(code, "Device " + code); } catch(e){}
+    }
+    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
+}
+
+// ============================================================
+// All API below requires authentication
+// ============================================================
+app.use("/api/devices", requireAuth);
+app.use("/api/stats", requireAuth);
+app.use("/api/rmto", requireAuth);
+app.use("/api/traffic", requireAuth);
+app.use("/api/backup", requireAuth);
+app.use("/api/settings", requireAuth);
+
+// ============================================================
+// API: Settings
+// ============================================================
+app.get("/api/settings", function (req, res) {
+    var rows = db.prepare("SELECT key, value FROM settings").all();
+    var settings = {};
+    rows.forEach(function (r) { settings[r.key] = r.value; });
+    res.json(settings);
+});
+
+app.post("/api/settings", function (req, res) {
+    var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
+    var b = req.body;
+    var allowed = ["system_name", "server_ip", "server_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout"];
+    var updated = 0;
+    allowed.forEach(function (k) {
+        if (b[k] !== undefined) {
+            upsert.run(k, String(b[k]), String(b[k]));
+            updated++;
+        }
+    });
+    res.json({ success: true, updated: updated });
+});
+
+// ============================================================
+// API: Device Management
+// ============================================================
+app.get("/api/devices", function (req, res) {
+    res.json(db.prepare("SELECT * FROM devices ORDER BY device_code").all());
+});
+
+app.get("/api/devices/:code", function (req, res) {
+    var row = db.prepare("SELECT * FROM devices WHERE device_code = ?").get(req.params.code);
+    if (!row) return res.status(404).json({ error: "not found" });
+    res.json(row);
+});
+
+app.post("/api/devices", function (req, res) {
+    var b = req.body;
+    if (!b.device_code || !b.name) return res.status(400).json({ error: "device_code and name required" });
+    if (!/^\d{4}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 4 digits" });
+    try {
+        db.prepare("INSERT INTO devices (device_code, name, type, route, ip, status, firmware) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.device_code, b.name, b.type || "sensor", b.route || "", b.ip || "", "offline", b.firmware || "");
+        res.json({ success: true, device_code: b.device_code });
+    } catch (e) {
+        if (e.message.indexOf("UNIQUE") !== -1) return res.status(409).json({ error: "duplicate device_code" });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put("/api/devices/:code", function (req, res) {
+    var b = req.body;
+    db.prepare("UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), route = COALESCE(?, route), ip = COALESCE(?, ip), firmware = COALESCE(?, firmware) WHERE device_code = ?").run(b.name, b.type, b.route, b.ip, b.firmware, req.params.code);
+    res.json({ success: true });
+});
+
+app.delete("/api/devices/:code", function (req, res) {
+    db.prepare("DELETE FROM devices WHERE device_code = ?").run(req.params.code);
+    res.json({ success: true });
+});
+
+// ============================================================
+// API: Dashboard Stats
+// ============================================================
+app.get("/api/stats", function (req, res) {
+    var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
+    var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
+    var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    var todayVehicles = db.prepare("SELECT COUNT(*) as c FROM traffic_data WHERE timestamp >= ?").get(todayStart.toISOString()).c;
+    var todayAvgSpeed = db.prepare("SELECT AVG(speed) as avg FROM traffic_data WHERE timestamp >= ? AND speed > 0").get(todayStart.toISOString()).avg || 0;
+    var unsentCount = db.prepare("SELECT COUNT(*) as c FROM rmto_queue WHERE sent = 0").get().c;
+    var unsent5Count = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0").get().c;
+    res.json({ totalDevices: totalDevices, onlineDevices: onlineDevices, todayVehicles: todayVehicles, todayAvgSpeed: Math.round(todayAvgSpeed), unsentRMTO: unsentCount, unsentRMTO5: unsent5Count });
+});
+
+// ============================================================
+// API: RMTO
+// ============================================================
+app.get("/api/rmto/logs", function (req, res) {
+    var limit = parseInt(req.query.limit, 10) || 50;
+    res.json(db.prepare("SELECT * FROM send_log ORDER BY created_at DESC LIMIT ?").all(limit));
+});
+
+app.post("/api/rmto/send-now", function (req, res) {
+    scheduler.sendUnsentData();
+    res.json({ success: true });
+});
+
+app.post("/api/rmto/aggregate", function (req, res) {
+    scheduler.aggregateAndSend();
+    res.json({ success: true });
+});
+
+app.get("/api/rmto/queue", function (req, res) {
+    var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
+    var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();
+    res.json({ unsent: unsent, sent: sent });
+});
+
+// ============================================================
+// API: Traffic Data Query
+// ============================================================
+app.get("/api/traffic", function (req, res) {
+    var code = req.query.device_code || "";
+    var from = req.query.from || "";
+    var to = req.query.to || "";
+    var limit = parseInt(req.query.limit, 10) || 100;
+    var sql = "SELECT * FROM traffic_data WHERE 1=1";
+    var params = [];
+    if (code) { sql += " AND device_code = ?"; params.push(code); }
+    if (from) { sql += " AND timestamp >= ?"; params.push(from); }
+    if (to) { sql += " AND timestamp <= ?"; params.push(to); }
+    sql += " ORDER BY timestamp DESC LIMIT ?";
+    params.push(limit);
+    var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
+    res.json(rows);
+});
+
+// ============================================================
+// PostgreSQL Dump Importer
+// ============================================================
+function importPostgresDump(filePath) {
+    var zlib = require("zlib");
+    var raw;
+    if (filePath.endsWith(".gz")) {
+        raw = zlib.gunzipSync(fs.readFileSync(filePath)).toString("utf8");
+    } else {
+        raw = fs.readFileSync(filePath, "utf8");
+    }
+
+    var stats = { devices: 0, irawdata: 0, mehvar: 0 };
+    var lines = raw.split("\n");
+    var copyMode = null;
+    var copyColumns = [];
+
+    var insertDevice = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'offline')");
+    var insertIraw = db.prepare(
+        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    var insertMehvar = db.prepare("INSERT OR IGNORE INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)");
+
+    var importTx = db.transaction(function () {
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+
+            // Detect COPY ... FROM stdin
+            if (line.indexOf("COPY ") === 0 && line.indexOf("FROM stdin") !== -1) {
+                var match = line.match(/COPY\s+(\S+)\s*\(([^)]+)\)/);
+                if (match) {
+                    var tableName = match[1].replace(/^public\./, "");
+                    copyColumns = match[2].split(",").map(function (c) { return c.trim(); });
+                    if (tableName === "device_device" || tableName === "device_irawdata" || tableName === "device_mehvar") {
+                        copyMode = tableName;
+                    } else {
+                        copyMode = null;
+                    }
+                }
+                continue;
+            }
+
+            // End of COPY block
+            if (line === "\\." || line === "\\.") {
+                copyMode = null;
+                copyColumns = [];
+                continue;
+            }
+
+            if (!copyMode) continue;
+
+            var vals = line.split("\t");
+            if (vals.length < 2) continue;
+
+            function colVal(name) {
+                var idx = copyColumns.indexOf(name);
+                if (idx === -1) return null;
+                var v = vals[idx];
+                return (v === "\\N" || v === undefined) ? null : v;
+            }
+
+            if (copyMode === "device_device") {
+                var devCode = colVal("code");
+                if (devCode) {
+                    insertDevice.run(String(devCode), "Device " + devCode);
+                    stats.devices++;
+                }
+            } else if (copyMode === "device_irawdata") {
+                var devId = colVal("device_id");
+                var createAt = colVal("create_at") || new Date().toISOString();
+                var stop = colVal("stop") || createAt;
+                if (devId) {
+                    insertIraw.run(String(devId), createAt, stop,
+                        parseInt(colVal("lane")) || 1, parseInt(colVal("is_read")) || 0,
+                        parseInt(colVal("a")) || 0, parseInt(colVal("b")) || 0, parseInt(colVal("c")) || 0,
+                        parseInt(colVal("d")) || 0, parseInt(colVal("e")) || 0, parseInt(colVal("x")) || 0,
+                        parseInt(colVal("sa")) || 0, parseInt(colVal("sb")) || 0, parseInt(colVal("sc")) || 0,
+                        parseInt(colVal("sd")) || 0, parseInt(colVal("se")) || 0, parseInt(colVal("sx")) || 0,
+                        parseInt(colVal("sao")) || 0, parseInt(colVal("sbo")) || 0, parseInt(colVal("sco")) || 0,
+                        parseInt(colVal("sdo")) || 0, parseInt(colVal("seo")) || 0, parseInt(colVal("sxo")) || 0,
+                        parseInt(colVal("overtaking")) || 0, parseInt(colVal("tooclose")) || 0);
+                    stats.irawdata++;
+                }
+            } else if (copyMode === "device_mehvar") {
+                var mCode = colVal("code");
+                var mName = colVal("name");
+                if (mCode && mName) {
+                    insertMehvar.run(parseInt(mCode), mName, parseInt(colVal("send_enable")) || 1, parseInt(colVal("repair")) || 0, colVal("ostan_id") || "");
+                    stats.mehvar++;
+                }
+            }
+        }
+    });
+
+    importTx();
+    console.log("[Backup] Imported from PostgreSQL dump:", JSON.stringify(stats));
+    return stats;
+}
+
+// ============================================================
+// API: Backup & Restore
+// ============================================================
+
+// Download backup (copy of SQLite DB file)
+app.get("/api/backup/download", function (req, res) {
+    var dbPath = path.join(__dirname, "data.db");
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: "database not found" });
+
+    // Checkpoint WAL before backup
+    try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch (e) { /* ok */ }
+
+    var timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    var filename = "tc-manager-backup-" + timestamp + ".db";
+    res.download(dbPath, filename);
+});
+
+// Restore from uploaded .sql.gz or .db file
+app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
+    if (!req.file) return res.status(400).json({ error: "فایل بکاپ الزامی است" });
+
+    var tmpPath = req.file.path;
+    var origName = req.file.originalname || "";
+    var dbPath = path.join(__dirname, "data.db");
+
+    try {
+        if (origName.endsWith(".db")) {
+            // Direct SQLite DB file - replace
+            db.pragma("wal_checkpoint(TRUNCATE)");
+            db.close();
+            fs.copyFileSync(tmpPath, dbPath);
+            // Re-require db (Node caches modules, so we need to clear)
+            delete require.cache[require.resolve("./db")];
+            res.json({ success: true, message: "بازیابی انجام شد. سرویس باید ریستارت شود." });
+        } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz") || origName.endsWith(".sql")) {
+            // PostgreSQL dump - decompress and parse
+            var destPath = path.join(__dirname, "uploads", origName);
+            fs.renameSync(tmpPath, destPath);
+            try {
+                var result = importPostgresDump(destPath);
+                res.json({ success: true, message: "بازیابی انجام شد. " + result.devices + " دستگاه و " + result.irawdata + " رکورد داده وارد شد.", details: result });
+            } catch (parseErr) {
+                res.json({ success: true, message: "فایل ذخیره شد ولی پردازش خودکار با خطا مواجه شد: " + parseErr.message, path: destPath });
+            }
+        } else {
+            fs.unlinkSync(tmpPath);
+            return res.status(400).json({ error: "فرمت فایل پشتیبانی نمی‌شود. از .db یا .sql.gz استفاده کنید" });
+        }
+    } catch (e) {
+        res.status(500).json({ error: "خطا در بازیابی: " + e.message });
+    }
+});
+
+// List uploaded backup files
+app.get("/api/backup/list", function (req, res) {
+    var uploadsDir = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadsDir)) { fs.mkdirSync(uploadsDir, { recursive: true }); return res.json([]); }
+    var files = fs.readdirSync(uploadsDir).filter(function (f) {
+        return f.endsWith(".db") || f.endsWith(".sql") || f.endsWith(".gz");
+    }).map(function (f) {
+        var stat = fs.statSync(path.join(uploadsDir, f));
+        return { name: f, size: stat.size, date: stat.mtime.toISOString() };
+    });
+    res.json(files);
+});
+
+// ============================================================
+// Start Server
+// ============================================================
+app.listen(PORT, HOST, function () {
+    console.log("============================================");
+    console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
+    console.log("  http://" + HOST + ":" + PORT);
+    console.log("  Default login: admin / admin123");
+    console.log("============================================");
+
+    rmto.initClient(function (err) {
+        if (err) console.error("[RMTO] Will retry on first send");
+    });
+
+    scheduler.start();
+});
+ENDOFFILE_SERVER_INDEX_JS
+
+echo "[+] Writing server/db.js..."
+cat > "/server/db.js" << 'ENDOFFILE_SERVER_DB_JS'
+/**
+ * Database module - SQLite via better-sqlite3
+ * Stores devices, traffic data, and send logs.
+ */
+var Database = require("better-sqlite3");
+var path = require("path");
+
+var DB_PATH = path.join(__dirname, "data.db");
+var db = new Database(DB_PATH);
+
+// Enable WAL mode for better concurrent read performance
+db.pragma("journal_mode = WAL");
+
+// --- Schema ---
+db.exec([
+    // Devices: each has a unique 4-digit code
+    "CREATE TABLE IF NOT EXISTS devices (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  device_code TEXT NOT NULL UNIQUE,",
+    "  name TEXT NOT NULL,",
+    "  type TEXT NOT NULL DEFAULT 'sensor',",
+    "  route TEXT,",
+    "  ip TEXT,",
+    "  status TEXT NOT NULL DEFAULT 'offline',",
+    "  last_seen TEXT,",
+    "  firmware TEXT,",
+    "  created_at TEXT DEFAULT (datetime('now'))",
+    ");",
+
+    // Raw traffic data received from devices
+    "CREATE TABLE IF NOT EXISTS traffic_data (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  device_code TEXT NOT NULL,",
+    "  timestamp TEXT NOT NULL,",
+    "  vehicle_class INTEGER DEFAULT 0,",
+    "  speed REAL DEFAULT 0,",
+    "  direction INTEGER DEFAULT 1,",
+    "  lane INTEGER DEFAULT 1,",
+    "  raw_payload TEXT,",
+    "  received_at TEXT DEFAULT (datetime('now')),",
+    "  FOREIGN KEY (device_code) REFERENCES devices(device_code)",
+    ");",
+
+    // Aggregated 15-minute data for RMTO (AddData - simple)
+    "CREATE TABLE IF NOT EXISTS rmto_queue (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  device_code TEXT NOT NULL,",
+    "  period_start TEXT NOT NULL,",
+    "  period_end TEXT NOT NULL,",
+    "  total_vehicles INTEGER DEFAULT 0,",
+    "  avg_speed REAL DEFAULT 0,",
+    "  sent INTEGER DEFAULT 0,",
+    "  sent_at TEXT,",
+    "  rmto_response TEXT,",
+    "  created_at TEXT DEFAULT (datetime('now'))",
+    ");",
+
+    // 5-class data for RMTO (AddData5)
+    "CREATE TABLE IF NOT EXISTS rmto_queue_5class (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  device_code TEXT NOT NULL,",
+    "  period_start TEXT NOT NULL,",
+    "  period_end TEXT NOT NULL,",
+    "  -- Volume classes (5 classes by vehicle size)",
+    "  class1_count INTEGER DEFAULT 0,",
+    "  class2_count INTEGER DEFAULT 0,",
+    "  class3_count INTEGER DEFAULT 0,",
+    "  class4_count INTEGER DEFAULT 0,",
+    "  class5_count INTEGER DEFAULT 0,",
+    "  -- Speed classes (5 classes by speed range)",
+    "  speed1_count INTEGER DEFAULT 0,",
+    "  speed2_count INTEGER DEFAULT 0,",
+    "  speed3_count INTEGER DEFAULT 0,",
+    "  speed4_count INTEGER DEFAULT 0,",
+    "  speed5_count INTEGER DEFAULT 0,",
+    "  -- Violation count",
+    "  violations INTEGER DEFAULT 0,",
+    "  avg_speed REAL DEFAULT 0,",
+    "  sent INTEGER DEFAULT 0,",
+    "  sent_at TEXT,",
+    "  rmto_response TEXT,",
+    "  created_at TEXT DEFAULT (datetime('now'))",
+    ");",
+
+    // 8-class data for RMTO (AddData8)
+    "CREATE TABLE IF NOT EXISTS rmto_queue_8class (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  device_code TEXT NOT NULL,",
+    "  period_start TEXT NOT NULL,",
+    "  period_end TEXT NOT NULL,",
+    "  class1_count INTEGER DEFAULT 0,",
+    "  class2_count INTEGER DEFAULT 0,",
+    "  class3_count INTEGER DEFAULT 0,",
+    "  class4_count INTEGER DEFAULT 0,",
+    "  class5_count INTEGER DEFAULT 0,",
+    "  class6_count INTEGER DEFAULT 0,",
+    "  class7_count INTEGER DEFAULT 0,",
+    "  class8_count INTEGER DEFAULT 0,",
+    "  speed1_count INTEGER DEFAULT 0,",
+    "  speed2_count INTEGER DEFAULT 0,",
+    "  speed3_count INTEGER DEFAULT 0,",
+    "  speed4_count INTEGER DEFAULT 0,",
+    "  speed5_count INTEGER DEFAULT 0,",
+    "  speed6_count INTEGER DEFAULT 0,",
+    "  speed7_count INTEGER DEFAULT 0,",
+    "  speed8_count INTEGER DEFAULT 0,",
+    "  violations INTEGER DEFAULT 0,",
+    "  avg_speed REAL DEFAULT 0,",
+    "  sent INTEGER DEFAULT 0,",
+    "  sent_at TEXT,",
+    "  rmto_response TEXT,",
+    "  created_at TEXT DEFAULT (datetime('now'))",
+    ");",
+
+    // Send log for auditing
+    "CREATE TABLE IF NOT EXISTS send_log (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  method TEXT NOT NULL,",
+    "  device_code TEXT NOT NULL,",
+    "  request_data TEXT,",
+    "  response_data TEXT,",
+    "  success INTEGER DEFAULT 0,",
+    "  error_message TEXT,",
+    "  created_at TEXT DEFAULT (datetime('now'))",
+    ");",
+
+    // Indexes
+    "CREATE INDEX IF NOT EXISTS idx_traffic_device ON traffic_data(device_code);",
+    "CREATE INDEX IF NOT EXISTS idx_traffic_time ON traffic_data(timestamp);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto_unsent ON rmto_queue(sent, device_code);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto8_unsent ON rmto_queue_8class(sent, device_code);",
+
+    // irawdata table - matches iccore device_irawdata format
+    "CREATE TABLE IF NOT EXISTS irawdata (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  device_code TEXT NOT NULL,",
+    "  create_at TEXT NOT NULL,",
+    "  stop TEXT NOT NULL,",
+    "  lane INTEGER DEFAULT 1,",
+    "  is_read INTEGER DEFAULT 0,",
+    "  a INTEGER DEFAULT 0,",
+    "  b INTEGER DEFAULT 0,",
+    "  c INTEGER DEFAULT 0,",
+    "  d INTEGER DEFAULT 0,",
+    "  e INTEGER DEFAULT 0,",
+    "  x INTEGER DEFAULT 0,",
+    "  sa INTEGER DEFAULT 0,",
+    "  sb INTEGER DEFAULT 0,",
+    "  sc INTEGER DEFAULT 0,",
+    "  sd INTEGER DEFAULT 0,",
+    "  se INTEGER DEFAULT 0,",
+    "  sx INTEGER DEFAULT 0,",
+    "  sao INTEGER DEFAULT 0,",
+    "  sbo INTEGER DEFAULT 0,",
+    "  sco INTEGER DEFAULT 0,",
+    "  sdo INTEGER DEFAULT 0,",
+    "  seo INTEGER DEFAULT 0,",
+    "  sxo INTEGER DEFAULT 0,",
+    "  overtaking INTEGER DEFAULT 0,",
+    "  tooclose INTEGER DEFAULT 0,",
+    "  received_at TEXT DEFAULT (datetime('now'))",
+    ");",
+
+    // Mehvar (routes) table
+    "CREATE TABLE IF NOT EXISTS mehvar (",
+    "  code INTEGER PRIMARY KEY,",
+    "  name TEXT NOT NULL,",
+    "  send_enable INTEGER DEFAULT 1,",
+    "  repair INTEGER DEFAULT 0,",
+    "  ostan TEXT",
+    ");",
+
+    "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
+    "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
+    "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
+
+    // Settings (key-value store)
+    "CREATE TABLE IF NOT EXISTS settings (",
+    "  key TEXT PRIMARY KEY,",
+    "  value TEXT",
+    ");"
+].join("\n"));
+
+// Insert default settings if not exists
+var defaultSettings = {
+    system_name: "نوآوران جنوب شرق",
+    server_ip: "0.0.0.0",
+    server_port: "3000",
+    refresh_interval: "30",
+    max_speed: "120",
+    alert_offline: "1",
+    alert_speed: "1",
+    alert_error: "1",
+    offline_timeout: "5"
+};
+var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
+Object.keys(defaultSettings).forEach(function (k) {
+    insertSetting.run(k, defaultSettings[k]);
+});
+
+module.exports = db;
+ENDOFFILE_SERVER_DB_JS
+
+echo "[+] Writing server/rmto-client.js..."
+cat > "/server/rmto-client.js" << 'ENDOFFILE_SERVER_RMTO-CLIENT_JS'
+/**
+ * RMTO SOAP Client
+ * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
+ *
+ * Methods:
+ *   - AddData  (v1.02): Simple total count + avg speed per 15-min period
+ *   - AddData5 (v1.01): 5-class volume + 5-class speed + violations
+ *   - AddData8 (v1.00): 8-class volume + 8-class speed + violations
+ */
+var soap = require("soap");
+
+var WSDL_URL = process.env.RMTO_WSDL || "http://otf.rmto.ir/Companies/Companies.asmx?WSDL";
+var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
+var USERNAME = process.env.RMTO_USERNAME || "";
+var PASSWORD = process.env.RMTO_PASSWORD || "";
+
+var soapClient = null;
+
+/**
+ * Initialize SOAP client (called once at startup).
+ */
+function initClient(callback) {
+    if (soapClient) return callback(null, soapClient);
+
+    soap.createClient(WSDL_URL, function (err, client) {
+        if (err) {
+            console.error("[RMTO] Failed to create SOAP client:", err.message);
+            return callback(err);
+        }
+        soapClient = client;
+        console.log("[RMTO] SOAP client initialized");
+        console.log("[RMTO] Available methods:", Object.keys(client.describe().CompanySoap || {}));
+        callback(null, client);
+    });
+}
+
+/**
+ * AddData (v1.02) - Simple traffic data
+ * @param {object} data
+ * @param {string} data.deviceCode - 4-digit device code
+ * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
+ * @param {number} data.totalCount - Total vehicles in period
+ * @param {number} data.avgSpeed   - Average speed in period
+ */
+function sendAddData(data, callback) {
+    ensureClient(function (err) {
+        if (err) return callback(err);
+
+        var args = {
+            CompanyCode: COMPANY_CODE,
+            UserName: USERNAME,
+            Password: PASSWORD,
+            StationCode: data.deviceCode,
+            DateTime: data.dateTime,
+            Count: data.totalCount,
+            Speed: Math.round(data.avgSpeed)
+        };
+
+        console.log("[RMTO] AddData request:", JSON.stringify(args));
+
+        soapClient.AddData(args, function (err, result) {
+            if (err) {
+                console.error("[RMTO] AddData error:", err.message);
+                return callback(err, null);
+            }
+            var response = result && result.AddDataResult;
+            console.log("[RMTO] AddData response:", response);
+            callback(null, response);
+        });
+    });
+}
+
+/**
+ * AddData5 (v1.01) - 5-class traffic data
+ * @param {object} data
+ * @param {string} data.deviceCode
+ * @param {string} data.dateTime
+ * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
+ * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
+ * @param {number} data.violations
+ * @param {number} data.avgSpeed
+ */
+function sendAddData5(data, callback) {
+    ensureClient(function (err) {
+        if (err) return callback(err);
+
+        var args = {
+            CompanyCode: COMPANY_CODE,
+            UserName: USERNAME,
+            Password: PASSWORD,
+            StationCode: data.deviceCode,
+            DateTime: data.dateTime,
+            // 5 volume classes
+            C1: data.class1Count || 0,
+            C2: data.class2Count || 0,
+            C3: data.class3Count || 0,
+            C4: data.class4Count || 0,
+            C5: data.class5Count || 0,
+            // 5 speed classes
+            S1: data.speed1Count || 0,
+            S2: data.speed2Count || 0,
+            S3: data.speed3Count || 0,
+            S4: data.speed4Count || 0,
+            S5: data.speed5Count || 0,
+            // Violation & speed
+            Violation: data.violations || 0,
+            Speed: Math.round(data.avgSpeed || 0)
+        };
+
+        console.log("[RMTO] AddData5 request:", JSON.stringify(args));
+
+        soapClient.AddData5(args, function (err, result) {
+            if (err) {
+                console.error("[RMTO] AddData5 error:", err.message);
+                return callback(err, null);
+            }
+            var response = result && result.AddData5Result;
+            console.log("[RMTO] AddData5 response:", response);
+            callback(null, response);
+        });
+    });
+}
+
+/**
+ * AddData8 (v1.00) - 8-class traffic data
+ * @param {object} data
+ * @param {string} data.deviceCode
+ * @param {string} data.dateTime
+ * @param {number} data.class1Count .. data.class8Count
+ * @param {number} data.speed1Count .. data.speed8Count
+ * @param {number} data.violations
+ * @param {number} data.avgSpeed
+ */
+function sendAddData8(data, callback) {
+    ensureClient(function (err) {
+        if (err) return callback(err);
+
+        var args = {
+            CompanyCode: COMPANY_CODE,
+            UserName: USERNAME,
+            Password: PASSWORD,
+            StationCode: data.deviceCode,
+            DateTime: data.dateTime,
+            C1: data.class1Count || 0,
+            C2: data.class2Count || 0,
+            C3: data.class3Count || 0,
+            C4: data.class4Count || 0,
+            C5: data.class5Count || 0,
+            C6: data.class6Count || 0,
+            C7: data.class7Count || 0,
+            C8: data.class8Count || 0,
+            S1: data.speed1Count || 0,
+            S2: data.speed2Count || 0,
+            S3: data.speed3Count || 0,
+            S4: data.speed4Count || 0,
+            S5: data.speed5Count || 0,
+            S6: data.speed6Count || 0,
+            S7: data.speed7Count || 0,
+            S8: data.speed8Count || 0,
+            Violation: data.violations || 0,
+            Speed: Math.round(data.avgSpeed || 0)
+        };
+
+        console.log("[RMTO] AddData8 request:", JSON.stringify(args));
+
+        soapClient.AddData8(args, function (err, result) {
+            if (err) {
+                console.error("[RMTO] AddData8 error:", err.message);
+                return callback(err, null);
+            }
+            var response = result && result.AddData8Result;
+            console.log("[RMTO] AddData8 response:", response);
+            callback(null, response);
+        });
+    });
+}
+
+function ensureClient(callback) {
+    if (soapClient) return callback(null);
+    initClient(function (err) { callback(err); });
+}
+
+module.exports = {
+    initClient: initClient,
+    sendAddData: sendAddData,
+    sendAddData5: sendAddData5,
+    sendAddData8: sendAddData8
+};
+ENDOFFILE_SERVER_RMTO-CLIENT_JS
+
+echo "[+] Writing server/scheduler.js..."
+cat > "/server/scheduler.js" << 'ENDOFFILE_SERVER_SCHEDULER_JS'
+/**
+ * Scheduler - Aggregates traffic data every 15 minutes and sends to RMTO.
+ */
+var cron = require("node-cron");
+var db = require("./db");
+var rmto = require("./rmto-client");
+
+var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 15;
+
+/**
+ * Aggregate raw traffic_data into rmto_queue and rmto_queue_5class,
+ * then send unsent records to RMTO.
+ */
+function aggregateAndSend() {
+    console.log("[Scheduler] Starting aggregation cycle at", new Date().toISOString());
+
+    var now = new Date();
+    var periodEnd = new Date(now);
+    periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / INTERVAL) * INTERVAL, 0, 0);
+    var periodStart = new Date(periodEnd.getTime() - INTERVAL * 60 * 1000);
+
+    var startStr = periodStart.toISOString();
+    var endStr = periodEnd.toISOString();
+
+    // Get all active devices
+    var devices = db.prepare("SELECT device_code FROM devices WHERE status != 'offline'").all();
+
+    devices.forEach(function (dev) {
+        var code = dev.device_code;
+
+        // Aggregate raw data for this period
+        var agg = db.prepare(
+            "SELECT COUNT(*) as total, AVG(speed) as avg_speed, " +
+            "SUM(CASE WHEN vehicle_class = 1 THEN 1 ELSE 0 END) as c1, " +
+            "SUM(CASE WHEN vehicle_class = 2 THEN 1 ELSE 0 END) as c2, " +
+            "SUM(CASE WHEN vehicle_class = 3 THEN 1 ELSE 0 END) as c3, " +
+            "SUM(CASE WHEN vehicle_class = 4 THEN 1 ELSE 0 END) as c4, " +
+            "SUM(CASE WHEN vehicle_class = 5 THEN 1 ELSE 0 END) as c5, " +
+            "SUM(CASE WHEN speed < 60 THEN 1 ELSE 0 END) as s1, " +
+            "SUM(CASE WHEN speed >= 60 AND speed < 80 THEN 1 ELSE 0 END) as s2, " +
+            "SUM(CASE WHEN speed >= 80 AND speed < 100 THEN 1 ELSE 0 END) as s3, " +
+            "SUM(CASE WHEN speed >= 100 AND speed < 120 THEN 1 ELSE 0 END) as s4, " +
+            "SUM(CASE WHEN speed >= 120 THEN 1 ELSE 0 END) as s5, " +
+            "SUM(CASE WHEN speed > 120 THEN 1 ELSE 0 END) as violations " +
+            "FROM traffic_data WHERE device_code = ? AND timestamp >= ? AND timestamp < ?"
+        ).get(code, startStr, endStr);
+
+        if (!agg || agg.total === 0) return;
+
+        // Insert into simple queue
+        db.prepare(
+            "INSERT INTO rmto_queue (device_code, period_start, period_end, total_vehicles, avg_speed) " +
+            "VALUES (?, ?, ?, ?, ?)"
+        ).run(code, startStr, endStr, agg.total, Math.round(agg.avg_speed || 0));
+
+        // Insert into 5-class queue
+        db.prepare(
+            "INSERT INTO rmto_queue_5class (device_code, period_start, period_end, " +
+            "class1_count, class2_count, class3_count, class4_count, class5_count, " +
+            "speed1_count, speed2_count, speed3_count, speed4_count, speed5_count, " +
+            "violations, avg_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).run(code, startStr, endStr,
+            agg.c1, agg.c2, agg.c3, agg.c4, agg.c5,
+            agg.s1, agg.s2, agg.s3, agg.s4, agg.s5,
+            agg.violations, Math.round(agg.avg_speed || 0));
+    });
+
+    // Now send unsent records
+    sendUnsentData();
+}
+
+/**
+ * Send all unsent aggregated data to RMTO.
+ */
+function sendUnsentData() {
+    // --- Send simple AddData ---
+    var unsent = db.prepare("SELECT * FROM rmto_queue WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+
+    unsent.forEach(function (row) {
+        var dt = formatDateTime(row.period_start);
+
+        rmto.sendAddData({
+            deviceCode: row.device_code,
+            dateTime: dt,
+            totalCount: row.total_vehicles,
+            avgSpeed: row.avg_speed
+        }, function (err, response) {
+            var success = !err && response;
+            db.prepare(
+                "UPDATE rmto_queue SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?"
+            ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
+
+            db.prepare(
+                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
+                "VALUES (?, ?, ?, ?, ?, ?)"
+            ).run("AddData", row.device_code, JSON.stringify(row),
+                JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
+        });
+    });
+
+    // --- Send 5-class AddData5 ---
+    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+
+    unsent5.forEach(function (row) {
+        var dt = formatDateTime(row.period_start);
+
+        rmto.sendAddData5({
+            deviceCode: row.device_code,
+            dateTime: dt,
+            class1Count: row.class1_count,
+            class2Count: row.class2_count,
+            class3Count: row.class3_count,
+            class4Count: row.class4_count,
+            class5Count: row.class5_count,
+            speed1Count: row.speed1_count,
+            speed2Count: row.speed2_count,
+            speed3Count: row.speed3_count,
+            speed4Count: row.speed4_count,
+            speed5Count: row.speed5_count,
+            violations: row.violations,
+            avgSpeed: row.avg_speed
+        }, function (err, response) {
+            var success = !err && response;
+            db.prepare(
+                "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?"
+            ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
+
+            db.prepare(
+                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
+                "VALUES (?, ?, ?, ?, ?, ?)"
+            ).run("AddData5", row.device_code, JSON.stringify(row),
+                JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
+        });
+    });
+}
+
+/**
+ * Format ISO date to RMTO format: "YYYY/MM/DD HH:mm"
+ */
+function formatDateTime(isoStr) {
+    var d = new Date(isoStr);
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var dy = String(d.getDate()).padStart(2, "0");
+    var h = String(d.getHours()).padStart(2, "0");
+    var mn = String(d.getMinutes()).padStart(2, "0");
+    return y + "/" + m + "/" + dy + " " + h + ":" + mn;
+}
+
+/**
+ * Start the scheduler.
+ */
+function start() {
+    // Run every INTERVAL minutes
+    var cronExpr = "*/" + INTERVAL + " * * * *";
+    console.log("[Scheduler] Starting with cron:", cronExpr);
+
+    cron.schedule(cronExpr, function () {
+        aggregateAndSend();
+    });
+
+    // Also allow manual retry of unsent data every hour
+    cron.schedule("5 * * * *", function () {
+        console.log("[Scheduler] Retry unsent data...");
+        sendUnsentData();
+    });
+}
+
+module.exports = {
+    start: start,
+    aggregateAndSend: aggregateAndSend,
+    sendUnsentData: sendUnsentData
+};
+ENDOFFILE_SERVER_SCHEDULER_JS
+
+echo "[+] Writing server/package.json..."
+cat > "/server/package.json" << 'ENDOFFILE_SERVER_PACKAGE_JSON'
+{
+  "name": "tc-manager-server",
+  "version": "1.0.0",
+  "description": "TC Manager - Backend server for traffic device data collection and RMTO integration",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^9.4.3",
+    "soap": "^1.0.0",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.1",
+    "express-session": "^1.17.3",
+    "multer": "^1.4.5-lts.1",
+    "bcryptjs": "^2.4.3"
+  }
+}
+ENDOFFILE_SERVER_PACKAGE_JSON
+
+# Create .env file if not exists
+echo "[2/7] Creating .env file..."
+if [ ! -f "/server/.env" ]; then
+cat > "/server/.env" << 'ENDENV'
+PORT=3000
+HOST=0.0.0.0
+ADMIN_USER=admin
+ADMIN_PASS=admin123
+SESSION_SECRET=
+RMTO_WSDL=http://otf.rmto.ir/Companies/Companies.asmx?WSDL
+RMTO_COMPANY_CODE=58
+RMTO_USERNAME=
+RMTO_PASSWORD=
+SEND_INTERVAL_MINUTES=15
+ENDENV
+echo "  .env created with defaults"
+else
+echo "  .env already exists, skipping"
 fi
 
-# Install npm dependencies
-cd "$BASE/server"
-echo "[*] Installing npm dependencies ..."
-npm install --production 2>&1 | tail -5
+# Install Node.js if not present
+echo "[3/7] Checking Node.js..."
+if ! command -v node &> /dev/null; then
+    echo "  Installing Node.js 18.x..."
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    apt-get install -y nodejs
+else
+    echo "  Node.js already installed: v22.22.0"
+fi
 
-# Setup systemd service
-if [ ! -f /etc/systemd/system/tc-manager.service ]; then
-    cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
+# Install dependencies
+echo "[4/7] Installing npm dependencies..."
+cd "/server"
+npm install --production 2>&1 | tail -5
+echo "  Dependencies installed"
+
+# Create systemd service
+echo "[5/7] Creating systemd service..."
+cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
 [Unit]
 Description=TC Manager Server (Noavaran Jonoob Shargh)
 After=network.target
@@ -3257,53 +3467,92 @@ Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
-RestartSec=5
+Restart=always
+RestartSec=10
 Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target
 ENDSVC
-    systemctl daemon-reload
-    systemctl enable tc-manager
-    echo "[+] Systemd service created and enabled"
-fi
+
+systemctl daemon-reload
+systemctl enable tc-manager
 
 # Setup nginx
-if command -v nginx &>/dev/null; then
-    cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX'
+echo "[6/7] Configuring nginx..."
+if command -v nginx &> /dev/null; then
+cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX'
 server {
-    listen 80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name _;
+
+    client_max_body_size 500M;
+
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade ;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_cache_bypass $http_upgrade;
-        client_max_body_size 500M;
+        proxy_set_header Host ;
+        proxy_set_header X-Real-IP ;
+        proxy_set_header X-Forwarded-For ;
+        proxy_cache_bypass ;
     }
 }
 ENDNGINX
-    ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/
-    rm -f /etc/nginx/sites-enabled/default 2>/dev/null
-    nginx -t 2>/dev/null && systemctl reload nginx
-    echo "[+] Nginx configured"
+
+    # Enable site
+    ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t && systemctl reload nginx
+    echo "  Nginx configured"
+else
+    echo "  Nginx not installed, installing..."
+    apt-get install -y nginx
+    # Re-run nginx config
+    cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX2'
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    client_max_body_size 500M;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host \;
+        proxy_set_header X-Real-IP \;
+        proxy_set_header X-Forwarded-For \;
+        proxy_cache_bypass \;
+    }
+}
+ENDNGINX2
+    ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
+    rm -f /etc/nginx/sites-enabled/default
+    nginx -t && systemctl reload nginx
+    echo "  Nginx installed and configured"
 fi
 
-# Restart service
+# Start service
+echo "[7/7] Starting TC Manager..."
 systemctl restart tc-manager
 sleep 2
 
-echo ""
-echo "============================================"
-echo "  DEPLOYMENT COMPLETE!"
-echo "============================================"
-echo "  URL: http://$(hostname -I | awk \'{print $1}\')"
-echo "  Login: admin / admin123"
-echo ""
-systemctl status tc-manager --no-pager -l 2>&1 | head -15
-echo "============================================"
+# Verify
+if systemctl is-active --quiet tc-manager; then
+    echo ""
+    echo "========================================"
+    echo "  Deployment Complete!"
+    echo "  TC Manager is running"
+    echo "  URL: http://21.0.0.192"
+    echo "  Login: admin / admin123"
+    echo "========================================"
+else
+    echo ""
+    echo "  [ERROR] Service failed to start!"
+    echo "  Check logs: journalctl -u tc-manager -n 50"
+fi

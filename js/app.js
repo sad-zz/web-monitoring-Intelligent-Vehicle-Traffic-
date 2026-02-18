@@ -501,12 +501,58 @@
     // ============================================================
     // UI5: Settings (event handlers)
     // ============================================================
+    // --- Load Settings from Server ---
+    function loadSettings() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "/api/settings", true);
+        xhr.withCredentials = true;
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                var s = JSON.parse(xhr.responseText);
+                if (s.system_name) $("#setting-name").value = s.system_name;
+                if (s.server_ip) $("#setting-server").value = s.server_ip;
+                if (s.server_port) $("#setting-port").value = s.server_port;
+                if (s.refresh_interval) $("#setting-refresh").value = s.refresh_interval;
+                if (s.max_speed) $("#setting-max-speed").value = s.max_speed;
+                if (s.offline_timeout) $("#setting-timeout").value = s.offline_timeout;
+                var ao = $("#setting-alert-offline"); if (ao) ao.checked = s.alert_offline !== "0";
+                var as = $("#setting-alert-speed"); if (as) as.checked = s.alert_speed !== "0";
+                var ae = $("#setting-alert-error"); if (ae) ae.checked = s.alert_error !== "0";
+            }
+        };
+        xhr.send();
+    }
+    loadSettings();
+
+    function saveSettings(data, msg) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/settings", true);
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.withCredentials = true;
+        xhr.onload = function () {
+            if (xhr.status === 200) alert(msg || "ذخیره شد");
+            else alert("خطا در ذخیره تنظیمات");
+        };
+        xhr.send(JSON.stringify(data));
+    }
+
     $("#btn-save-settings").addEventListener("click", function () {
-        alert("تنظیمات عمومی ذخیره شد.");
+        saveSettings({
+            system_name: $("#setting-name").value,
+            server_ip: $("#setting-server").value,
+            server_port: $("#setting-port").value,
+            refresh_interval: $("#setting-refresh").value,
+            max_speed: $("#setting-max-speed").value
+        }, "تنظیمات عمومی ذخیره شد.");
     });
 
     $("#btn-save-alerts").addEventListener("click", function () {
-        alert("تنظیمات هشدار ذخیره شد.");
+        saveSettings({
+            alert_offline: $("#setting-alert-offline").checked ? "1" : "0",
+            alert_speed: $("#setting-alert-speed").checked ? "1" : "0",
+            alert_error: $("#setting-alert-error").checked ? "1" : "0",
+            offline_timeout: $("#setting-timeout").value
+        }, "تنظیمات هشدار ذخیره شد.");
     });
 
     // --- Change Password ---

@@ -173,7 +173,30 @@ db.exec([
 
     "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
     "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);"
+    "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
+
+    // Settings (key-value store)
+    "CREATE TABLE IF NOT EXISTS settings (",
+    "  key TEXT PRIMARY KEY,",
+    "  value TEXT",
+    ");"
 ].join("\n"));
+
+// Insert default settings if not exists
+var defaultSettings = {
+    system_name: "نوآوران جنوب شرق",
+    server_ip: "0.0.0.0",
+    server_port: "3000",
+    refresh_interval: "30",
+    max_speed: "120",
+    alert_offline: "1",
+    alert_speed: "1",
+    alert_error: "1",
+    offline_timeout: "5"
+};
+var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
+Object.keys(defaultSettings).forEach(function (k) {
+    insertSetting.run(k, defaultSettings[k]);
+});
 
 module.exports = db;
