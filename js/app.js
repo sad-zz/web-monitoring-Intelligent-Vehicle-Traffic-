@@ -13,43 +13,82 @@
         xhr.open("GET", "/api/auth/check", true);
         xhr.withCredentials = true;
         xhr.onload = function () {
-            var data = JSON.parse(xhr.responseText);
-            if (data.loggedIn) {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.loggedIn) {
+                    loginOverlay.classList.add("hidden");
+                    var userEl = document.getElementById("topbar-user");
+                    if (userEl) userEl.textContent = data.username;
+                    var nameEl = document.querySelector(".user-name");
+                    if (nameEl) nameEl.textContent = data.username;
+                    renderHome();
+                } else {
+                    loginOverlay.classList.remove("hidden");
+                }
+            } catch(e) {
+                loginOverlay.classList.remove("hidden");
+            }
+        };
+        xhr.onerror = function () {
+            // Static auth fallback for preview (no backend)
+            var savedUser = localStorage.getItem("tc_user");
+            if (savedUser) {
                 loginOverlay.classList.add("hidden");
                 var userEl = document.getElementById("topbar-user");
-                if (userEl) userEl.textContent = data.username;
+                if (userEl) userEl.textContent = savedUser;
                 var nameEl = document.querySelector(".user-name");
-                if (nameEl) nameEl.textContent = data.username;
+                if (nameEl) nameEl.textContent = savedUser;
+                renderHome();
             } else {
                 loginOverlay.classList.remove("hidden");
             }
         };
-        xhr.onerror = function () { loginOverlay.classList.remove("hidden"); };
         xhr.send();
     }
 
     if (loginForm) {
         loginForm.addEventListener("submit", function (e) {
             e.preventDefault();
-            var user = document.getElementById("login-user").value;
+            var user = document.getElementById("login-user").value.trim();
             var pass = document.getElementById("login-pass").value;
+            
+            // Static auth for preview (no backend)
+            if (user === "admin" && pass === "admin1234") {
+                localStorage.setItem("tc_user", user);
+                loginOverlay.classList.add("hidden");
+                loginError.style.display = "none";
+                var userEl = document.getElementById("topbar-user");
+                if (userEl) userEl.textContent = user;
+                var nameEl = document.querySelector(".user-name");
+                if (nameEl) nameEl.textContent = user;
+                renderHome();
+                return;
+            }
+            
+            // Try backend auth if available
             var xhr = new XMLHttpRequest();
             xhr.open("POST", "/api/auth/login", true);
             xhr.setRequestHeader("Content-Type", "application/json");
             xhr.withCredentials = true;
             xhr.onload = function () {
                 if (xhr.status === 200) {
+                    var data = JSON.parse(xhr.responseText);
+                    localStorage.setItem("tc_user", data.username);
                     loginOverlay.classList.add("hidden");
                     loginError.style.display = "none";
-                    var data = JSON.parse(xhr.responseText);
                     var userEl = document.getElementById("topbar-user");
                     if (userEl) userEl.textContent = data.username;
                     var nameEl = document.querySelector(".user-name");
                     if (nameEl) nameEl.textContent = data.username;
+                    renderHome();
                 } else {
                     loginError.textContent = "نام کاربری یا رمز عبور اشتباه است";
                     loginError.style.display = "block";
                 }
+            };
+            xhr.onerror = function () {
+                loginError.textContent = "نام کاربری یا رمز عبور اشتباه است";
+                loginError.style.display = "block";
             };
             xhr.send(JSON.stringify({ username: user, password: pass }));
         });
@@ -531,10 +570,12 @@
 
     // --- Logout ---
     $("#btn-logout").addEventListener("click", function () {
+        localStorage.removeItem("tc_user");
+        loginOverlay.classList.remove("hidden");
+        // Try to call backend logout if available
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/auth/logout", true);
         xhr.withCredentials = true;
-        xhr.onload = function () { loginOverlay.classList.remove("hidden"); };
         xhr.send();
     });
 
@@ -809,6 +850,6 @@
     // ============================================================
     // Init
     // ============================================================
-    renderHome();
+    // Don't render home here - wait for auth check to complete
 
 })();
