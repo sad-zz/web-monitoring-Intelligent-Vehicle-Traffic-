@@ -62,35 +62,10 @@
                 var nameEl = document.querySelector(".user-name");
                 if (nameEl) nameEl.textContent = user;
                 renderHome();
-                return;
-            }
-            
-            // Try backend auth if available
-            var xhr = new XMLHttpRequest();
-            xhr.open("POST", "/api/auth/login", true);
-            xhr.setRequestHeader("Content-Type", "application/json");
-            xhr.withCredentials = true;
-            xhr.onload = function () {
-                if (xhr.status === 200) {
-                    var data = JSON.parse(xhr.responseText);
-                    localStorage.setItem("tc_user", data.username);
-                    loginOverlay.classList.add("hidden");
-                    loginError.style.display = "none";
-                    var userEl = document.getElementById("topbar-user");
-                    if (userEl) userEl.textContent = data.username;
-                    var nameEl = document.querySelector(".user-name");
-                    if (nameEl) nameEl.textContent = data.username;
-                    renderHome();
-                } else {
-                    loginError.textContent = "نام کاربری یا رمز عبور اشتباه است";
-                    loginError.style.display = "block";
-                }
-            };
-            xhr.onerror = function () {
+            } else {
                 loginError.textContent = "نام کاربری یا رمز عبور اشتباه است";
                 loginError.style.display = "block";
-            };
-            xhr.send(JSON.stringify({ username: user, password: pass }));
+            }
         });
     }
 
@@ -148,6 +123,22 @@
         var mo = String(d.getMonth() + 1).padStart(2, "0");
         var dy = String(d.getDate()).padStart(2, "0");
         return d.getFullYear() + "/" + mo + "/" + dy + " " + h + ":" + m;
+    }
+
+    // --- Toast Notification ---
+    function showToast(message, type) {
+        type = type || "info";
+        var container = document.getElementById("toast-container");
+        if (!container) return;
+        var toast = document.createElement("div");
+        toast.className = "toast " + type;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(function() {
+            toast.style.opacity = "0";
+            toast.style.transition = "opacity .3s";
+            setTimeout(function() { container.removeChild(toast); }, 300);
+        }, 3000);
     }
 
     // --- Navigation ---
@@ -214,7 +205,56 @@
         var onlineDevices = devices.filter(function (d) { return d.status === "online"; }).length;
         $("#footer-device-count").textContent = onlineDevices + " دستگاه فعال";
 
+        renderRouteStatusChart();
         renderHomeTable();
+    }
+
+    function renderRouteStatusChart() {
+        var stats = { online: 0, warning: 0, error: 0, offline: 0 };
+        routes.forEach(function(r) {
+            if (stats[r.status] !== undefined) stats[r.status]++;
+        });
+        var total = routes.length || 1;
+
+        var statsRow = $(".stats-row");
+        var existingChart = $(".route-status-chart");
+        if (existingChart) existingChart.remove();
+
+        var chart = document.createElement("div");
+        chart.className = "route-status-chart";
+        chart.innerHTML = '<h3>وضعیت محورها</h3>' +
+            '<div class="chart-bar-container">' +
+                '<div class="chart-label">آنلاین</div>' +
+                '<div class="chart-bar">' +
+                    '<div class="chart-bar-fill online" style="width:' + (stats.online / total * 100) + '%">' + (stats.online || '') + '</div>' +
+                '</div>' +
+                '<div class="chart-value">' + stats.online + '</div>' +
+            '</div>' +
+            '<div class="chart-bar-container">' +
+                '<div class="chart-label">هشدار</div>' +
+                '<div class="chart-bar">' +
+                    '<div class="chart-bar-fill warning" style="width:' + (stats.warning / total * 100) + '%">' + (stats.warning || '') + '</div>' +
+                '</div>' +
+                '<div class="chart-value">' + stats.warning + '</div>' +
+            '</div>' +
+            '<div class="chart-bar-container">' +
+                '<div class="chart-label">خطا</div>' +
+                '<div class="chart-bar">' +
+                    '<div class="chart-bar-fill error" style="width:' + (stats.error / total * 100) + '%">' + (stats.error || '') + '</div>' +
+                '</div>' +
+                '<div class="chart-value">' + stats.error + '</div>' +
+            '</div>' +
+            '<div class="chart-bar-container">' +
+                '<div class="chart-label">آفلاین</div>' +
+                '<div class="chart-bar">' +
+                    '<div class="chart-bar-fill offline" style="width:' + (stats.offline / total * 100) + '%">' + (stats.offline || '') + '</div>' +
+                '</div>' +
+                '<div class="chart-value">' + stats.offline + '</div>' +
+            '</div>';
+        
+        if (statsRow && statsRow.nextSibling) {
+            statsRow.parentNode.insertBefore(chart, statsRow.nextSibling);
+        }
     }
 
     function getFilteredRoutes() {
@@ -240,8 +280,7 @@
                 '<td style="direction:ltr;text-align:right">' + escapeHtml(formatTime(r.lastUpdate)) + "</td>" +
                 '<td style="direction:ltr;text-align:right">' + escapeHtml(formatNumber(r.totalVehicles)) + "</td>" +
                 '<td style="direction:ltr;text-align:right">' + escapeHtml(r.avgSpeed) + " km/h</td>" +
-                '<td><span class="status-badge ' + (r.errors > 0 ? "error" : "online") + '">' +
-                    escapeHtml(r.errors > 0 ? r.errors + " خطا" : "بدون خطا") + "</span></td>" +
+                '<td><span class="status-badge ' + r.status + '">' + escapeHtml(STATUS_LABELS[r.status] || r.status) + "</span></td>" +
                 "</tr>";
         }).join("");
 
@@ -296,6 +335,7 @@
                 "<td>" +
                     '<div class="action-btns">' +
                         '<button class="btn btn-sm btn-primary btn-route-detail" data-id="' + escapeHtml(r.id) + '">جزئیات</button>' +
+                        '<button class="btn btn-sm btn-secondary btn-route-edit" data-id="' + escapeHtml(r.id) + '">ویرایش</button>' +
                         '<button class="btn btn-sm btn-danger btn-route-delete" data-id="' + escapeHtml(r.id) + '">حذف</button>' +
                     "</div>" +
                 "</td>" +
@@ -307,6 +347,13 @@
             btn.addEventListener("click", function () {
                 var r = routes.find(function (x) { return x.id === btn.getAttribute("data-id"); });
                 if (r) showRouteDetail(r);
+            });
+        });
+
+        tbody.querySelectorAll(".btn-route-edit").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var r = routes.find(function (x) { return x.id === btn.getAttribute("data-id"); });
+                if (r) showRouteEditForm(r);
             });
         });
 
@@ -350,6 +397,29 @@
         $("#modal-overlay").classList.add("active");
     }
 
+    function showRouteEditForm(r) {
+        currentEditingRoute = r;
+        $("#add-modal-title").textContent = "ویرایش محور";
+        $("#add-modal-body").innerHTML =
+            '<form id="edit-route-form">' +
+                '<div class="form-group"><label>نام محور</label><input type="text" id="edit-route-name" value="' + escapeHtml(r.name) + '" required></div>' +
+                '<div class="form-group"><label>مبدأ</label><input type="text" id="edit-route-origin" value="' + escapeHtml(r.origin) + '"></div>' +
+                '<div class="form-group"><label>مقصد</label><input type="text" id="edit-route-dest" value="' + escapeHtml(r.destination) + '"></div>' +
+                '<div class="form-group"><label>طول (km)</label><input type="number" id="edit-route-length" value="' + r.length + '" dir="ltr"></div>' +
+                '<div class="form-group"><label>وضعیت</label><select id="edit-route-status">' +
+                    '<option value="online" ' + (r.status === "online" ? "selected" : "") + '>آنلاین</option>' +
+                    '<option value="warning" ' + (r.status === "warning" ? "selected" : "") + '>هشدار</option>' +
+                    '<option value="error" ' + (r.status === "error" ? "selected" : "") + '>خطا</option>' +
+                    '<option value="offline" ' + (r.status === "offline" ? "selected" : "") + '>آفلاین</option>' +
+                '</select></div>' +
+            '</form>';
+        currentAddMode = "route-edit";
+        $("#add-modal-overlay").classList.add("active");
+    }
+
+    var currentEditingRoute = null;
+    var currentEditingDevice = null;
+
     // Add route
     $("#btn-add-route").addEventListener("click", function () {
         $("#add-modal-title").textContent = "افزودن محور جدید";
@@ -377,6 +447,7 @@
             if (!q) return true;
             return d.name.toLowerCase().indexOf(q) !== -1 ||
                    d.id.toLowerCase().indexOf(q) !== -1 ||
+                   (d.deviceCode && d.deviceCode.indexOf(q) !== -1) ||
                    d.ip.indexOf(q) !== -1;
         });
     }
@@ -405,6 +476,7 @@
                 "<td>" +
                     '<div class="action-btns">' +
                         '<button class="btn btn-sm btn-primary btn-dev-detail" data-id="' + escapeHtml(d.id) + '">جزئیات</button>' +
+                        '<button class="btn btn-sm btn-secondary btn-dev-edit" data-id="' + escapeHtml(d.id) + '">ویرایش</button>' +
                         '<button class="btn btn-sm btn-danger btn-dev-delete" data-id="' + escapeHtml(d.id) + '">حذف</button>' +
                     "</div>" +
                 "</td>" +
@@ -415,6 +487,13 @@
             btn.addEventListener("click", function () {
                 var d = devices.find(function (x) { return x.id === btn.getAttribute("data-id"); });
                 if (d) showDeviceDetail(d);
+            });
+        });
+
+        tbody.querySelectorAll(".btn-dev-edit").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var d = devices.find(function (x) { return x.id === btn.getAttribute("data-id"); });
+                if (d) showDeviceEditForm(d);
             });
         });
 
@@ -459,6 +538,35 @@
                 '<div class="detail-item"><span class="detail-label">آخرین اتصال</span><span class="detail-value" dir="ltr">' + escapeHtml(formatTime(d.lastSeen)) + '</span></div>' +
             '</div>';
         $("#modal-overlay").classList.add("active");
+    }
+
+    function showDeviceEditForm(d) {
+        currentEditingDevice = d;
+        $("#add-modal-title").textContent = "ویرایش دستگاه";
+        var routeOptions = routes.map(function (r) {
+            return '<option value="' + escapeHtml(r.id) + '"' + (d.route === r.id ? ' selected' : '') + '>' + escapeHtml(r.name) + '</option>';
+        }).join("");
+        $("#add-modal-body").innerHTML =
+            '<form id="edit-device-form">' +
+                '<div class="form-group"><label>کد دستگاه (۴ رقمی)</label><input type="text" id="edit-dev-code" value="' + escapeHtml(d.deviceCode || "") + '" disabled dir="ltr" style="background:#f1f5f9"></div>' +
+                '<div class="form-group"><label>نام دستگاه</label><input type="text" id="edit-dev-name" value="' + escapeHtml(d.name) + '" required></div>' +
+                '<div class="form-group"><label>نوع</label><select id="edit-dev-type">' +
+                    '<option value="camera"' + (d.type === "camera" ? ' selected' : '') + '>دوربین</option>' +
+                    '<option value="sensor"' + (d.type === "sensor" ? ' selected' : '') + '>سنسور</option>' +
+                    '<option value="traffic-light"' + (d.type === "traffic-light" ? ' selected' : '') + '>چراغ راهنمایی</option>' +
+                    '<option value="controller"' + (d.type === "controller" ? ' selected' : '') + '>کنترلر</option>' +
+                '</select></div>' +
+                '<div class="form-group"><label>محور</label><select id="edit-dev-route"><option value="">انتخاب کنید</option>' + routeOptions + '</select></div>' +
+                '<div class="form-group"><label>آدرس IP</label><input type="text" id="edit-dev-ip" value="' + escapeHtml(d.ip) + '" dir="ltr" required></div>' +
+                '<div class="form-group"><label>وضعیت</label><select id="edit-dev-status">' +
+                    '<option value="online"' + (d.status === "online" ? ' selected' : '') + '>آنلاین</option>' +
+                    '<option value="warning"' + (d.status === "warning" ? ' selected' : '') + '>هشدار</option>' +
+                    '<option value="error"' + (d.status === "error" ? ' selected' : '') + '>خطا</option>' +
+                    '<option value="offline"' + (d.status === "offline" ? ' selected' : '') + '>آفلاین</option>' +
+                '</select></div>' +
+            '</form>';
+        currentAddMode = "device-edit";
+        $("#add-modal-overlay").classList.add("active");
     }
 
     // Add device
@@ -544,26 +652,26 @@
     // UI5: Settings (event handlers)
     // ============================================================
     $("#btn-save-settings").addEventListener("click", function () {
-        alert("تنظیمات عمومی ذخیره شد.");
+        showToast("تنظیمات عمومی ذخیره شد.", "success");
     });
 
     $("#btn-save-alerts").addEventListener("click", function () {
-        alert("تنظیمات هشدار ذخیره شد.");
+        showToast("تنظیمات هشدار ذخیره شد.", "success");
     });
 
     // --- Change Password ---
     $("#btn-change-pass").addEventListener("click", function () {
         var oldP = $("#setting-old-pass").value;
         var newP = $("#setting-new-pass").value;
-        if (!oldP || !newP) { alert("لطفا هر دو فیلد را پر کنید"); return; }
+        if (!oldP || !newP) { showToast("لطفا هر دو فیلد را پر کنید", "error"); return; }
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/auth/change-password", true);
         xhr.setRequestHeader("Content-Type", "application/json");
         xhr.withCredentials = true;
         xhr.onload = function () {
             var r = JSON.parse(xhr.responseText);
-            if (xhr.status === 200) { alert("رمز عبور تغییر کرد"); $("#setting-old-pass").value = ""; $("#setting-new-pass").value = ""; }
-            else alert(r.error || "خطا");
+            if (xhr.status === 200) { showToast("رمز عبور تغییر کرد", "success"); $("#setting-old-pass").value = ""; $("#setting-new-pass").value = ""; }
+            else showToast(r.error || "خطا", "error");
         };
         xhr.send(JSON.stringify({ old_password: oldP, new_password: newP }));
     });
@@ -572,11 +680,6 @@
     $("#btn-logout").addEventListener("click", function () {
         localStorage.removeItem("tc_user");
         loginOverlay.classList.remove("hidden");
-        // Try to call backend logout if available
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/auth/logout", true);
-        xhr.withCredentials = true;
-        xhr.send();
     });
 
     // --- Backup Download ---
@@ -587,7 +690,7 @@
     // --- Backup Restore ---
     $("#btn-backup-restore").addEventListener("click", function () {
         var fileInput = $("#backup-file");
-        if (!fileInput.files || !fileInput.files[0]) { alert("لطفا فایل پشتیبان را انتخاب کنید"); return; }
+        if (!fileInput.files || !fileInput.files[0]) { showToast("لطفا فایل پشتیبان را انتخاب کنید", "error"); return; }
         var formData = new FormData();
         formData.append("backup", fileInput.files[0]);
         var statusEl = $("#backup-status");
@@ -612,7 +715,7 @@
     $("#add-modal-save").addEventListener("click", function () {
         if (currentAddMode === "route") {
             var name = ($("#new-route-name") || {}).value;
-            if (!name || !name.trim()) { alert("لطفا نام محور را وارد کنید"); return; }
+            if (!name || !name.trim()) { showToast("لطفا نام محور را وارد کنید", "error"); return; }
             var maxNum = 0;
             routes.forEach(function (r) {
                 var n = parseInt(r.id.split("-")[1], 10);
@@ -633,13 +736,27 @@
             });
             $("#add-modal-overlay").classList.remove("active");
             renderRouteTable();
+            showToast("محور جدید اضافه شد", "success");
+        } else if (currentAddMode === "route-edit") {
+            if (!currentEditingRoute) return;
+            var name = ($("#edit-route-name") || {}).value;
+            if (!name || !name.trim()) { showToast("لطفا نام محور را وارد کنید", "error"); return; }
+            currentEditingRoute.name = name.trim();
+            currentEditingRoute.origin = ($("#edit-route-origin") || {}).value || "";
+            currentEditingRoute.destination = ($("#edit-route-dest") || {}).value || "";
+            currentEditingRoute.length = parseFloat(($("#edit-route-length") || {}).value) || 0;
+            currentEditingRoute.status = ($("#edit-route-status") || {}).value || "online";
+            $("#add-modal-overlay").classList.remove("active");
+            renderRouteTable();
+            showToast("محور ویرایش شد", "success");
+            currentEditingRoute = null;
         } else if (currentAddMode === "device") {
             var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
             var ip = ($("#new-dev-ip") || {}).value;
-            if (!dcode || !/^\d{4}$/.test(dcode)) { alert("کد دستگاه باید ۴ رقمی باشد"); return; }
-            if (!dname || !dname.trim() || !ip || !ip.trim()) { alert("لطفا نام و IP را وارد کنید"); return; }
-            if (devices.some(function (d) { return d.deviceCode === dcode; })) { alert("کد دستگاه تکراری است"); return; }
+            if (!dcode || !/^\d{4}$/.test(dcode)) { showToast("کد دستگاه باید ۴ رقمی باشد", "error"); return; }
+            if (!dname || !dname.trim() || !ip || !ip.trim()) { showToast("لطفا نام و IP را وارد کنید", "error"); return; }
+            if (devices.some(function (d) { return d.deviceCode === dcode; })) { showToast("کد دستگاه تکراری است", "error"); return; }
             var type = ($("#new-dev-type") || {}).value || "camera";
             var prefix = { camera: "CAM", sensor: "SEN", "traffic-light": "TL", controller: "CTR" }[type] || "DEV";
             var dmax = 0;
@@ -662,6 +779,21 @@
             });
             $("#add-modal-overlay").classList.remove("active");
             renderDeviceTable();
+            showToast("دستگاه جدید اضافه شد", "success");
+        } else if (currentAddMode === "device-edit") {
+            if (!currentEditingDevice) return;
+            var dname = ($("#edit-dev-name") || {}).value;
+            var ip = ($("#edit-dev-ip") || {}).value;
+            if (!dname || !dname.trim() || !ip || !ip.trim()) { showToast("لطفا نام و IP را وارد کنید", "error"); return; }
+            currentEditingDevice.name = dname.trim();
+            currentEditingDevice.ip = ip.trim();
+            currentEditingDevice.type = ($("#edit-dev-type") || {}).value || currentEditingDevice.type;
+            currentEditingDevice.route = ($("#edit-dev-route") || {}).value || "";
+            currentEditingDevice.status = ($("#edit-dev-status") || {}).value || "online";
+            $("#add-modal-overlay").classList.remove("active");
+            renderDeviceTable();
+            showToast("دستگاه ویرایش شد", "success");
+            currentEditingDevice = null;
         }
     });
 
@@ -710,7 +842,7 @@
         var text = tableToText(table);
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text).then(function () {
-                alert("کپی شد!");
+                showToast("کپی شد!", "success");
             });
         }
     }
@@ -768,6 +900,8 @@
         if (!el) return;
         if (total === 0) {
             el.textContent = "داده‌ای یافت نشد";
+        } else if (count === 0) {
+            el.textContent = "نتیجه‌ای یافت نشد";
         } else {
             el.textContent = "نمایش " + (start + 1) + " تا " + (start + count) + " از " + total + " ردیف";
         }

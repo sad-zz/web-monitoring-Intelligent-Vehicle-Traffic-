@@ -1,0 +1,201 @@
+/**
+ * Route and device data for TC Manager (Sistan Akbari).
+ */
+
+var ROUTE_DATA = [
+    {
+        id: "R-001",
+        name: "آزادراه تهران-کرج",
+        origin: "تهران",
+        destination: "کرج",
+        length: 45,
+        deviceCount: 8,
+        status: "online",
+        totalVehicles: 124500,
+        avgSpeed: 95,
+        errors: 2,
+        lastUpdate: "2026-02-15T10:23:00"
+    },
+    {
+        id: "R-002",
+        name: "بزرگراه همت",
+        origin: "شرق تهران",
+        destination: "غرب تهران",
+        length: 22,
+        deviceCount: 12,
+        status: "online",
+        totalVehicles: 89200,
+        avgSpeed: 62,
+        errors: 0,
+        lastUpdate: "2026-02-15T10:22:45"
+    },
+    {
+        id: "R-003",
+        name: "بزرگراه صدر",
+        origin: "تجریش",
+        destination: "ستاری",
+        length: 18,
+        deviceCount: 6,
+        status: "warning",
+        totalVehicles: 67800,
+        avgSpeed: 48,
+        errors: 3,
+        lastUpdate: "2026-02-15T09:55:00"
+    },
+    {
+        id: "R-004",
+        name: "آزادراه تهران-قم",
+        origin: "تهران",
+        destination: "قم",
+        length: 155,
+        deviceCount: 15,
+        status: "online",
+        totalVehicles: 56300,
+        avgSpeed: 110,
+        errors: 1,
+        lastUpdate: "2026-02-15T10:20:00"
+    },
+    {
+        id: "R-005",
+        name: "بزرگراه نیایش",
+        origin: "شرق",
+        destination: "غرب",
+        length: 12,
+        deviceCount: 5,
+        status: "online",
+        totalVehicles: 43100,
+        avgSpeed: 55,
+        errors: 0,
+        lastUpdate: "2026-02-15T10:22:30"
+    },
+    {
+        id: "R-006",
+        name: "بزرگراه شیخ فضل‌الله",
+        origin: "شمال",
+        destination: "جنوب",
+        length: 14,
+        deviceCount: 7,
+        status: "online",
+        totalVehicles: 78900,
+        avgSpeed: 58,
+        errors: 0,
+        lastUpdate: "2026-02-15T10:21:00"
+    },
+    {
+        id: "R-007",
+        name: "آزادراه تهران-شمال",
+        origin: "تهران",
+        destination: "چالوس",
+        length: 120,
+        deviceCount: 10,
+        status: "error",
+        totalVehicles: 31200,
+        avgSpeed: 75,
+        errors: 5,
+        lastUpdate: "2026-02-15T08:10:00"
+    },
+    {
+        id: "R-008",
+        name: "بزرگراه چمران",
+        origin: "اوین",
+        destination: "آرژانتین",
+        length: 10,
+        deviceCount: 4,
+        status: "online",
+        totalVehicles: 52400,
+        avgSpeed: 51,
+        errors: 0,
+        lastUpdate: "2026-02-15T10:23:10"
+    },
+    {
+        id: "R-009",
+        name: "بزرگراه بعثت",
+        origin: "شرق",
+        destination: "غرب",
+        length: 16,
+        deviceCount: 6,
+        status: "offline",
+        totalVehicles: 0,
+        avgSpeed: 0,
+        errors: 0,
+        lastUpdate: "2026-02-14T23:45:00"
+    },
+    {
+        id: "R-010",
+        name: "محور آزادی",
+        origin: "میدان آزادی",
+        destination: "میدان انقلاب",
+        length: 5,
+        deviceCount: 3,
+        status: "online",
+        totalVehicles: 38700,
+        avgSpeed: 35,
+        errors: 1,
+        lastUpdate: "2026-02-15T10:18:00"
+    },
+    {
+        id: "R-011",
+        name: "بزرگراه یادگار امام",
+        origin: "شمال",
+        destination: "جنوب",
+        length: 20,
+        deviceCount: 9,
+        status: "online",
+        totalVehicles: 71600,
+        avgSpeed: 65,
+        errors: 0,
+        lastUpdate: "2026-02-15T10:22:00"
+    },
+    {
+        id: "R-012",
+        name: "محور ولیعصر",
+        origin: "تجریش",
+        destination: "راه‌آهن",
+        length: 18,
+        deviceCount: 8,
+        status: "warning",
+        totalVehicles: 45200,
+        avgSpeed: 28,
+        errors: 2,
+        lastUpdate: "2026-02-15T10:10:00"
+    }
+];
+
+var DEVICE_DATA = [
+    { id: "CAM-001", deviceCode: "1001", name: "دوربین سرعت کیلومتر ۵", type: "camera", route: "R-001", ip: "192.168.1.10", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v3.2.1" },
+    { id: "CAM-002", deviceCode: "1002", name: "دوربین پلاک‌خوان ورودی", type: "camera", route: "R-001", ip: "192.168.1.11", status: "online", lastSeen: "2026-02-15T10:22:50", firmware: "v3.2.1" },
+    { id: "CAM-003", deviceCode: "1003", name: "دوربین نظارتی همت شرق", type: "camera", route: "R-002", ip: "192.168.1.12", status: "online", lastSeen: "2026-02-15T10:22:30", firmware: "v3.1.5" },
+    { id: "CAM-004", deviceCode: "1004", name: "دوربین سرعت صدر", type: "camera", route: "R-003", ip: "192.168.1.13", status: "warning", lastSeen: "2026-02-15T09:50:00", firmware: "v3.1.5" },
+    { id: "SEN-001", deviceCode: "2001", name: "سنسور تردد شمار کرج", type: "sensor", route: "R-001", ip: "192.168.2.10", status: "online", lastSeen: "2026-02-15T10:23:05", firmware: "v2.1.0" },
+    { id: "SEN-002", deviceCode: "2002", name: "سنسور تردد شمار همت", type: "sensor", route: "R-002", ip: "192.168.2.11", status: "online", lastSeen: "2026-02-15T10:22:40", firmware: "v2.1.0" },
+    { id: "SEN-003", deviceCode: "2003", name: "سنسور سرعت نیایش", type: "sensor", route: "R-005", ip: "192.168.2.12", status: "online", lastSeen: "2026-02-15T10:22:20", firmware: "v2.0.8" },
+    { id: "SEN-004", deviceCode: "2004", name: "سنسور بارش تهران-شمال", type: "sensor", route: "R-007", ip: "192.168.2.13", status: "error", lastSeen: "2026-02-15T08:05:00", firmware: "v2.0.8" },
+    { id: "TL-001", deviceCode: "3001", name: "چراغ هوشمند آزادی", type: "traffic-light", route: "R-010", ip: "192.168.3.10", status: "online", lastSeen: "2026-02-15T10:23:10", firmware: "v4.0.2" },
+    { id: "TL-002", deviceCode: "3002", name: "چراغ هوشمند ولیعصر", type: "traffic-light", route: "R-012", ip: "192.168.3.11", status: "warning", lastSeen: "2026-02-15T10:10:00", firmware: "v4.0.1" },
+    { id: "TL-003", deviceCode: "3003", name: "چراغ هوشمند تقاطع همت", type: "traffic-light", route: "R-002", ip: "192.168.3.12", status: "online", lastSeen: "2026-02-15T10:22:55", firmware: "v4.0.2" },
+    { id: "CTR-001", deviceCode: "4001", name: "کنترلر مرکزی منطقه ۱", type: "controller", route: "R-001", ip: "192.168.4.1", status: "online", lastSeen: "2026-02-15T10:23:15", firmware: "v5.1.0" },
+    { id: "CTR-002", deviceCode: "4002", name: "کنترلر منطقه ۶", type: "controller", route: "R-002", ip: "192.168.4.2", status: "online", lastSeen: "2026-02-15T10:22:45", firmware: "v5.1.0" },
+    { id: "CTR-003", deviceCode: "4003", name: "کنترلر تهران-شمال", type: "controller", route: "R-007", ip: "192.168.4.3", status: "error", lastSeen: "2026-02-15T08:00:00", firmware: "v5.0.9" },
+    { id: "CAM-005", deviceCode: "1005", name: "دوربین نظارت قم", type: "camera", route: "R-004", ip: "192.168.1.14", status: "online", lastSeen: "2026-02-15T10:20:00", firmware: "v3.2.1" },
+    { id: "SEN-005", deviceCode: "2005", name: "سنسور ترافیک چمران", type: "sensor", route: "R-008", ip: "192.168.2.14", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v2.1.0" },
+    { id: "CAM-006", deviceCode: "1006", name: "دوربین یادگار امام", type: "camera", route: "R-011", ip: "192.168.1.15", status: "online", lastSeen: "2026-02-15T10:22:00", firmware: "v3.2.1" },
+    { id: "SEN-006", deviceCode: "2006", name: "سنسور بعثت", type: "sensor", route: "R-009", ip: "192.168.2.15", status: "offline", lastSeen: "2026-02-14T23:40:00", firmware: "v2.0.8" }
+];
+
+var REPORT_DATA = [
+    { date: "2026-02-15", route: "آزادراه تهران-کرج", vehicles: 124500, avgSpeed: 95, maxSpeed: 185, violations: 23 },
+    { date: "2026-02-15", route: "بزرگراه همت", vehicles: 89200, avgSpeed: 62, maxSpeed: 130, violations: 8 },
+    { date: "2026-02-15", route: "بزرگراه صدر", vehicles: 67800, avgSpeed: 48, maxSpeed: 115, violations: 12 },
+    { date: "2026-02-15", route: "آزادراه تهران-قم", vehicles: 56300, avgSpeed: 110, maxSpeed: 195, violations: 31 },
+    { date: "2026-02-15", route: "بزرگراه نیایش", vehicles: 43100, avgSpeed: 55, maxSpeed: 105, violations: 5 },
+    { date: "2026-02-15", route: "بزرگراه شیخ فضل‌الله", vehicles: 78900, avgSpeed: 58, maxSpeed: 120, violations: 9 },
+    { date: "2026-02-14", route: "آزادراه تهران-کرج", vehicles: 118700, avgSpeed: 98, maxSpeed: 190, violations: 19 },
+    { date: "2026-02-14", route: "بزرگراه همت", vehicles: 91500, avgSpeed: 60, maxSpeed: 128, violations: 11 },
+    { date: "2026-02-14", route: "بزرگراه صدر", vehicles: 70200, avgSpeed: 45, maxSpeed: 112, violations: 15 },
+    { date: "2026-02-14", route: "آزادراه تهران-قم", vehicles: 52800, avgSpeed: 112, maxSpeed: 200, violations: 28 },
+    { date: "2026-02-14", route: "بزرگراه نیایش", vehicles: 40200, avgSpeed: 52, maxSpeed: 100, violations: 3 },
+    { date: "2026-02-14", route: "بزرگراه شیخ فضل‌الله", vehicles: 80100, avgSpeed: 56, maxSpeed: 118, violations: 7 },
+    { date: "2026-02-13", route: "آزادراه تهران-کرج", vehicles: 115300, avgSpeed: 92, maxSpeed: 180, violations: 21 },
+    { date: "2026-02-13", route: "بزرگراه همت", vehicles: 87600, avgSpeed: 59, maxSpeed: 125, violations: 10 },
+    { date: "2026-02-13", route: "بزرگراه صدر", vehicles: 65400, avgSpeed: 50, maxSpeed: 118, violations: 14 }
+];
