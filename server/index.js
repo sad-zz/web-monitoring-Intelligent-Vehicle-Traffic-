@@ -18,6 +18,8 @@ var bcrypt = require("bcryptjs");
 var db = require("./db");
 var rmto = require("./rmto-client");
 var scheduler = require("./scheduler");
+var backupHandler = require("./backup-handler");
+var deviceApi = require("./device-api");
 
 var app = express();
 var PORT = process.env.PORT || 3000;
@@ -120,14 +122,51 @@ app.post("/api/auth/change-password", requireAuth, function (req, res) {
 app.use(express.static(path.join(__dirname, "..")));
 
 // ============================================================
-// Device data reception - NO AUTH (devices send data here)
+// Health Check & Metrics (for cloud deployment monitoring)
 // ============================================================
-app.post("/api/data", function (req, res) {
-    var b = req.body;
+app.get("/health", function (req, res) {
+    var dbType = process.env.DATABASE_TYPE || (process.env.DATABASE_URL ? 'postgresql' : 'sqlite');
+    res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        database: dbType,
+        uptime: process.uptime(),
+        memory: process.memoryUsage()
+    });
+});
+
+app.get("/metrics", function (req, res) {
+    try {
+        var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
+        var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
+        var unsentQueue = db.prepare("SELECT COUNT(*) as c FROM rmto_queue WHERE sent = 0").get().c;
+        
+        res.json({
+            devices_total: totalDevices,
+            devices_online: onlineDevices,
+            rmto_queue_unsent: unsentQueue,
+            uptime_seconds: Math.floor(process.uptime())
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================================
+// Device data reception - WITH API KEY (if configured)
+// ============================================================
+app.post("/api/data", deviceApi.apiKeyAuth, deviceApi.rateLimit, function (req, res) {
+    var b = deviceApi.sanitizeInput(req.body);
     var code = String(b.device_code || b.device_id || b.code || "");
 
     if (!code || !/^\d+$/.test(code)) {
         return res.status(400).json({ error: "device_code required" });
+    }
+
+    // Validate input
+    var errors = deviceApi.validateDeviceData(b);
+    if (errors.length > 0) {
+        return res.status(400).json({ error: "validation_failed", details: errors });
     }
 
     autoRegisterDevice(code);
@@ -161,10 +200,16 @@ app.post("/api/data", function (req, res) {
  * Speed: sa..sx = sum of speeds per class
  * Violations: sao..sxo = over-speed count per class
  */
-app.post("/api/irawdata", function (req, res) {
-    var b = req.body;
+app.post("/api/irawdata", deviceApi.apiKeyAuth, deviceApi.rateLimit, function (req, res) {
+    var b = deviceApi.sanitizeInput(req.body);
     var code = String(b.device_id || b.device_code || b.code || "");
     if (!code || !/^\d+$/.test(code)) return res.status(400).json({ error: "device_id required" });
+
+    // Validate input
+    var errors = deviceApi.validateIrawData(b);
+    if (errors.length > 0) {
+        return res.status(400).json({ error: "validation_failed", details: errors });
+    }
 
     autoRegisterDevice(code);
 
@@ -359,6 +404,80 @@ app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
     } catch (e) {
         res.status(500).json({ error: "خطا در بازیابی: " + e.message });
     }
+});
+
+// List uploaded backup files
+app.get("/api/backup/list", function (req, res) {
+    var uploadsDir = path.join(__dirname, "uploads");
+    try {
+        var files = backupHandler.listBackupFiles(uploadsDir);
+        res.json(files);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Import SQL/SQL.GZ backup file
+app.post("/api/backup/import-sql-gz", upload.single("backup"), function (req, res) {
+    if (!req.file) return res.status(400).json({ error: "فایل بکاپ الزامی است" });
+
+    var filePath = req.file.path;
+    var origName = req.file.originalname || "";
+
+    // Move to uploads directory with original name
+    var uploadsDir = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+    
+    var finalPath = path.join(uploadsDir, origName);
+    fs.renameSync(filePath, finalPath);
+
+    // Start import in background
+    var importProgress = {
+        status: 'starting',
+        message: 'در حال آماده‌سازی...',
+        imported: 0,
+        total: 0,
+        errors: 0
+    };
+
+    // Store progress in memory (could use Redis in production)
+    var importId = Date.now().toString();
+    global.importProgress = global.importProgress || {};
+    global.importProgress[importId] = importProgress;
+
+    // Start async import
+    backupHandler.importSqlFile(finalPath, function(progress) {
+        global.importProgress[importId] = progress;
+        console.log('[Backup Import]', progress.message);
+    }).then(function(result) {
+        global.importProgress[importId] = {
+            status: 'complete',
+            message: `Import موفق: ${result.imported} رکورد`,
+            imported: result.imported,
+            errors: result.errors
+        };
+    }).catch(function(err) {
+        global.importProgress[importId] = {
+            status: 'error',
+            message: err.message
+        };
+    });
+
+    res.json({ 
+        success: true, 
+        importId: importId,
+        message: "Import شروع شد. از /api/backup/import-progress/" + importId + " برای مشاهده پیشرفت استفاده کنید"
+    });
+});
+
+// Get import progress
+app.get("/api/backup/import-progress/:id", function (req, res) {
+    global.importProgress = global.importProgress || {};
+    var progress = global.importProgress[req.params.id];
+    if (!progress) {
+        return res.status(404).json({ error: "Import not found" });
+    }
+    res.json(progress);
 });
 
 // List uploaded backup files
