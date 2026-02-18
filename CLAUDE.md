@@ -61,6 +61,21 @@ python3 -m http.server 8000
 # Then visit http://localhost:8000
 ```
 
+### Authentication
+
+The application supports two authentication modes:
+
+1. **Static Mode (for deployments without backend)**
+   - Username: `admin`
+   - Password: `admin1234`
+   - Uses localStorage for session management
+   - Ideal for Vercel/Netlify static deployments
+
+2. **Backend Mode (when server is available)**
+   - Connects to `/api/auth/check` and `/api/auth/login` endpoints
+   - Falls back to static mode if backend is unavailable
+   - See `server/` directory for backend implementation
+
 ## Conventions
 
 ### Code Style
