@@ -1,15 +1,25 @@
 /**
- * Database module - SQLite via better-sqlite3
+ * Database module - Auto-detect SQLite or PostgreSQL
  * Stores devices, traffic data, and send logs.
  */
-var Database = require("better-sqlite3");
-var path = require("path");
 
-var DB_PATH = path.join(__dirname, "data.db");
-var db = new Database(DB_PATH);
+// Auto-detect database type from environment
+const DATABASE_TYPE = process.env.DATABASE_TYPE || (process.env.DATABASE_URL ? 'postgresql' : 'sqlite');
 
-// Enable WAL mode for better concurrent read performance
-db.pragma("journal_mode = WAL");
+if (DATABASE_TYPE === 'postgresql') {
+    console.log('[DB] Using PostgreSQL (cloud mode)');
+    module.exports = require('./db-postgres');
+} else {
+    console.log('[DB] Using SQLite (local mode)');
+    
+    var Database = require("better-sqlite3");
+    var path = require("path");
+
+    var DB_PATH = path.join(__dirname, "data.db");
+    var db = new Database(DB_PATH);
+
+    // Enable WAL mode for better concurrent read performance
+    db.pragma("journal_mode = WAL");
 
 // --- Schema ---
 db.exec([
@@ -176,4 +186,5 @@ db.exec([
     "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);"
 ].join("\n"));
 
-module.exports = db;
+    module.exports = db;
+}

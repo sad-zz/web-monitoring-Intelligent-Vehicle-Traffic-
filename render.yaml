@@ -1,0 +1,43 @@
+# Render.com Configuration for TC Manager
+services:
+  - type: web
+    name: tc-manager
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: DATABASE_TYPE
+        value: postgresql
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tc-manager-db
+          property: connectionString
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASS
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DEVICE_API_KEY
+        generateValue: true
+      - key: RMTO_COMPANY_CODE
+        value: "58"
+      - key: RMTO_USERNAME
+        sync: false
+      - key: RMTO_PASSWORD
+        sync: false
+      - key: SEND_INTERVAL_MINUTES
+        value: "15"
+
+databases:
+  - name: tc-manager-db
+    plan: starter
+    databaseName: tc_manager
+    user: tcmanager

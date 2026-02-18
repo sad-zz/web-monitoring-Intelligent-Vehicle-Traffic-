@@ -1,0 +1,14 @@
+# Railway.app Configuration for TC Manager
+
+[build]
+builder = "NIXPACKS"
+buildCommand = "cd server && npm install"
+
+[deploy]
+startCommand = "node server/index.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+
+[service]
+name = "tc-manager"
