@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**سیستان اکبری (Sistan Akbari) - TC Manager** - A web-based dashboard for monitoring and managing intelligent vehicle traffic. Tracks routes, devices (cameras, sensors, traffic lights, controllers), traffic reports, and system settings.
+**نوآوران جنوب شرق (Noavaran Jonoob Shargh) - TC Manager** - A web-based dashboard for monitoring and managing traffic counters. Tracks routes, traffic counting devices, traffic reports, and system settings. Sends data to RMTO (RAHSAM).
 
 ## Project Structure
 

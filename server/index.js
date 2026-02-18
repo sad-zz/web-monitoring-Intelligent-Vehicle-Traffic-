@@ -1,5 +1,5 @@
 /**
- * TC Manager Server (Sistan Akbari)
+ * TC Manager Server (Noavaran Jonoob Shargh)
  * - Login authentication
  * - Backup / Restore
  * - Receives data from 100+ devices
@@ -379,7 +379,7 @@ app.get("/api/backup/list", function (req, res) {
 // ============================================================
 app.listen(PORT, HOST, function () {
     console.log("============================================");
-    console.log("  TC Manager Server (Sistan Akbari)");
+    console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
     console.log("  http://" + HOST + ":" + PORT);
     console.log("  Default login: admin / admin123");
     console.log("============================================");

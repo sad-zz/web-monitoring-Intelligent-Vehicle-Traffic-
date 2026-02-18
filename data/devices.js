@@ -162,24 +162,24 @@ var ROUTE_DATA = [
 ];
 
 var DEVICE_DATA = [
-    { id: "CAM-001", deviceCode: "1001", name: "دوربین سرعت کیلومتر ۵", type: "camera", route: "R-001", ip: "192.168.1.10", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v3.2.1" },
-    { id: "CAM-002", deviceCode: "1002", name: "دوربین پلاک‌خوان ورودی", type: "camera", route: "R-001", ip: "192.168.1.11", status: "online", lastSeen: "2026-02-15T10:22:50", firmware: "v3.2.1" },
-    { id: "CAM-003", deviceCode: "1003", name: "دوربین نظارتی همت شرق", type: "camera", route: "R-002", ip: "192.168.1.12", status: "online", lastSeen: "2026-02-15T10:22:30", firmware: "v3.1.5" },
-    { id: "CAM-004", deviceCode: "1004", name: "دوربین سرعت صدر", type: "camera", route: "R-003", ip: "192.168.1.13", status: "warning", lastSeen: "2026-02-15T09:50:00", firmware: "v3.1.5" },
-    { id: "SEN-001", deviceCode: "2001", name: "سنسور تردد شمار کرج", type: "sensor", route: "R-001", ip: "192.168.2.10", status: "online", lastSeen: "2026-02-15T10:23:05", firmware: "v2.1.0" },
-    { id: "SEN-002", deviceCode: "2002", name: "سنسور تردد شمار همت", type: "sensor", route: "R-002", ip: "192.168.2.11", status: "online", lastSeen: "2026-02-15T10:22:40", firmware: "v2.1.0" },
-    { id: "SEN-003", deviceCode: "2003", name: "سنسور سرعت نیایش", type: "sensor", route: "R-005", ip: "192.168.2.12", status: "online", lastSeen: "2026-02-15T10:22:20", firmware: "v2.0.8" },
-    { id: "SEN-004", deviceCode: "2004", name: "سنسور بارش تهران-شمال", type: "sensor", route: "R-007", ip: "192.168.2.13", status: "error", lastSeen: "2026-02-15T08:05:00", firmware: "v2.0.8" },
-    { id: "TL-001", deviceCode: "3001", name: "چراغ هوشمند آزادی", type: "traffic-light", route: "R-010", ip: "192.168.3.10", status: "online", lastSeen: "2026-02-15T10:23:10", firmware: "v4.0.2" },
-    { id: "TL-002", deviceCode: "3002", name: "چراغ هوشمند ولیعصر", type: "traffic-light", route: "R-012", ip: "192.168.3.11", status: "warning", lastSeen: "2026-02-15T10:10:00", firmware: "v4.0.1" },
-    { id: "TL-003", deviceCode: "3003", name: "چراغ هوشمند تقاطع همت", type: "traffic-light", route: "R-002", ip: "192.168.3.12", status: "online", lastSeen: "2026-02-15T10:22:55", firmware: "v4.0.2" },
-    { id: "CTR-001", deviceCode: "4001", name: "کنترلر مرکزی منطقه ۱", type: "controller", route: "R-001", ip: "192.168.4.1", status: "online", lastSeen: "2026-02-15T10:23:15", firmware: "v5.1.0" },
-    { id: "CTR-002", deviceCode: "4002", name: "کنترلر منطقه ۶", type: "controller", route: "R-002", ip: "192.168.4.2", status: "online", lastSeen: "2026-02-15T10:22:45", firmware: "v5.1.0" },
-    { id: "CTR-003", deviceCode: "4003", name: "کنترلر تهران-شمال", type: "controller", route: "R-007", ip: "192.168.4.3", status: "error", lastSeen: "2026-02-15T08:00:00", firmware: "v5.0.9" },
-    { id: "CAM-005", deviceCode: "1005", name: "دوربین نظارت قم", type: "camera", route: "R-004", ip: "192.168.1.14", status: "online", lastSeen: "2026-02-15T10:20:00", firmware: "v3.2.1" },
-    { id: "SEN-005", deviceCode: "2005", name: "سنسور ترافیک چمران", type: "sensor", route: "R-008", ip: "192.168.2.14", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v2.1.0" },
-    { id: "CAM-006", deviceCode: "1006", name: "دوربین یادگار امام", type: "camera", route: "R-011", ip: "192.168.1.15", status: "online", lastSeen: "2026-02-15T10:22:00", firmware: "v3.2.1" },
-    { id: "SEN-006", deviceCode: "2006", name: "سنسور بعثت", type: "sensor", route: "R-009", ip: "192.168.2.15", status: "offline", lastSeen: "2026-02-14T23:40:00", firmware: "v2.0.8" }
+    { id: "TC-001", deviceCode: "1001", name: "ترددشمار کیلومتر ۵ آزادراه تهران-کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v3.2.1" },
+    { id: "TC-002", deviceCode: "1002", name: "ترددشمار ورودی آزادراه تهران-کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:22:50", firmware: "v3.2.1" },
+    { id: "TC-003", deviceCode: "1003", name: "ترددشمار همت شرق", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:30", firmware: "v3.1.5" },
+    { id: "TC-004", deviceCode: "1004", name: "ترددشمار بزرگراه صدر", type: "counter", route: "R-003", ip: "", status: "warning", lastSeen: "2026-02-15T09:50:00", firmware: "v3.1.5" },
+    { id: "TC-005", deviceCode: "2001", name: "ترددشمار خروجی کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:05", firmware: "v2.1.0" },
+    { id: "TC-006", deviceCode: "2002", name: "ترددشمار همت غرب", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:40", firmware: "v2.1.0" },
+    { id: "TC-007", deviceCode: "2003", name: "ترددشمار نیایش", type: "counter", route: "R-005", ip: "", status: "online", lastSeen: "2026-02-15T10:22:20", firmware: "v2.0.8" },
+    { id: "TC-008", deviceCode: "2004", name: "ترددشمار تهران-شمال", type: "counter", route: "R-007", ip: "", status: "error", lastSeen: "2026-02-15T08:05:00", firmware: "v2.0.8" },
+    { id: "TC-009", deviceCode: "3001", name: "ترددشمار محور آزادی", type: "counter", route: "R-010", ip: "", status: "online", lastSeen: "2026-02-15T10:23:10", firmware: "v4.0.2" },
+    { id: "TC-010", deviceCode: "3002", name: "ترددشمار ولیعصر", type: "counter", route: "R-012", ip: "", status: "warning", lastSeen: "2026-02-15T10:10:00", firmware: "v4.0.1" },
+    { id: "TC-011", deviceCode: "3003", name: "ترددشمار تقاطع همت", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:55", firmware: "v4.0.2" },
+    { id: "TC-012", deviceCode: "4001", name: "ترددشمار مرکزی منطقه ۱", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:15", firmware: "v5.1.0" },
+    { id: "TC-013", deviceCode: "4002", name: "ترددشمار منطقه ۶", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:45", firmware: "v5.1.0" },
+    { id: "TC-014", deviceCode: "4003", name: "ترددشمار جاده چالوس", type: "counter", route: "R-007", ip: "", status: "error", lastSeen: "2026-02-15T08:00:00", firmware: "v5.0.9" },
+    { id: "TC-015", deviceCode: "1005", name: "ترددشمار آزادراه قم", type: "counter", route: "R-004", ip: "", status: "online", lastSeen: "2026-02-15T10:20:00", firmware: "v3.2.1" },
+    { id: "TC-016", deviceCode: "2005", name: "ترددشمار چمران", type: "counter", route: "R-008", ip: "", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v2.1.0" },
+    { id: "TC-017", deviceCode: "1006", name: "ترددشمار یادگار امام", type: "counter", route: "R-011", ip: "", status: "online", lastSeen: "2026-02-15T10:22:00", firmware: "v3.2.1" },
+    { id: "SEN-001", deviceCode: "2006", name: "سنسور بعثت", type: "sensor", route: "R-009", ip: "", status: "offline", lastSeen: "2026-02-14T23:40:00", firmware: "v2.0.8" }
 ];
 
 var REPORT_DATA = [

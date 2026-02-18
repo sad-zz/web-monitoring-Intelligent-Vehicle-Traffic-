@@ -1,21 +1,21 @@
 #!/bin/bash
-# TC Manager - Complete Deployment Script
-# Usage: bash deploy-all.sh
+# TC Manager - Complete Deployment Script (Noavaran Jonoob Shargh)
+# Usage: scp deploy-all.sh root@SERVER:/tmp/ && ssh root@SERVER bash /tmp/deploy-all.sh
 set -e
 
 BASE="/opt/tc-manager"
-echo "=== TC Manager Deployment ==="
-echo "Target: $BASE"
+echo "============================================"
+echo "  TC Manager - Full Deployment"
+echo "  Target: $BASE"
+echo "============================================"
 
-# Create directory structure
 mkdir -p "$BASE/server/uploads"
 mkdir -p "$BASE/css"
 mkdir -p "$BASE/js"
 mkdir -p "$BASE/data"
 
-# --- Write server/package.json ---
-echo "[1/10] Writing server/package.json"
-cat > "$BASE/server/package.json" << 'ENDFILE'
+echo "[1/10] Writing server/package.json ..."
+cat > "$BASE/server/package.json" << 'ENDFILE_1'
 {
   "name": "tc-manager-server",
   "version": "1.0.0",
@@ -37,11 +37,10 @@ cat > "$BASE/server/package.json" << 'ENDFILE'
     "bcryptjs": "^2.4.3"
   }
 }
-ENDFILE
+ENDFILE_1
 
-# --- Write server/.env.example ---
-echo "[2/10] Writing server/.env.example"
-cat > "$BASE/server/.env.example" << 'ENDFILE'
+echo "[2/10] Writing server/.env.example ..."
+cat > "$BASE/server/.env.example" << 'ENDFILE_2'
 # Server
 PORT=3000
 HOST=0.0.0.0
@@ -55,11 +54,10 @@ RMTO_PASSWORD=CHANGE_ME_HERE
 
 # Data send interval (minutes)
 SEND_INTERVAL_MINUTES=15
-ENDFILE
+ENDFILE_2
 
-# --- Write server/db.js ---
-echo "[3/10] Writing server/db.js"
-cat > "$BASE/server/db.js" << 'ENDFILE'
+echo "[3/10] Writing server/db.js ..."
+cat > "$BASE/server/db.js" << 'ENDFILE_3'
 /**
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
@@ -239,11 +237,10 @@ db.exec([
 ].join("\n"));
 
 module.exports = db;
-ENDFILE
+ENDFILE_3
 
-# --- Write server/rmto-client.js ---
-echo "[4/10] Writing server/rmto-client.js"
-cat > "$BASE/server/rmto-client.js" << 'ENDFILE'
+echo "[4/10] Writing server/rmto-client.js ..."
+cat > "$BASE/server/rmto-client.js" << 'ENDFILE_4'
 /**
  * RMTO SOAP Client
  * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
@@ -432,11 +429,10 @@ module.exports = {
     sendAddData5: sendAddData5,
     sendAddData8: sendAddData8
 };
-ENDFILE
+ENDFILE_4
 
-# --- Write server/scheduler.js ---
-echo "[5/10] Writing server/scheduler.js"
-cat > "$BASE/server/scheduler.js" << 'ENDFILE'
+echo "[5/10] Writing server/scheduler.js ..."
+cat > "$BASE/server/scheduler.js" << 'ENDFILE_5'
 /**
  * Scheduler - Aggregates traffic data every 15 minutes and sends to RMTO.
  */
@@ -610,13 +606,12 @@ module.exports = {
     aggregateAndSend: aggregateAndSend,
     sendUnsentData: sendUnsentData
 };
-ENDFILE
+ENDFILE_5
 
-# --- Write server/index.js ---
-echo "[6/10] Writing server/index.js"
-cat > "$BASE/server/index.js" << 'ENDFILE'
+echo "[6/10] Writing server/index.js ..."
+cat > "$BASE/server/index.js" << 'ENDFILE_6'
 /**
- * TC Manager Server (Sistan Akbari)
+ * TC Manager Server (Noavaran Jonoob Shargh)
  * - Login authentication
  * - Backup / Restore
  * - Receives data from 100+ devices
@@ -996,7 +991,7 @@ app.get("/api/backup/list", function (req, res) {
 // ============================================================
 app.listen(PORT, HOST, function () {
     console.log("============================================");
-    console.log("  TC Manager Server (Sistan Akbari)");
+    console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
     console.log("  http://" + HOST + ":" + PORT);
     console.log("  Default login: admin / admin123");
     console.log("============================================");
@@ -1007,17 +1002,16 @@ app.listen(PORT, HOST, function () {
 
     scheduler.start();
 });
-ENDFILE
+ENDFILE_6
 
-# --- Write index.html ---
-echo "[7/10] Writing index.html"
-cat > "$BASE/index.html" << 'ENDFILE'
+echo "[7/10] Writing index.html ..."
+cat > "$BASE/index.html" << 'ENDFILE_7'
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سامانه سیستان اکبری - مدیریت ترافیک هوشمند</title>
+    <title>سامانه نوآوران جنوب شرق - مدیریت ترددشمار هوشمند</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -1027,8 +1021,8 @@ cat > "$BASE/index.html" << 'ENDFILE'
         <div class="login-box">
             <div class="login-logo">
                 <div class="logo-icon" style="width:56px;height:56px;font-size:22px;margin:0 auto 12px">TC</div>
-                <h2>سیستان اکبری</h2>
-                <p>سامانه مدیریت ترافیک هوشمند</p>
+                <h2>نوآوران جنوب شرق</h2>
+                <p>سامانه مدیریت ترددشمار هوشمند</p>
             </div>
             <form id="login-form">
                 <div class="form-group">
@@ -1051,8 +1045,8 @@ cat > "$BASE/index.html" << 'ENDFILE'
             <div class="sidebar-logo">
                 <div class="logo-icon">TC</div>
                 <div class="logo-text">
-                    <span class="logo-title">سیستان اکبری</span>
-                    <span class="logo-sub">سامانه مدیریت ترافیک</span>
+                    <span class="logo-title">نوآوران جنوب شرق</span>
+                    <span class="logo-sub">سامانه مدیریت ترددشمار</span>
                 </div>
             </div>
         </div>
@@ -1252,7 +1246,6 @@ cat > "$BASE/index.html" << 'ENDFILE'
                                     <th data-sort="name">نام دستگاه</th>
                                     <th data-sort="type">نوع</th>
                                     <th data-sort="route">محور</th>
-                                    <th data-sort="ip">آدرس IP</th>
                                     <th data-sort="status">وضعیت</th>
                                     <th data-sort="lastSeen">آخرین اتصال</th>
                                     <th>عملیات</th>
@@ -1332,7 +1325,7 @@ cat > "$BASE/index.html" << 'ENDFILE'
                         <div class="panel-body">
                             <div class="form-group">
                                 <label>نام سامانه</label>
-                                <input type="text" id="setting-name" value="سیستان اکبری">
+                                <input type="text" id="setting-name" value="نوآوران جنوب شرق">
                             </div>
                             <div class="form-group">
                                 <label>آدرس سرور</label>
@@ -1421,10 +1414,10 @@ cat > "$BASE/index.html" << 'ENDFILE'
                             <h3 class="panel-title">درباره سامانه</h3>
                         </div>
                         <div class="panel-body about-info">
-                            <p><strong>سامانه سیستان اکبری</strong></p>
+                            <p><strong>سامانه نوآوران جنوب شرق</strong></p>
                             <p>نسخه: <span dir="ltr">1.1.0</span></p>
                             <p>سامانه مدیریت و پایش ترافیک هوشمند</p>
-                            <p>مدیریت دستگاه‌های کنترل ترافیک شامل دوربین، سنسور، چراغ راهنمایی و کنترلر</p>
+                            <p>مدیریت دستگاه‌های ترددشمار و ارسال اطلاعات به سامانه رهسام</p>
                         </div>
                     </div>
                 </div>
@@ -1434,7 +1427,7 @@ cat > "$BASE/index.html" << 'ENDFILE'
 
         <!-- Footer -->
         <footer class="footer">
-            <div class="footer-right">سامانه سیستان اکبری - مدیریت ترافیک هوشمند &copy; ۱۴۰۴</div>
+            <div class="footer-right">سامانه نوآوران جنوب شرق - مدیریت ترددشمار هوشمند &copy; ۱۴۰۴</div>
             <div class="footer-left">
                 <span class="footer-status" id="footer-device-count">0 دستگاه فعال</span>
             </div>
@@ -1475,11 +1468,10 @@ cat > "$BASE/index.html" << 'ENDFILE'
     <script src="js/app.js"></script>
 </body>
 </html>
-ENDFILE
+ENDFILE_7
 
-# --- Write css/style.css ---
-echo "[8/10] Writing css/style.css"
-cat > "$BASE/css/style.css" << 'ENDFILE'
+echo "[8/10] Writing css/style.css ..."
+cat > "$BASE/css/style.css" << 'ENDFILE_8'
 /* === Reset === */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
@@ -2218,11 +2210,10 @@ body {
     font-size: 13px;
     color: var(--text-light);
 }
-ENDFILE
+ENDFILE_8
 
-# --- Write js/app.js ---
-echo "[9/10] Writing js/app.js"
-cat > "$BASE/js/app.js" << 'ENDFILE'
+echo "[9/10] Writing js/app.js ..."
+cat > "$BASE/js/app.js" << 'ENDFILE_9'
 (function () {
     "use strict";
 
@@ -2288,10 +2279,10 @@ cat > "$BASE/js/app.js" << 'ENDFILE'
     var reports = JSON.parse(JSON.stringify(REPORT_DATA));
 
     var TYPE_LABELS = {
-        camera: "دوربین",
+        counter: "ترددشمار",
         sensor: "سنسور",
-        "traffic-light": "چراغ راهنمایی",
-        controller: "کنترلر"
+        loop: "حلقه القایی",
+        radar: "رادار"
     };
 
     var STATUS_LABELS = {
@@ -2585,7 +2576,6 @@ cat > "$BASE/js/app.js" << 'ENDFILE'
                 "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
                 '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
                 "<td>" + escapeHtml(routeName) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(d.ip) + "</td>" +
                 '<td><span class="status-badge ' + d.status + '">' + escapeHtml(STATUS_LABELS[d.status]) + "</span></td>" +
                 '<td style="direction:ltr;text-align:right">' + escapeHtml(formatTime(d.lastSeen)) + "</td>" +
                 "<td>" +
@@ -2637,9 +2627,8 @@ cat > "$BASE/js/app.js" << 'ENDFILE'
             '<div class="detail-grid">' +
                 '<div class="detail-item"><span class="detail-label">شناسه</span><span class="detail-value">' + escapeHtml(d.id) + '</span></div>' +
                 '<div class="detail-item"><span class="detail-label">کد دستگاه (۴ رقمی)</span><span class="detail-value" style="direction:ltr;font-weight:700;font-size:18px;color:#3b82f6">' + escapeHtml(d.deviceCode || "-") + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">نوع</span><span class="detail-value">' + escapeHtml(TYPE_LABELS[d.type]) + '</span></div>' +
+                '<div class="detail-item"><span class="detail-label">نوع</span><span class="detail-value">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + '</span></div>' +
                 '<div class="detail-item"><span class="detail-label">محور</span><span class="detail-value">' + escapeHtml(routeName) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">آدرس IP</span><span class="detail-value" dir="ltr">' + escapeHtml(d.ip) + '</span></div>' +
                 '<div class="detail-item"><span class="detail-label">وضعیت</span><span class="detail-value"><span class="status-badge ' + d.status + '">' + escapeHtml(STATUS_LABELS[d.status]) + '</span></span></div>' +
                 '<div class="detail-item"><span class="detail-label">نسخه فریمور</span><span class="detail-value" dir="ltr">' + escapeHtml(d.firmware) + '</span></div>' +
                 '<div class="detail-item"><span class="detail-label">آخرین اتصال</span><span class="detail-value" dir="ltr">' + escapeHtml(formatTime(d.lastSeen)) + '</span></div>' +
@@ -2659,13 +2648,12 @@ cat > "$BASE/js/app.js" << 'ENDFILE'
                 '<div class="form-group"><label>کد دستگاه (۴ رقمی)</label><input type="text" id="new-dev-code" maxlength="4" pattern="\\d{4}" dir="ltr" placeholder="مثال: 1001" required></div>' +
                 '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" required></div>' +
                 '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
-                    '<option value="camera">دوربین</option>' +
+                    '<option value="counter">ترددشمار</option>' +
                     '<option value="sensor">سنسور</option>' +
-                    '<option value="traffic-light">چراغ راهنمایی</option>' +
-                    '<option value="controller">کنترلر</option>' +
+                    '<option value="loop">حلقه القایی</option>' +
+                    '<option value="radar">رادار</option>' +
                 '</select></div>' +
                 '<div class="form-group"><label>محور</label><select id="new-dev-route">' + routeOptions + '</select></div>' +
-                '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" dir="ltr" placeholder="192.168.x.x"></div>' +
             '</form>';
         currentAddMode = "device";
         $("#add-modal-overlay").classList.add("active");
@@ -2820,12 +2808,11 @@ cat > "$BASE/js/app.js" << 'ENDFILE'
         } else if (currentAddMode === "device") {
             var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
-            var ip = ($("#new-dev-ip") || {}).value;
             if (!dcode || !/^\d{4}$/.test(dcode)) { alert("کد دستگاه باید ۴ رقمی باشد"); return; }
-            if (!dname || !dname.trim() || !ip || !ip.trim()) { alert("لطفا نام و IP را وارد کنید"); return; }
+            if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
             if (devices.some(function (d) { return d.deviceCode === dcode; })) { alert("کد دستگاه تکراری است"); return; }
-            var type = ($("#new-dev-type") || {}).value || "camera";
-            var prefix = { camera: "CAM", sensor: "SEN", "traffic-light": "TL", controller: "CTR" }[type] || "DEV";
+            var type = ($("#new-dev-type") || {}).value || "counter";
+            var prefix = { counter: "TC", sensor: "SEN", loop: "LP", radar: "RDR" }[type] || "DEV";
             var dmax = 0;
             devices.forEach(function (d) {
                 if (d.id.indexOf(prefix + "-") === 0) {
@@ -2839,7 +2826,7 @@ cat > "$BASE/js/app.js" << 'ENDFILE'
                 name: dname.trim(),
                 type: type,
                 route: ($("#new-dev-route") || {}).value || "",
-                ip: ip.trim(),
+                ip: "",
                 status: "online",
                 lastSeen: new Date().toISOString(),
                 firmware: "v1.0.0"
@@ -3037,11 +3024,10 @@ cat > "$BASE/js/app.js" << 'ENDFILE'
     renderHome();
 
 })();
-ENDFILE
+ENDFILE_9
 
-# --- Write data/devices.js ---
-echo "[10/10] Writing data/devices.js"
-cat > "$BASE/data/devices.js" << 'ENDFILE'
+echo "[10/10] Writing data/devices.js ..."
+cat > "$BASE/data/devices.js" << 'ENDFILE_10'
 /**
  * Route and device data for TC Manager (Sistan Akbari).
  */
@@ -3206,24 +3192,24 @@ var ROUTE_DATA = [
 ];
 
 var DEVICE_DATA = [
-    { id: "CAM-001", deviceCode: "1001", name: "دوربین سرعت کیلومتر ۵", type: "camera", route: "R-001", ip: "192.168.1.10", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v3.2.1" },
-    { id: "CAM-002", deviceCode: "1002", name: "دوربین پلاک‌خوان ورودی", type: "camera", route: "R-001", ip: "192.168.1.11", status: "online", lastSeen: "2026-02-15T10:22:50", firmware: "v3.2.1" },
-    { id: "CAM-003", deviceCode: "1003", name: "دوربین نظارتی همت شرق", type: "camera", route: "R-002", ip: "192.168.1.12", status: "online", lastSeen: "2026-02-15T10:22:30", firmware: "v3.1.5" },
-    { id: "CAM-004", deviceCode: "1004", name: "دوربین سرعت صدر", type: "camera", route: "R-003", ip: "192.168.1.13", status: "warning", lastSeen: "2026-02-15T09:50:00", firmware: "v3.1.5" },
-    { id: "SEN-001", deviceCode: "2001", name: "سنسور تردد شمار کرج", type: "sensor", route: "R-001", ip: "192.168.2.10", status: "online", lastSeen: "2026-02-15T10:23:05", firmware: "v2.1.0" },
-    { id: "SEN-002", deviceCode: "2002", name: "سنسور تردد شمار همت", type: "sensor", route: "R-002", ip: "192.168.2.11", status: "online", lastSeen: "2026-02-15T10:22:40", firmware: "v2.1.0" },
-    { id: "SEN-003", deviceCode: "2003", name: "سنسور سرعت نیایش", type: "sensor", route: "R-005", ip: "192.168.2.12", status: "online", lastSeen: "2026-02-15T10:22:20", firmware: "v2.0.8" },
-    { id: "SEN-004", deviceCode: "2004", name: "سنسور بارش تهران-شمال", type: "sensor", route: "R-007", ip: "192.168.2.13", status: "error", lastSeen: "2026-02-15T08:05:00", firmware: "v2.0.8" },
-    { id: "TL-001", deviceCode: "3001", name: "چراغ هوشمند آزادی", type: "traffic-light", route: "R-010", ip: "192.168.3.10", status: "online", lastSeen: "2026-02-15T10:23:10", firmware: "v4.0.2" },
-    { id: "TL-002", deviceCode: "3002", name: "چراغ هوشمند ولیعصر", type: "traffic-light", route: "R-012", ip: "192.168.3.11", status: "warning", lastSeen: "2026-02-15T10:10:00", firmware: "v4.0.1" },
-    { id: "TL-003", deviceCode: "3003", name: "چراغ هوشمند تقاطع همت", type: "traffic-light", route: "R-002", ip: "192.168.3.12", status: "online", lastSeen: "2026-02-15T10:22:55", firmware: "v4.0.2" },
-    { id: "CTR-001", deviceCode: "4001", name: "کنترلر مرکزی منطقه ۱", type: "controller", route: "R-001", ip: "192.168.4.1", status: "online", lastSeen: "2026-02-15T10:23:15", firmware: "v5.1.0" },
-    { id: "CTR-002", deviceCode: "4002", name: "کنترلر منطقه ۶", type: "controller", route: "R-002", ip: "192.168.4.2", status: "online", lastSeen: "2026-02-15T10:22:45", firmware: "v5.1.0" },
-    { id: "CTR-003", deviceCode: "4003", name: "کنترلر تهران-شمال", type: "controller", route: "R-007", ip: "192.168.4.3", status: "error", lastSeen: "2026-02-15T08:00:00", firmware: "v5.0.9" },
-    { id: "CAM-005", deviceCode: "1005", name: "دوربین نظارت قم", type: "camera", route: "R-004", ip: "192.168.1.14", status: "online", lastSeen: "2026-02-15T10:20:00", firmware: "v3.2.1" },
-    { id: "SEN-005", deviceCode: "2005", name: "سنسور ترافیک چمران", type: "sensor", route: "R-008", ip: "192.168.2.14", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v2.1.0" },
-    { id: "CAM-006", deviceCode: "1006", name: "دوربین یادگار امام", type: "camera", route: "R-011", ip: "192.168.1.15", status: "online", lastSeen: "2026-02-15T10:22:00", firmware: "v3.2.1" },
-    { id: "SEN-006", deviceCode: "2006", name: "سنسور بعثت", type: "sensor", route: "R-009", ip: "192.168.2.15", status: "offline", lastSeen: "2026-02-14T23:40:00", firmware: "v2.0.8" }
+    { id: "TC-001", deviceCode: "1001", name: "ترددشمار کیلومتر ۵ آزادراه تهران-کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v3.2.1" },
+    { id: "TC-002", deviceCode: "1002", name: "ترددشمار ورودی آزادراه تهران-کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:22:50", firmware: "v3.2.1" },
+    { id: "TC-003", deviceCode: "1003", name: "ترددشمار همت شرق", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:30", firmware: "v3.1.5" },
+    { id: "TC-004", deviceCode: "1004", name: "ترددشمار بزرگراه صدر", type: "counter", route: "R-003", ip: "", status: "warning", lastSeen: "2026-02-15T09:50:00", firmware: "v3.1.5" },
+    { id: "TC-005", deviceCode: "2001", name: "ترددشمار خروجی کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:05", firmware: "v2.1.0" },
+    { id: "TC-006", deviceCode: "2002", name: "ترددشمار همت غرب", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:40", firmware: "v2.1.0" },
+    { id: "TC-007", deviceCode: "2003", name: "ترددشمار نیایش", type: "counter", route: "R-005", ip: "", status: "online", lastSeen: "2026-02-15T10:22:20", firmware: "v2.0.8" },
+    { id: "TC-008", deviceCode: "2004", name: "ترددشمار تهران-شمال", type: "counter", route: "R-007", ip: "", status: "error", lastSeen: "2026-02-15T08:05:00", firmware: "v2.0.8" },
+    { id: "TC-009", deviceCode: "3001", name: "ترددشمار محور آزادی", type: "counter", route: "R-010", ip: "", status: "online", lastSeen: "2026-02-15T10:23:10", firmware: "v4.0.2" },
+    { id: "TC-010", deviceCode: "3002", name: "ترددشمار ولیعصر", type: "counter", route: "R-012", ip: "", status: "warning", lastSeen: "2026-02-15T10:10:00", firmware: "v4.0.1" },
+    { id: "TC-011", deviceCode: "3003", name: "ترددشمار تقاطع همت", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:55", firmware: "v4.0.2" },
+    { id: "TC-012", deviceCode: "4001", name: "ترددشمار مرکزی منطقه ۱", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:15", firmware: "v5.1.0" },
+    { id: "TC-013", deviceCode: "4002", name: "ترددشمار منطقه ۶", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:45", firmware: "v5.1.0" },
+    { id: "TC-014", deviceCode: "4003", name: "ترددشمار جاده چالوس", type: "counter", route: "R-007", ip: "", status: "error", lastSeen: "2026-02-15T08:00:00", firmware: "v5.0.9" },
+    { id: "TC-015", deviceCode: "1005", name: "ترددشمار آزادراه قم", type: "counter", route: "R-004", ip: "", status: "online", lastSeen: "2026-02-15T10:20:00", firmware: "v3.2.1" },
+    { id: "TC-016", deviceCode: "2005", name: "ترددشمار چمران", type: "counter", route: "R-008", ip: "", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v2.1.0" },
+    { id: "TC-017", deviceCode: "1006", name: "ترددشمار یادگار امام", type: "counter", route: "R-011", ip: "", status: "online", lastSeen: "2026-02-15T10:22:00", firmware: "v3.2.1" },
+    { id: "SEN-001", deviceCode: "2006", name: "سنسور بعثت", type: "sensor", route: "R-009", ip: "", status: "offline", lastSeen: "2026-02-14T23:40:00", firmware: "v2.0.8" }
 ];
 
 var REPORT_DATA = [
@@ -3243,21 +3229,27 @@ var REPORT_DATA = [
     { date: "2026-02-13", route: "بزرگراه همت", vehicles: 87600, avgSpeed: 59, maxSpeed: 125, violations: 10 },
     { date: "2026-02-13", route: "بزرگراه صدر", vehicles: 65400, avgSpeed: 50, maxSpeed: 118, violations: 14 }
 ];
-ENDFILE
+ENDFILE_10
 
-echo "=== All files written ==="
 
-# --- Install dependencies ---
-echo "[*] Installing npm dependencies..."
+echo "[*] Setting up environment ..."
+
+# Setup .env if not exists
+if [ ! -f "$BASE/server/.env" ]; then
+    cp "$BASE/server/.env.example" "$BASE/server/.env"
+    echo "[!] Created .env - edit RMTO credentials in $BASE/server/.env"
+fi
+
+# Install npm dependencies
 cd "$BASE/server"
-npm install --production
+echo "[*] Installing npm dependencies ..."
+npm install --production 2>&1 | tail -5
 
-# --- Setup systemd ---
+# Setup systemd service
 if [ ! -f /etc/systemd/system/tc-manager.service ]; then
-  echo "[*] Creating systemd service..."
-  cat > /etc/systemd/system/tc-manager.service << 'ENDSERVICE'
+    cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
 [Unit]
-Description=TC Manager Server
+Description=TC Manager Server (Noavaran Jonoob Shargh)
 After=network.target
 
 [Service]
@@ -3271,30 +3263,18 @@ Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target
-ENDSERVICE
-  systemctl daemon-reload
-  systemctl enable tc-manager
-  echo "[*] systemd service created and enabled"
-else
-  echo "[*] systemd service already exists, skipping"
+ENDSVC
+    systemctl daemon-reload
+    systemctl enable tc-manager
+    echo "[+] Systemd service created and enabled"
 fi
 
-# --- Setup .env ---
-if [ ! -f "$BASE/server/.env" ]; then
-  cp "$BASE/server/.env.example" "$BASE/server/.env"
-  echo "[!] Edit $BASE/server/.env with your RMTO credentials"
-else
-  echo "[*] .env already exists, skipping"
-fi
-
-# --- Setup nginx ---
-if [ ! -f /etc/nginx/sites-available/tc-manager ]; then
-  echo "[*] Configuring nginx..."
-  cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX'
+# Setup nginx
+if command -v nginx &>/dev/null; then
+    cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX'
 server {
     listen 80;
     server_name _;
-
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -3308,20 +3288,22 @@ server {
     }
 }
 ENDNGINX
-  ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/
-  rm -f /etc/nginx/sites-enabled/default
-  nginx -t && systemctl reload nginx
-  echo "[*] nginx configured"
-else
-  echo "[*] nginx config already exists, skipping"
+    ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/
+    rm -f /etc/nginx/sites-enabled/default 2>/dev/null
+    nginx -t 2>/dev/null && systemctl reload nginx
+    echo "[+] Nginx configured"
 fi
 
-# --- Restart ---
-echo "[*] Restarting tc-manager service..."
+# Restart service
 systemctl restart tc-manager
+sleep 2
+
 echo ""
-echo "=== Deployment Complete ==="
-echo "URL: http://$(hostname -I | awk '{print $1}')"
-echo "Login: admin / admin123"
+echo "============================================"
+echo "  DEPLOYMENT COMPLETE!"
+echo "============================================"
+echo "  URL: http://$(hostname -I | awk \'{print $1}\')"
+echo "  Login: admin / admin123"
 echo ""
-systemctl status tc-manager --no-pager -l
+systemctl status tc-manager --no-pager -l 2>&1 | head -15
+echo "============================================"
