@@ -45,7 +45,7 @@
 ssh root@YOUR_SERVER_IP
 
 # Download and run installer
-wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server-install.sh
+wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/convert-tc-manager-to-cloud/server-install.sh
 chmod +x server-install.sh
 sudo ./server-install.sh
 ```

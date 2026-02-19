@@ -39,12 +39,18 @@ ssh root@YOUR_SERVER_IP
 
 ```bash
 # دانلود اسکریپت نصب
-wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server-install.sh
+wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/convert-tc-manager-to-cloud/server-install.sh
 
 # اجرا
 chmod +x server-install.sh
 sudo ./server-install.sh
 ```
+
+<div dir="rtl">
+
+**⚠️ نکته مهم:** دستورات بالا را یک‌به‌یک و جداگانه اجرا کنید (هر خط را با Enter تایید کنید). همه را در یک خط قرار ندهید.
+
+</div>
 
 اسکریپت به طور خودکار همه چیز را نصب می‌کند:
 - ✅ Node.js

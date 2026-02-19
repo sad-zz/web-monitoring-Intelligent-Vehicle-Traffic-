@@ -49,7 +49,7 @@ ssh username@YOUR_SERVER_IP
 
 ```bash
 # دانلود اسکریپت نصب
-wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server-install.sh
+wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/convert-tc-manager-to-cloud/server-install.sh
 
 # قابل اجرا کردن
 chmod +x server-install.sh
@@ -59,6 +59,8 @@ sudo ./server-install.sh
 ```
 
 <div dir="rtl">
+
+**⚠️ نکته مهم:** این دستورات را یک‌به‌یک اجرا کنید (با Enter بین هر خط). همه را در یک خط قرار ندهید.
 
 اسکریپت به طور خودکار:
 1. ✅ Node.js نصب می‌کند
@@ -835,6 +837,34 @@ pm2 status
 ## 🐛 رفع مشکلات | Troubleshooting
 
 <div dir="rtl">
+
+### خطا 404 هنگام دانلود اسکریپت
+
+**علامت:**
+```
+ERROR 404: Not Found
+```
+
+**علت:**
+- آدرس اشتباه یا branch غلط
+- فایل در branch اصلی (main) وجود ندارد
+
+**راه‌حل:**
+از آدرس صحیح با branch صحیح استفاده کنید:
+
+</div>
+
+```bash
+# ✅ درست
+wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/convert-tc-manager-to-cloud/server-install.sh
+
+# ❌ اشتباه
+wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server-install.sh
+```
+
+<div dir="rtl">
+
+**نکته:** دستورات را جداگانه اجرا کنید، نه همه در یک خط.
 
 ### Application start نمی‌شود
 
