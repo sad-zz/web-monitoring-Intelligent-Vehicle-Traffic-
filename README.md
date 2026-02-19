@@ -32,6 +32,36 @@
 
 ---
 
+### Deploy to VPS/Dedicated Server (10 minutes | 10 دقیقه)
+
+<div dir="rtl">
+
+**نصب خودکار:**
+
+</div>
+
+```bash
+# SSH to your server
+ssh root@YOUR_SERVER_IP
+
+# Download and run installer
+wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server-install.sh
+chmod +x server-install.sh
+sudo ./server-install.sh
+```
+
+<div dir="rtl">
+
+**مشخصات سرور مورد نیاز:**
+- CPU: 2 Cores | RAM: 2 GB | Storage: 20 GB SSD
+- قیمت: ~$12/ماه یا 200k تومان/ماه
+
+</div>
+
+📖 [راهنمای سریع سرور](SERVER-QUICKSTART.md) | [مشخصات کامل](docs/SERVER-REQUIREMENTS.md) | [راهنمای جامع](docs/SERVER-DEPLOYMENT.md)
+
+---
+
 ## 🚀 Features | امکانات
 
 <div dir="rtl">
