@@ -229,7 +229,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout"];
+    var allowed = ["system_name", "server_ip", "server_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -332,6 +332,51 @@ app.get("/api/traffic", function (req, res) {
     params.push(limit);
     var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
     res.json(rows);
+});
+
+// ============================================================
+// API: irawdata list (Data Reception view)
+// ============================================================
+app.use("/api/irawdata/list", requireAuth);
+app.get("/api/irawdata/list", function (req, res) {
+    var limit = parseInt(req.query.limit, 10) || 100;
+    var offset = parseInt(req.query.offset, 10) || 0;
+    var code = req.query.device_code || "";
+    var sql = "SELECT * FROM irawdata WHERE 1=1";
+    var countSql = "SELECT COUNT(*) as total FROM irawdata WHERE 1=1";
+    var params = [];
+    var countParams = [];
+    if (code) { sql += " AND device_code = ?"; countSql += " AND device_code = ?"; params.push(code); countParams.push(code); }
+    sql += " ORDER BY create_at DESC LIMIT ? OFFSET ?";
+    params.push(limit, offset);
+    var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
+    var total = db.prepare(countSql).all.apply(db.prepare(countSql), countParams)[0].total;
+    res.json({ rows: rows, total: total });
+});
+
+// ============================================================
+// API: Mehvar (routes from DB)
+// ============================================================
+app.use("/api/mehvar", requireAuth);
+app.get("/api/mehvar", function (req, res) {
+    res.json(db.prepare("SELECT * FROM mehvar ORDER BY code").all());
+});
+
+app.post("/api/mehvar", function (req, res) {
+    var b = req.body;
+    if (!b.code || !b.name) return res.status(400).json({ error: "code and name required" });
+    try {
+        db.prepare("INSERT INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)").run(parseInt(b.code), b.name, b.send_enable !== undefined ? parseInt(b.send_enable) : 1, b.repair ? parseInt(b.repair) : 0, b.ostan || "");
+        res.json({ success: true });
+    } catch (e) {
+        if (e.message.indexOf("UNIQUE") !== -1) return res.status(409).json({ error: "duplicate code" });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete("/api/mehvar/:code", function (req, res) {
+    db.prepare("DELETE FROM mehvar WHERE code = ?").run(parseInt(req.params.code));
+    res.json({ success: true });
 });
 
 // ============================================================

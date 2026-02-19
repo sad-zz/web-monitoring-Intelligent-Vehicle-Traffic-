@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================
 # TC Manager - Full Deployment Script
-# Noavaran Jonoob Shargh (نوآوران جنوب شرق)
+# Noavaran Jonoob Shargh
 # Auto-generated deploy script - embeds ALL source files
 # =============================================================
 set -e
@@ -13,7 +13,6 @@ echo "  Noavaran Jonoob Shargh"
 echo "========================================"
 echo ""
 
-# Create directory structure
 echo "[1/7] Creating directories..."
 mkdir -p $APP_DIR/css
 mkdir -p $APP_DIR/js
@@ -21,13 +20,13 @@ mkdir -p $APP_DIR/data
 mkdir -p $APP_DIR/server/uploads
 
 echo "[+] Writing index.html..."
-cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
+cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سامانه نوآوران جنوب شرق - مدیریت ترددشمار هوشمند</title>
+    <title>نوآوران جنوب شرق - TC Manager</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -62,27 +61,27 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
                 <div class="logo-icon">TC</div>
                 <div class="logo-text">
                     <span class="logo-title">نوآوران جنوب شرق</span>
-                    <span class="logo-sub">سامانه مدیریت ترددشمار</span>
+                    <span class="logo-sub">TC Manager</span>
                 </div>
             </div>
         </div>
 
         <nav class="sidebar-nav">
-            <button class="nav-item active" data-view="home">
+            <button class="nav-item active" data-view="dashboard">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h1v7c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7h1a1 1 0 0 0 .7-1.7l-9-9a1 1 0 0 0-1.4 0l-9 9A1 1 0 0 0 3 13zm7 7v-5h4v5h-4zm2-15.6 7 7V20h-3v-5c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v5H5v-8.6l7-7z"/></svg>
-                <span>خانه</span>
-            </button>
-            <button class="nav-item" data-view="routes">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 15l-6 6-1.4-1.4L15.2 16H4v-2h11.2l-3.6-3.6L13 9l6 6zM5 9l6-6 1.4 1.4L8.8 8H20v2H8.8l3.6 3.6L11 15 5 9z"/></svg>
-                <span>محورها</span>
+                <span>داشبورد</span>
             </button>
             <button class="nav-item" data-view="devices">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
                 <span>دستگاه‌ها</span>
             </button>
-            <button class="nav-item" data-view="reports">
-                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
-                <span>گزارشات</span>
+            <button class="nav-item" data-view="reception">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                <span>دریافت داده</span>
+            </button>
+            <button class="nav-item" data-view="rmto">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M4.01 6.03l7.51 3.22-7.52-1 .01-2.22m7.5 8.72L4 17.97v-2.22l7.51-1M2.01 3L2 10l15 2-15 2 .01 7L23 12 2.01 3z"/></svg>
+                <span>ارسال رهسام</span>
             </button>
             <button class="nav-item" data-view="settings">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
@@ -94,7 +93,7 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
             <div class="sidebar-user">
                 <div class="user-avatar">ا</div>
                 <div class="user-info">
-                    <span class="user-name">اپراتور سیستم</span>
+                    <span class="user-name">اپراتور</span>
                     <span class="user-role">مدیر</span>
                 </div>
             </div>
@@ -109,10 +108,10 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
             <button class="topbar-toggle" id="sidebar-toggle">
                 <svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
             </button>
-            <div class="topbar-title" id="topbar-title">خانه</div>
+            <div class="topbar-title" id="topbar-title">داشبورد</div>
             <div class="topbar-left">
                 <span class="topbar-time" id="topbar-time"></span>
-                <span class="topbar-badge online">متصل</span>
+                <span class="topbar-badge" id="topbar-status">در انتظار اتصال</span>
                 <span class="topbar-user-name" id="topbar-user" style="font-size:12px;color:#64748b"></span>
             </div>
         </header>
@@ -120,133 +119,81 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
         <!-- Content Area -->
         <main class="content">
 
-            <!-- ===== UI1: Home ===== -->
-            <section class="view active" id="view-home">
+            <!-- ===== Dashboard ===== -->
+            <section class="view active" id="view-dashboard">
                 <div class="stats-row">
                     <div class="stat-card">
                         <div class="stat-icon blue">
-                            <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
+                            <svg viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
                         </div>
                         <div class="stat-body">
-                            <div class="stat-value" id="stat-total-vehicles">0</div>
-                            <div class="stat-label">کل خودروهای عبوری</div>
+                            <div class="stat-value" id="stat-total-devices">-</div>
+                            <div class="stat-label">کل دستگاه‌ها</div>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon green">
-                            <svg viewBox="0 0 24 24"><path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z"/></svg>
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                         </div>
                         <div class="stat-body">
-                            <div class="stat-value" id="stat-avg-speed">0</div>
-                            <div class="stat-label">سرعت متوسط (km/h)</div>
+                            <div class="stat-value" id="stat-online-devices">-</div>
+                            <div class="stat-label">دستگاه آنلاین</div>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon orange">
-                            <svg viewBox="0 0 24 24"><path d="M23 8c0 1.1-.9 2-2 2-.18 0-.35-.02-.51-.07l-3.56 3.55c.05.16.07.34.07.52 0 1.1-.9 2-2 2s-2-.9-2-2c0-.18.02-.36.07-.52l-2.55-2.55c-.16.05-.34.07-.52.07s-.36-.02-.52-.07l-4.55 4.56c.05.16.07.33.07.51 0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2c.18 0 .35.02.51.07l4.56-4.55C8.02 9.36 8 9.18 8 9c0-1.1.9-2 2-2s2 .9 2 2c0 .18-.02.36-.07.52l2.55 2.55c.16-.05.34-.07.52-.07s.36.02.52.07l3.55-3.56C19.02 8.35 19 8.18 19 8c0-1.1.9-2 2-2s2 .9 2 2z"/></svg>
+                            <svg viewBox="0 0 24 24"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg>
                         </div>
                         <div class="stat-body">
-                            <div class="stat-value" id="stat-active-routes">0</div>
-                            <div class="stat-label">محورهای فعال</div>
+                            <div class="stat-value" id="stat-today-vehicles">-</div>
+                            <div class="stat-label">تردد امروز</div>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon red">
-                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                            <svg viewBox="0 0 24 24"><path d="M4.01 6.03l7.51 3.22-7.52-1 .01-2.22m7.5 8.72L4 17.97v-2.22l7.51-1M2.01 3L2 10l15 2-15 2 .01 7L23 12 2.01 3z"/></svg>
                         </div>
                         <div class="stat-body">
-                            <div class="stat-value" id="stat-errors">0</div>
-                            <div class="stat-label">خطاها</div>
+                            <div class="stat-value" id="stat-unsent-rmto">-</div>
+                            <div class="stat-label">صف ارسال رهسام</div>
                         </div>
                     </div>
                 </div>
 
+                <!-- Device Status Table -->
                 <div class="panel">
                     <div class="panel-header">
-                        <h3 class="panel-title">آخرین اطلاعات</h3>
+                        <h3 class="panel-title">وضعیت دستگاه‌ها</h3>
                         <div class="panel-tools">
-                            <div class="export-btns">
-                                <button class="export-btn" data-action="copy">کپی</button>
-                                <button class="export-btn" data-action="csv">CSV</button>
-                                <button class="export-btn" data-action="excel">اکسل</button>
-                                <button class="export-btn" data-action="pdf">PDF</button>
-                                <button class="export-btn" data-action="print">چاپ</button>
-                            </div>
-                            <div class="search-box">
-                                <label>جستجو:</label>
-                                <input type="text" id="home-search" class="search-input" placeholder="">
-                            </div>
+                            <button class="btn btn-sm btn-primary" id="btn-refresh-dashboard">بروزرسانی</button>
                         </div>
                     </div>
                     <div class="table-wrapper">
-                        <table class="data-table" id="home-table">
+                        <table class="data-table" id="dashboard-table">
                             <thead>
                                 <tr>
-                                    <th data-sort="name">نام محور</th>
-                                    <th data-sort="lastUpdate">آخرین اطلاعات</th>
-                                    <th data-sort="totalVehicles">کل خودروهای عبوری</th>
-                                    <th data-sort="avgSpeed">سرعت متوسط کل</th>
-                                    <th data-sort="errors">خطا</th>
+                                    <th>کد</th>
+                                    <th>نام دستگاه</th>
+                                    <th>نوع</th>
+                                    <th>وضعیت</th>
+                                    <th>آخرین اتصال</th>
                                 </tr>
                             </thead>
-                            <tbody id="home-table-body"></tbody>
+                            <tbody id="dashboard-table-body">
+                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                            </tbody>
                         </table>
-                    </div>
-                    <div class="table-footer">
-                        <div class="table-info" id="home-table-info"></div>
-                        <div class="pagination" id="home-pagination"></div>
                     </div>
                 </div>
             </section>
 
-            <!-- ===== UI2: Routes ===== -->
-            <section class="view" id="view-routes">
-                <div class="panel">
-                    <div class="panel-header">
-                        <h3 class="panel-title">مدیریت محورها</h3>
-                        <div class="panel-tools">
-                            <button class="btn btn-primary" id="btn-add-route">+ محور جدید</button>
-                            <div class="search-box">
-                                <label>جستجو:</label>
-                                <input type="text" id="routes-search" class="search-input">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="table-wrapper">
-                        <table class="data-table" id="routes-table">
-                            <thead>
-                                <tr>
-                                    <th>ردیف</th>
-                                    <th data-sort="name">نام محور</th>
-                                    <th data-sort="origin">مبدأ</th>
-                                    <th data-sort="destination">مقصد</th>
-                                    <th data-sort="length">طول (km)</th>
-                                    <th data-sort="deviceCount">تعداد دستگاه</th>
-                                    <th data-sort="status">وضعیت</th>
-                                    <th>عملیات</th>
-                                </tr>
-                            </thead>
-                            <tbody id="routes-table-body"></tbody>
-                        </table>
-                    </div>
-                    <div class="table-footer">
-                        <div class="table-info" id="routes-table-info"></div>
-                        <div class="pagination" id="routes-pagination"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ===== UI3: Devices ===== -->
+            <!-- ===== Devices ===== -->
             <section class="view" id="view-devices">
                 <div class="panel">
                     <div class="panel-header">
                         <h3 class="panel-title">مدیریت دستگاه‌ها</h3>
                         <div class="panel-tools">
                             <button class="btn btn-primary" id="btn-add-device">+ دستگاه جدید</button>
-                            <div class="export-btns">
-                                <button class="export-btn" data-action="csv" data-target="devices">CSV</button>
-                                <button class="export-btn" data-action="excel" data-target="devices">اکسل</button>
-                            </div>
                             <div class="search-box">
                                 <label>جستجو:</label>
                                 <input type="text" id="devices-search" class="search-input">
@@ -258,16 +205,18 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
                             <thead>
                                 <tr>
                                     <th>ردیف</th>
-                                    <th data-sort="deviceCode">کد دستگاه</th>
-                                    <th data-sort="name">نام دستگاه</th>
-                                    <th data-sort="type">نوع</th>
-                                    <th data-sort="route">محور</th>
-                                    <th data-sort="status">وضعیت</th>
-                                    <th data-sort="lastSeen">آخرین اتصال</th>
+                                    <th>کد دستگاه</th>
+                                    <th>نام دستگاه</th>
+                                    <th>نوع</th>
+                                    <th>محور</th>
+                                    <th>وضعیت</th>
+                                    <th>آخرین اتصال</th>
                                     <th>عملیات</th>
                                 </tr>
                             </thead>
-                            <tbody id="devices-table-body"></tbody>
+                            <tbody id="devices-table-body">
+                                <tr><td colspan="8" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                            </tbody>
                         </table>
                     </div>
                     <div class="table-footer">
@@ -277,63 +226,163 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
                 </div>
             </section>
 
-            <!-- ===== UI4: Reports ===== -->
-            <section class="view" id="view-reports">
-                <div class="report-filters">
-                    <div class="filter-group">
-                        <label>محور:</label>
-                        <select id="report-route">
-                            <option value="">همه محورها</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label>از تاریخ:</label>
-                        <input type="date" id="report-from">
-                    </div>
-                    <div class="filter-group">
-                        <label>تا تاریخ:</label>
-                        <input type="date" id="report-to">
-                    </div>
-                    <button class="btn btn-primary" id="btn-generate-report">نمایش گزارش</button>
-                </div>
-
+            <!-- ===== Data Reception ===== -->
+            <section class="view" id="view-reception">
                 <div class="panel">
                     <div class="panel-header">
-                        <h3 class="panel-title">گزارش ترافیک</h3>
+                        <h3 class="panel-title">داده‌های دریافتی از دستگاه‌ها</h3>
                         <div class="panel-tools">
-                            <div class="export-btns">
-                                <button class="export-btn" data-action="csv" data-target="report">CSV</button>
-                                <button class="export-btn" data-action="excel" data-target="report">اکسل</button>
-                                <button class="export-btn" data-action="pdf" data-target="report">PDF</button>
-                                <button class="export-btn" data-action="print" data-target="report">چاپ</button>
+                            <div class="search-box">
+                                <label>کد دستگاه:</label>
+                                <input type="text" id="reception-filter-code" class="search-input" placeholder="مثال: 1001" dir="ltr" style="width:100px">
                             </div>
+                            <button class="btn btn-sm btn-primary" id="btn-refresh-reception">بروزرسانی</button>
                         </div>
                     </div>
                     <div class="table-wrapper">
-                        <table class="data-table" id="report-table">
+                        <table class="data-table" id="reception-table">
                             <thead>
                                 <tr>
-                                    <th>تاریخ</th>
-                                    <th>محور</th>
-                                    <th>تعداد خودرو</th>
-                                    <th>سرعت متوسط</th>
-                                    <th>حداکثر سرعت</th>
-                                    <th>تخلفات</th>
+                                    <th>کد دستگاه</th>
+                                    <th>شروع</th>
+                                    <th>پایان</th>
+                                    <th>لاین</th>
+                                    <th>موتور(a)</th>
+                                    <th>سواری(b)</th>
+                                    <th>ون(c)</th>
+                                    <th>اتوبوس(d)</th>
+                                    <th>کامیون(e)</th>
+                                    <th>نامشخص(x)</th>
+                                    <th>کل</th>
                                 </tr>
                             </thead>
-                            <tbody id="report-table-body"></tbody>
+                            <tbody id="reception-table-body">
+                                <tr><td colspan="11" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                            </tbody>
                         </table>
                     </div>
                     <div class="table-footer">
-                        <div class="table-info" id="report-table-info"></div>
-                        <div class="pagination" id="report-pagination"></div>
+                        <div class="table-info" id="reception-table-info"></div>
+                        <div class="pagination" id="reception-pagination"></div>
                     </div>
                 </div>
             </section>
 
-            <!-- ===== UI5: Settings ===== -->
+            <!-- ===== RMTO Send ===== -->
+            <section class="view" id="view-rmto">
+                <div class="stats-row" style="grid-template-columns: repeat(3, 1fr)">
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                        </div>
+                        <div class="stat-body">
+                            <div class="stat-value" id="rmto-unsent-count">-</div>
+                            <div class="stat-label">در صف ارسال</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        </div>
+                        <div class="stat-body">
+                            <div class="stat-value" id="rmto-sent-count">-</div>
+                            <div class="stat-label">ارسال شده</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <svg viewBox="0 0 24 24"><path d="M4.01 6.03l7.51 3.22-7.52-1 .01-2.22m7.5 8.72L4 17.97v-2.22l7.51-1M2.01 3L2 10l15 2-15 2 .01 7L23 12 2.01 3z"/></svg>
+                        </div>
+                        <div class="stat-body">
+                            <div class="stat-value" id="rmto-last-send">-</div>
+                            <div class="stat-label">آخرین ارسال</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:8px;margin-bottom:16px">
+                    <button class="btn btn-primary" id="btn-rmto-send-now">ارسال الان</button>
+                    <button class="btn btn-secondary" id="btn-rmto-aggregate">تجمیع و ارسال</button>
+                    <button class="btn btn-secondary" id="btn-rmto-refresh">بروزرسانی</button>
+                </div>
+
+                <!-- Unsent Queue -->
+                <div class="panel" style="margin-bottom:16px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">صف ارسال (ارسال نشده)</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>کد دستگاه</th>
+                                    <th>شروع دوره</th>
+                                    <th>تعداد خودرو</th>
+                                    <th>سرعت متوسط</th>
+                                    <th>زمان ایجاد</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rmto-unsent-body">
+                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Send Log -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">تاریخچه ارسال</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>متد</th>
+                                    <th>کد دستگاه</th>
+                                    <th>وضعیت</th>
+                                    <th>پاسخ</th>
+                                    <th>زمان</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rmto-log-body">
+                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== Settings ===== -->
             <section class="view" id="view-settings">
                 <div class="settings-grid">
+                    <!-- RMTO Settings -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3 class="panel-title">تنظیمات ارتباط رهسام (RMTO)</h3>
+                        </div>
+                        <div class="panel-body">
+                            <div class="form-group">
+                                <label>آدرس WSDL</label>
+                                <input type="text" id="setting-rmto-wsdl" dir="ltr" placeholder="http://otf.rmto.ir/Companies/Companies.asmx?WSDL">
+                            </div>
+                            <div class="form-group">
+                                <label>کد شرکت</label>
+                                <input type="text" id="setting-rmto-company" dir="ltr" placeholder="58">
+                            </div>
+                            <div class="form-group">
+                                <label>نام کاربری رهسام</label>
+                                <input type="text" id="setting-rmto-user" dir="ltr">
+                            </div>
+                            <div class="form-group">
+                                <label>رمز عبور رهسام</label>
+                                <input type="password" id="setting-rmto-pass" dir="ltr">
+                            </div>
+                            <button class="btn btn-primary" id="btn-save-rmto">ذخیره تنظیمات رهسام</button>
+                        </div>
+                    </div>
+
+                    <!-- General Settings -->
                     <div class="panel">
                         <div class="panel-header">
                             <h3 class="panel-title">تنظیمات عمومی</h3>
@@ -352,8 +401,8 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
                                 <input type="number" id="setting-port" value="3000" dir="ltr">
                             </div>
                             <div class="form-group">
-                                <label>زمان بروزرسانی (ثانیه)</label>
-                                <input type="number" id="setting-refresh" value="30" dir="ltr">
+                                <label>فاصله ارسال به رهسام (دقیقه)</label>
+                                <input type="number" id="setting-refresh" value="15" dir="ltr">
                             </div>
                             <div class="form-group">
                                 <label>حداکثر سرعت مجاز (km/h)</label>
@@ -363,37 +412,7 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
                         </div>
                     </div>
 
-                    <div class="panel">
-                        <div class="panel-header">
-                            <h3 class="panel-title">تنظیمات هشدار</h3>
-                        </div>
-                        <div class="panel-body">
-                            <div class="form-group">
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="setting-alert-offline" checked>
-                                    <span>هشدار قطع ارتباط دستگاه</span>
-                                </label>
-                            </div>
-                            <div class="form-group">
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="setting-alert-speed" checked>
-                                    <span>هشدار سرعت غیرمجاز</span>
-                                </label>
-                            </div>
-                            <div class="form-group">
-                                <label class="toggle-label">
-                                    <input type="checkbox" id="setting-alert-error" checked>
-                                    <span>هشدار خطای دستگاه</span>
-                                </label>
-                            </div>
-                            <div class="form-group">
-                                <label>حداکثر زمان قطعی (دقیقه)</label>
-                                <input type="number" id="setting-timeout" value="5" dir="ltr">
-                            </div>
-                            <button class="btn btn-primary" id="btn-save-alerts">ذخیره تنظیمات</button>
-                        </div>
-                    </div>
-
+                    <!-- Password -->
                     <div class="panel">
                         <div class="panel-header">
                             <h3 class="panel-title">تغییر رمز عبور</h3>
@@ -408,10 +427,11 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
                                 <input type="password" id="setting-new-pass" dir="ltr">
                             </div>
                             <button class="btn btn-primary" id="btn-change-pass">تغییر رمز</button>
-                            <button class="btn btn-danger" id="btn-logout" style="margin-right:8px">خروج از حساب</button>
+                            <button class="btn btn-danger" id="btn-logout" style="margin-right:8px">خروج</button>
                         </div>
                     </div>
 
+                    <!-- Backup -->
                     <div class="panel">
                         <div class="panel-header">
                             <h3 class="panel-title">پشتیبان‌گیری و بازیابی</h3>
@@ -429,15 +449,16 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
                         </div>
                     </div>
 
+                    <!-- About -->
                     <div class="panel">
                         <div class="panel-header">
-                            <h3 class="panel-title">درباره سامانه</h3>
+                            <h3 class="panel-title">درباره</h3>
                         </div>
                         <div class="panel-body about-info">
-                            <p><strong>سامانه نوآوران جنوب شرق</strong></p>
-                            <p>نسخه: <span dir="ltr">1.1.0</span></p>
-                            <p>سامانه مدیریت و پایش ترافیک هوشمند</p>
-                            <p>مدیریت دستگاه‌های ترددشمار و ارسال اطلاعات به سامانه رهسام</p>
+                            <p><strong>نوآوران جنوب شرق</strong></p>
+                            <p>نسخه: <span dir="ltr">1.2.0</span></p>
+                            <p>سامانه مدیریت ترددشمار هوشمند</p>
+                            <p>سازگار با TC Manager رهسام (RMTO)</p>
                         </div>
                     </div>
                 </div>
@@ -447,14 +468,14 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
 
         <!-- Footer -->
         <footer class="footer">
-            <div class="footer-right">سامانه نوآوران جنوب شرق - مدیریت ترددشمار هوشمند &copy; ۱۴۰۴</div>
+            <div class="footer-right">نوآوران جنوب شرق - TC Manager &copy; ۱۴۰۴</div>
             <div class="footer-left">
                 <span class="footer-status" id="footer-device-count">0 دستگاه فعال</span>
             </div>
         </footer>
     </div>
 
-    <!-- Modal: Device/Route Detail -->
+    <!-- Modal -->
     <div class="modal-overlay" id="modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -469,7 +490,7 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
         </div>
     </div>
 
-    <!-- Modal: Add Form -->
+    <!-- Add Modal -->
     <div class="modal-overlay" id="add-modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -484,14 +505,13 @@ cat > "/index.html" << 'ENDOFFILE_INDEX_HTML'
         </div>
     </div>
 
-    <script src="data/devices.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
 ENDOFFILE_INDEX_HTML
 
 echo "[+] Writing css/style.css..."
-cat > "/css/style.css" << 'ENDOFFILE_CSS_STYLE_CSS'
+cat > "$APP_DIR/css/style.css" << 'ENDOFFILE_CSS_STYLE_CSS'
 /* === Reset === */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
@@ -1233,96 +1253,13 @@ body {
 ENDOFFILE_CSS_STYLE_CSS
 
 echo "[+] Writing js/app.js..."
-cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
+cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
 (function () {
     "use strict";
 
     // ============================================================
-    // Authentication
+    // Helpers
     // ============================================================
-    var loginOverlay = document.getElementById("login-overlay");
-    var loginForm = document.getElementById("login-form");
-    var loginError = document.getElementById("login-error");
-
-    function checkAuth() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", "/api/auth/check", true);
-        xhr.withCredentials = true;
-        xhr.onload = function () {
-            var data = JSON.parse(xhr.responseText);
-            if (data.loggedIn) {
-                loginOverlay.classList.add("hidden");
-                var userEl = document.getElementById("topbar-user");
-                if (userEl) userEl.textContent = data.username;
-                var nameEl = document.querySelector(".user-name");
-                if (nameEl) nameEl.textContent = data.username;
-            } else {
-                loginOverlay.classList.remove("hidden");
-            }
-        };
-        xhr.onerror = function () { loginOverlay.classList.remove("hidden"); };
-        xhr.send();
-    }
-
-    if (loginForm) {
-        loginForm.addEventListener("submit", function (e) {
-            e.preventDefault();
-            var user = document.getElementById("login-user").value;
-            var pass = document.getElementById("login-pass").value;
-            var xhr = new XMLHttpRequest();
-            xhr.open("POST", "/api/auth/login", true);
-            xhr.setRequestHeader("Content-Type", "application/json");
-            xhr.withCredentials = true;
-            xhr.onload = function () {
-                if (xhr.status === 200) {
-                    loginOverlay.classList.add("hidden");
-                    loginError.style.display = "none";
-                    var data = JSON.parse(xhr.responseText);
-                    var userEl = document.getElementById("topbar-user");
-                    if (userEl) userEl.textContent = data.username;
-                    var nameEl = document.querySelector(".user-name");
-                    if (nameEl) nameEl.textContent = data.username;
-                } else {
-                    loginError.textContent = "نام کاربری یا رمز عبور اشتباه است";
-                    loginError.style.display = "block";
-                }
-            };
-            xhr.send(JSON.stringify({ username: user, password: pass }));
-        });
-    }
-
-    checkAuth();
-
-    // --- Data copies ---
-    var routes = JSON.parse(JSON.stringify(ROUTE_DATA));
-    var devices = JSON.parse(JSON.stringify(DEVICE_DATA));
-    var reports = JSON.parse(JSON.stringify(REPORT_DATA));
-
-    var TYPE_LABELS = {
-        counter: "ترددشمار",
-        sensor: "سنسور",
-        loop: "حلقه القایی",
-        radar: "رادار"
-    };
-
-    var STATUS_LABELS = {
-        online: "آنلاین",
-        offline: "آفلاین",
-        warning: "هشدار",
-        error: "خطا"
-    };
-
-    var VIEW_TITLES = {
-        home: "خانه",
-        routes: "محورها",
-        devices: "دستگاه‌ها",
-        reports: "گزارشات",
-        settings: "تنظیمات"
-    };
-
-    var PAGE_SIZE = 10;
-
-    // --- DOM Helpers ---
     var $ = function (sel) { return document.querySelector(sel); };
     var $$ = function (sel) { return document.querySelectorAll(sel); };
 
@@ -1333,25 +1270,124 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         return div.innerHTML;
     }
 
-    function formatNumber(n) {
-        return Number(n).toLocaleString("fa-IR");
-    }
-
     function formatTime(iso) {
         if (!iso) return "-";
         var d = new Date(iso);
-        var h = String(d.getHours()).padStart(2, "0");
-        var m = String(d.getMinutes()).padStart(2, "0");
+        if (isNaN(d.getTime())) return String(iso);
+        var y = d.getFullYear();
         var mo = String(d.getMonth() + 1).padStart(2, "0");
         var dy = String(d.getDate()).padStart(2, "0");
-        return d.getFullYear() + "/" + mo + "/" + dy + " " + h + ":" + m;
+        var h = String(d.getHours()).padStart(2, "0");
+        var m = String(d.getMinutes()).padStart(2, "0");
+        return y + "/" + mo + "/" + dy + " " + h + ":" + m;
     }
 
-    // --- Navigation ---
+    function api(method, url, body, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.withCredentials = true;
+        if (body && method !== "GET") {
+            xhr.setRequestHeader("Content-Type", "application/json");
+        }
+        xhr.onload = function () {
+            var data = null;
+            try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+            callback(xhr.status, data);
+        };
+        xhr.onerror = function () { callback(0, null); };
+        xhr.send(body ? JSON.stringify(body) : null);
+    }
+
+    var TYPE_LABELS = { counter: "ترددشمار", sensor: "سنسور", loop: "حلقه القایی", radar: "رادار" };
+    var STATUS_LABELS = { online: "آنلاین", offline: "آفلاین", warning: "هشدار", error: "خطا" };
+
+    var VIEW_TITLES = {
+        dashboard: "داشبورد",
+        devices: "دستگاه‌ها",
+        reception: "دریافت داده",
+        rmto: "ارسال رهسام",
+        settings: "تنظیمات"
+    };
+
+    var PAGE_SIZE = 20;
+
+    // ============================================================
+    // Authentication
+    // ============================================================
+    var loginOverlay = $("#login-overlay");
+    var loginForm = $("#login-form");
+    var loginError = $("#login-error");
+    var serverConnected = false;
+
+    function checkAuth() {
+        api("GET", "/api/auth/check", null, function (status, data) {
+            if (status === 200 && data && data.loggedIn) {
+                loginOverlay.classList.add("hidden");
+                serverConnected = true;
+                updateConnectionStatus(true);
+                if (data.username) {
+                    var u = $("#topbar-user"); if (u) u.textContent = data.username;
+                    var n = $(".user-name"); if (n) n.textContent = data.username;
+                }
+                loadDashboard();
+            } else if (status === 200) {
+                loginOverlay.classList.remove("hidden");
+                serverConnected = true;
+                updateConnectionStatus(true);
+            } else {
+                serverConnected = false;
+                updateConnectionStatus(false);
+                loginOverlay.classList.remove("hidden");
+            }
+        });
+    }
+
+    function updateConnectionStatus(connected) {
+        var badge = $("#topbar-status");
+        if (!badge) return;
+        if (connected) {
+            badge.textContent = "متصل به سرور";
+            badge.className = "topbar-badge online";
+        } else {
+            badge.textContent = "عدم اتصال";
+            badge.className = "topbar-badge";
+            badge.style.background = "rgba(239,68,68,.12)";
+            badge.style.color = "#ef4444";
+        }
+    }
+
+    if (loginForm) {
+        loginForm.addEventListener("submit", function (e) {
+            e.preventDefault();
+            var user = $("#login-user").value;
+            var pass = $("#login-pass").value;
+            api("POST", "/api/auth/login", { username: user, password: pass }, function (status, data) {
+                if (status === 200 && data && data.success) {
+                    loginOverlay.classList.add("hidden");
+                    loginError.style.display = "none";
+                    serverConnected = true;
+                    updateConnectionStatus(true);
+                    if (data.username) {
+                        var u = $("#topbar-user"); if (u) u.textContent = data.username;
+                        var n = $(".user-name"); if (n) n.textContent = data.username;
+                    }
+                    loadDashboard();
+                } else {
+                    loginError.textContent = (data && data.error) || "نام کاربری یا رمز عبور اشتباه است";
+                    loginError.style.display = "block";
+                }
+            });
+        });
+    }
+
+    checkAuth();
+
+    // ============================================================
+    // Navigation
+    // ============================================================
     $$(".nav-item").forEach(function (btn) {
         btn.addEventListener("click", function () {
-            var view = btn.getAttribute("data-view");
-            switchView(view);
+            switchView(btn.getAttribute("data-view"));
         });
     });
 
@@ -1359,26 +1395,24 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         $$(".nav-item").forEach(function (b) { b.classList.remove("active"); });
         var activeBtn = document.querySelector('.nav-item[data-view="' + view + '"]');
         if (activeBtn) activeBtn.classList.add("active");
-
         $$(".view").forEach(function (v) { v.classList.remove("active"); });
         var target = $("#view-" + view);
         if (target) target.classList.add("active");
-
         $("#topbar-title").textContent = VIEW_TITLES[view] || view;
 
-        // Render specific view data
-        if (view === "home") renderHome();
-        if (view === "routes") renderRoutes();
-        if (view === "devices") renderDevices();
-        if (view === "reports") renderReports();
+        if (view === "dashboard") loadDashboard();
+        else if (view === "devices") loadDevices();
+        else if (view === "reception") loadReception();
+        else if (view === "rmto") loadRMTO();
+        else if (view === "settings") loadSettings();
     }
 
-    // --- Sidebar Toggle (mobile) ---
+    // Sidebar toggle (mobile)
     $("#sidebar-toggle").addEventListener("click", function () {
         $("#sidebar").classList.toggle("open");
     });
 
-    // --- Clock ---
+    // Clock
     function updateClock() {
         var now = new Date();
         var h = String(now.getHours()).padStart(2, "0");
@@ -1390,279 +1424,119 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     setInterval(updateClock, 1000);
 
     // ============================================================
-    // UI1: Home
+    // Dashboard
     // ============================================================
-    var homeState = { page: 1, search: "", sortKey: "name", sortDir: "asc" };
+    function loadDashboard() {
+        api("GET", "/api/stats", null, function (status, data) {
+            if (status === 200 && data) {
+                $("#stat-total-devices").textContent = data.totalDevices || 0;
+                $("#stat-online-devices").textContent = data.onlineDevices || 0;
+                $("#stat-today-vehicles").textContent = data.todayVehicles || 0;
+                $("#stat-unsent-rmto").textContent = (data.unsentRMTO || 0) + (data.unsentRMTO5 || 0);
+                $("#footer-device-count").textContent = (data.onlineDevices || 0) + " دستگاه فعال";
+            }
+        });
 
-    function renderHome() {
-        // Stats
-        var totalVehicles = routes.reduce(function (s, r) { return s + r.totalVehicles; }, 0);
-        var activeRoutes = routes.filter(function (r) { return r.status === "online"; }).length;
-        var totalErrors = routes.reduce(function (s, r) { return s + r.errors; }, 0);
-        var speeds = routes.filter(function (r) { return r.avgSpeed > 0; });
-        var avgSpeed = speeds.length ? Math.round(speeds.reduce(function (s, r) { return s + r.avgSpeed; }, 0) / speeds.length) : 0;
-
-        $("#stat-total-vehicles").textContent = formatNumber(totalVehicles);
-        $("#stat-avg-speed").textContent = formatNumber(avgSpeed);
-        $("#stat-active-routes").textContent = formatNumber(activeRoutes);
-        $("#stat-errors").textContent = formatNumber(totalErrors);
-
-        // Footer
-        var onlineDevices = devices.filter(function (d) { return d.status === "online"; }).length;
-        $("#footer-device-count").textContent = onlineDevices + " دستگاه فعال";
-
-        renderHomeTable();
-    }
-
-    function getFilteredRoutes() {
-        var q = homeState.search.toLowerCase();
-        return routes.filter(function (r) {
-            if (!q) return true;
-            return r.name.toLowerCase().indexOf(q) !== -1;
+        api("GET", "/api/devices", null, function (status, data) {
+            var tbody = $("#dashboard-table-body");
+            if (status !== 200 || !data || !data.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">دستگاهی ثبت نشده است</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(function (d) {
+                var st = d.status || "offline";
+                return "<tr>" +
+                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
+                    "<td>" + escapeHtml(d.name) + "</td>" +
+                    '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
+                    '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
+                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
+                    "</tr>";
+            }).join("");
         });
     }
 
-    function renderHomeTable() {
-        var filtered = getFilteredRoutes();
-        filtered = sortArray(filtered, homeState.sortKey, homeState.sortDir);
-
-        var total = filtered.length;
-        var start = (homeState.page - 1) * PAGE_SIZE;
-        var paged = filtered.slice(start, start + PAGE_SIZE);
-
-        var tbody = $("#home-table-body");
-        tbody.innerHTML = paged.map(function (r) {
-            return "<tr>" +
-                "<td>" + escapeHtml(r.name) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatTime(r.lastUpdate)) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatNumber(r.totalVehicles)) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.avgSpeed) + " km/h</td>" +
-                '<td><span class="status-badge ' + (r.errors > 0 ? "error" : "online") + '">' +
-                    escapeHtml(r.errors > 0 ? r.errors + " خطا" : "بدون خطا") + "</span></td>" +
-                "</tr>";
-        }).join("");
-
-        renderTableInfo("home", start, paged.length, total);
-        renderPagination("home", homeState, total);
-        applySortHeaders("home-table", homeState);
-    }
-
-    $("#home-search").addEventListener("input", function () {
-        homeState.search = this.value.trim();
-        homeState.page = 1;
-        renderHomeTable();
-    });
-
-    bindTableSort("home-table", homeState, renderHomeTable);
+    var refreshDashBtn = $("#btn-refresh-dashboard");
+    if (refreshDashBtn) refreshDashBtn.addEventListener("click", loadDashboard);
 
     // ============================================================
-    // UI2: Routes
+    // Devices
     // ============================================================
-    var routeState = { page: 1, search: "", sortKey: "name", sortDir: "asc" };
+    var allDevices = [];
+    var deviceState = { page: 1, search: "" };
 
-    function renderRoutes() { renderRouteTable(); }
-
-    function getFilteredRoutesForTable() {
-        var q = routeState.search.toLowerCase();
-        return routes.filter(function (r) {
-            if (!q) return true;
-            return r.name.toLowerCase().indexOf(q) !== -1 ||
-                   r.origin.toLowerCase().indexOf(q) !== -1 ||
-                   r.destination.toLowerCase().indexOf(q) !== -1;
-        });
-    }
-
-    function renderRouteTable() {
-        var filtered = getFilteredRoutesForTable();
-        filtered = sortArray(filtered, routeState.sortKey, routeState.sortDir);
-
-        var total = filtered.length;
-        var start = (routeState.page - 1) * PAGE_SIZE;
-        var paged = filtered.slice(start, start + PAGE_SIZE);
-
-        var tbody = $("#routes-table-body");
-        tbody.innerHTML = paged.map(function (r, i) {
-            return "<tr>" +
-                "<td>" + (start + i + 1) + "</td>" +
-                "<td><strong>" + escapeHtml(r.name) + "</strong></td>" +
-                "<td>" + escapeHtml(r.origin) + "</td>" +
-                "<td>" + escapeHtml(r.destination) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.length) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.deviceCount) + "</td>" +
-                '<td><span class="status-badge ' + r.status + '">' + escapeHtml(STATUS_LABELS[r.status]) + "</span></td>" +
-                "<td>" +
-                    '<div class="action-btns">' +
-                        '<button class="btn btn-sm btn-primary btn-route-detail" data-id="' + escapeHtml(r.id) + '">جزئیات</button>' +
-                        '<button class="btn btn-sm btn-danger btn-route-delete" data-id="' + escapeHtml(r.id) + '">حذف</button>' +
-                    "</div>" +
-                "</td>" +
-                "</tr>";
-        }).join("");
-
-        // Bind events
-        tbody.querySelectorAll(".btn-route-detail").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var r = routes.find(function (x) { return x.id === btn.getAttribute("data-id"); });
-                if (r) showRouteDetail(r);
-            });
-        });
-
-        tbody.querySelectorAll(".btn-route-delete").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var id = btn.getAttribute("data-id");
-                if (confirm("آیا از حذف این محور مطمئن هستید؟")) {
-                    routes = routes.filter(function (x) { return x.id !== id; });
-                    renderRouteTable();
-                }
-            });
-        });
-
-        renderTableInfo("routes", start, paged.length, total);
-        renderPagination("routes", routeState, total);
-        applySortHeaders("routes-table", routeState);
-    }
-
-    $("#routes-search").addEventListener("input", function () {
-        routeState.search = this.value.trim();
-        routeState.page = 1;
-        renderRouteTable();
-    });
-
-    bindTableSort("routes-table", routeState, renderRouteTable);
-
-    function showRouteDetail(r) {
-        $("#modal-title").textContent = r.name;
-        $("#modal-save").style.display = "none";
-        $("#modal-body").innerHTML =
-            '<div class="detail-grid">' +
-                '<div class="detail-item"><span class="detail-label">شناسه</span><span class="detail-value">' + escapeHtml(r.id) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">مبدأ</span><span class="detail-value">' + escapeHtml(r.origin) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">مقصد</span><span class="detail-value">' + escapeHtml(r.destination) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">طول</span><span class="detail-value" dir="ltr">' + escapeHtml(r.length) + ' km</span></div>' +
-                '<div class="detail-item"><span class="detail-label">تعداد دستگاه</span><span class="detail-value">' + escapeHtml(r.deviceCount) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">وضعیت</span><span class="detail-value"><span class="status-badge ' + r.status + '">' + escapeHtml(STATUS_LABELS[r.status]) + '</span></span></div>' +
-                '<div class="detail-item"><span class="detail-label">خودروهای عبوری</span><span class="detail-value">' + escapeHtml(formatNumber(r.totalVehicles)) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">سرعت متوسط</span><span class="detail-value" dir="ltr">' + escapeHtml(r.avgSpeed) + ' km/h</span></div>' +
-            '</div>';
-        $("#modal-overlay").classList.add("active");
-    }
-
-    // Add route
-    $("#btn-add-route").addEventListener("click", function () {
-        $("#add-modal-title").textContent = "افزودن محور جدید";
-        $("#add-modal-body").innerHTML =
-            '<form id="add-route-form">' +
-                '<div class="form-group"><label>نام محور</label><input type="text" id="new-route-name" required></div>' +
-                '<div class="form-group"><label>مبدأ</label><input type="text" id="new-route-origin"></div>' +
-                '<div class="form-group"><label>مقصد</label><input type="text" id="new-route-dest"></div>' +
-                '<div class="form-group"><label>طول (km)</label><input type="number" id="new-route-length" dir="ltr"></div>' +
-            '</form>';
-        currentAddMode = "route";
-        $("#add-modal-overlay").classList.add("active");
-    });
-
-    // ============================================================
-    // UI3: Devices
-    // ============================================================
-    var deviceState = { page: 1, search: "", sortKey: "name", sortDir: "asc" };
-
-    function renderDevices() { renderDeviceTable(); }
-
-    function getFilteredDevices() {
-        var q = deviceState.search.toLowerCase();
-        return devices.filter(function (d) {
-            if (!q) return true;
-            return d.name.toLowerCase().indexOf(q) !== -1 ||
-                   d.id.toLowerCase().indexOf(q) !== -1 ||
-                   d.ip.indexOf(q) !== -1;
+    function loadDevices() {
+        api("GET", "/api/devices", null, function (status, data) {
+            if (status === 200 && data) {
+                allDevices = data;
+            } else {
+                allDevices = [];
+            }
+            deviceState.page = 1;
+            renderDeviceTable();
         });
     }
 
     function renderDeviceTable() {
-        var filtered = getFilteredDevices();
-        filtered = sortArray(filtered, deviceState.sortKey, deviceState.sortDir);
-
+        var q = deviceState.search.toLowerCase();
+        var filtered = allDevices.filter(function (d) {
+            if (!q) return true;
+            return (d.name || "").toLowerCase().indexOf(q) !== -1 ||
+                   (d.device_code || "").indexOf(q) !== -1;
+        });
         var total = filtered.length;
         var start = (deviceState.page - 1) * PAGE_SIZE;
         var paged = filtered.slice(start, start + PAGE_SIZE);
 
         var tbody = $("#devices-table-body");
-        tbody.innerHTML = paged.map(function (d, i) {
-            var routeObj = routes.find(function (r) { return r.id === d.route; });
-            var routeName = routeObj ? routeObj.name : d.route;
-            return "<tr>" +
-                "<td>" + (start + i + 1) + "</td>" +
-                '<td style="direction:ltr;text-align:right;font-weight:700">' + escapeHtml(d.deviceCode || "-") + "</td>" +
-                "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
-                '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
-                "<td>" + escapeHtml(routeName) + "</td>" +
-                '<td><span class="status-badge ' + d.status + '">' + escapeHtml(STATUS_LABELS[d.status]) + "</span></td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatTime(d.lastSeen)) + "</td>" +
-                "<td>" +
-                    '<div class="action-btns">' +
-                        '<button class="btn btn-sm btn-primary btn-dev-detail" data-id="' + escapeHtml(d.id) + '">جزئیات</button>' +
-                        '<button class="btn btn-sm btn-danger btn-dev-delete" data-id="' + escapeHtml(d.id) + '">حذف</button>' +
-                    "</div>" +
-                "</td>" +
-                "</tr>";
-        }).join("");
+        if (!paged.length) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
+        } else {
+            tbody.innerHTML = paged.map(function (d, i) {
+                var st = d.status || "offline";
+                return "<tr>" +
+                    "<td>" + (start + i + 1) + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
+                    "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
+                    '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
+                    "<td>" + escapeHtml(d.route || "-") + "</td>" +
+                    '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
+                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
+                    "<td>" +
+                        '<div class="action-btns">' +
+                            '<button class="btn btn-sm btn-danger btn-dev-delete" data-code="' + escapeHtml(d.device_code) + '">حذف</button>' +
+                        "</div></td>" +
+                    "</tr>";
+            }).join("");
 
-        tbody.querySelectorAll(".btn-dev-detail").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var d = devices.find(function (x) { return x.id === btn.getAttribute("data-id"); });
-                if (d) showDeviceDetail(d);
+            tbody.querySelectorAll(".btn-dev-delete").forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    var code = btn.getAttribute("data-code");
+                    if (confirm("آیا از حذف دستگاه " + code + " مطمئن هستید؟")) {
+                        api("DELETE", "/api/devices/" + code, null, function (s) {
+                            if (s === 200) loadDevices();
+                            else alert("خطا در حذف");
+                        });
+                    }
+                });
             });
-        });
-
-        tbody.querySelectorAll(".btn-dev-delete").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                var id = btn.getAttribute("data-id");
-                if (confirm("آیا از حذف این دستگاه مطمئن هستید؟")) {
-                    devices = devices.filter(function (x) { return x.id !== id; });
-                    renderDeviceTable();
-                }
-            });
-        });
+        }
 
         renderTableInfo("devices", start, paged.length, total);
-        renderPagination("devices", deviceState, total);
-        applySortHeaders("devices-table", deviceState);
+        renderPagination("devices", deviceState, total, renderDeviceTable);
     }
 
-    $("#devices-search").addEventListener("input", function () {
+    var devSearch = $("#devices-search");
+    if (devSearch) devSearch.addEventListener("input", function () {
         deviceState.search = this.value.trim();
         deviceState.page = 1;
         renderDeviceTable();
     });
 
-    bindTableSort("devices-table", deviceState, renderDeviceTable);
-
-    function showDeviceDetail(d) {
-        var routeObj = routes.find(function (r) { return r.id === d.route; });
-        var routeName = routeObj ? routeObj.name : d.route;
-
-        $("#modal-title").textContent = d.name;
-        $("#modal-save").style.display = "none";
-        $("#modal-body").innerHTML =
-            '<div class="detail-grid">' +
-                '<div class="detail-item"><span class="detail-label">شناسه</span><span class="detail-value">' + escapeHtml(d.id) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">کد دستگاه (۴ رقمی)</span><span class="detail-value" style="direction:ltr;font-weight:700;font-size:18px;color:#3b82f6">' + escapeHtml(d.deviceCode || "-") + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">نوع</span><span class="detail-value">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">محور</span><span class="detail-value">' + escapeHtml(routeName) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">وضعیت</span><span class="detail-value"><span class="status-badge ' + d.status + '">' + escapeHtml(STATUS_LABELS[d.status]) + '</span></span></div>' +
-                '<div class="detail-item"><span class="detail-label">نسخه فریمور</span><span class="detail-value" dir="ltr">' + escapeHtml(d.firmware) + '</span></div>' +
-                '<div class="detail-item"><span class="detail-label">آخرین اتصال</span><span class="detail-value" dir="ltr">' + escapeHtml(formatTime(d.lastSeen)) + '</span></div>' +
-            '</div>';
-        $("#modal-overlay").classList.add("active");
-    }
-
     // Add device
-    $("#btn-add-device").addEventListener("click", function () {
+    var addDevBtn = $("#btn-add-device");
+    if (addDevBtn) addDevBtn.addEventListener("click", function () {
         $("#add-modal-title").textContent = "افزودن دستگاه جدید";
-        var routeOptions = routes.map(function (r) {
-            return '<option value="' + escapeHtml(r.id) + '">' + escapeHtml(r.name) + '</option>';
-        }).join("");
-
         $("#add-modal-body").innerHTML =
             '<form id="add-device-form">' +
                 '<div class="form-group"><label>کد دستگاه (۴ رقمی)</label><input type="text" id="new-dev-code" maxlength="4" pattern="\\d{4}" dir="ltr" placeholder="مثال: 1001" required></div>' +
@@ -1673,106 +1547,190 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                     '<option value="loop">حلقه القایی</option>' +
                     '<option value="radar">رادار</option>' +
                 '</select></div>' +
-                '<div class="form-group"><label>محور</label><select id="new-dev-route">' + routeOptions + '</select></div>' +
+                '<div class="form-group"><label>محور</label><input type="text" id="new-dev-route" placeholder="نام محور"></div>' +
             '</form>';
         currentAddMode = "device";
         $("#add-modal-overlay").classList.add("active");
     });
 
     // ============================================================
-    // UI4: Reports
+    // Data Reception (irawdata)
     // ============================================================
-    var reportState = { page: 1 };
+    var receptionState = { page: 1, total: 0, filterCode: "" };
 
-    function renderReports() {
-        // Populate route dropdown
-        var sel = $("#report-route");
-        sel.innerHTML = '<option value="">همه محورها</option>';
-        routes.forEach(function (r) {
-            sel.innerHTML += '<option value="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</option>';
+    function loadReception() {
+        var code = receptionState.filterCode;
+        var offset = (receptionState.page - 1) * PAGE_SIZE;
+        var url = "/api/irawdata/list?limit=" + PAGE_SIZE + "&offset=" + offset;
+        if (code) url += "&device_code=" + encodeURIComponent(code);
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#reception-table-body");
+            if (status !== 200 || !data || !data.rows || !data.rows.length) {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">داده‌ای دریافت نشده</td></tr>';
+                receptionState.total = 0;
+                renderTableInfo("reception", 0, 0, 0);
+                renderPagination("reception", receptionState, 0, loadReception);
+                return;
+            }
+
+            receptionState.total = data.total;
+            var rows = data.rows;
+            var start = (receptionState.page - 1) * PAGE_SIZE;
+
+            tbody.innerHTML = rows.map(function (r) {
+                var total = (r.a||0) + (r.b||0) + (r.c||0) + (r.d||0) + (r.e||0) + (r.x||0);
+                return "<tr>" +
+                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.create_at)) + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.stop)) + "</td>" +
+                    '<td dir="ltr" style="text-align:center">' + (r.lane||1) + "</td>" +
+                    '<td dir="ltr" style="text-align:center">' + (r.a||0) + "</td>" +
+                    '<td dir="ltr" style="text-align:center">' + (r.b||0) + "</td>" +
+                    '<td dir="ltr" style="text-align:center">' + (r.c||0) + "</td>" +
+                    '<td dir="ltr" style="text-align:center">' + (r.d||0) + "</td>" +
+                    '<td dir="ltr" style="text-align:center">' + (r.e||0) + "</td>" +
+                    '<td dir="ltr" style="text-align:center">' + (r.x||0) + "</td>" +
+                    '<td dir="ltr" style="text-align:center;font-weight:700">' + total + "</td>" +
+                    "</tr>";
+            }).join("");
+
+            renderTableInfo("reception", start, rows.length, data.total);
+            renderPagination("reception", receptionState, data.total, loadReception);
         });
-
-        renderReportTable();
     }
 
-    function getFilteredReports() {
-        var routeFilter = $("#report-route").value;
-        var from = $("#report-from").value;
-        var to = $("#report-to").value;
-        return reports.filter(function (r) {
-            if (routeFilter && r.route !== routeFilter) return false;
-            if (from && r.date < from) return false;
-            if (to && r.date > to) return false;
-            return true;
-        });
-    }
+    var recFilter = $("#reception-filter-code");
+    if (recFilter) recFilter.addEventListener("change", function () {
+        receptionState.filterCode = this.value.trim();
+        receptionState.page = 1;
+        loadReception();
+    });
 
-    function renderReportTable() {
-        var filtered = getFilteredReports();
-        var total = filtered.length;
-        var start = (reportState.page - 1) * PAGE_SIZE;
-        var paged = filtered.slice(start, start + PAGE_SIZE);
-
-        var tbody = $("#report-table-body");
-        tbody.innerHTML = paged.map(function (r) {
-            return "<tr>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.date) + "</td>" +
-                "<td>" + escapeHtml(r.route) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(formatNumber(r.vehicles)) + "</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.avgSpeed) + " km/h</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.maxSpeed) + " km/h</td>" +
-                '<td style="direction:ltr;text-align:right">' + escapeHtml(r.violations) + "</td>" +
-                "</tr>";
-        }).join("");
-
-        renderTableInfo("report", start, paged.length, total);
-        renderPagination("report", reportState, total);
-    }
-
-    $("#btn-generate-report").addEventListener("click", function () {
-        reportState.page = 1;
-        renderReportTable();
+    var recRefresh = $("#btn-refresh-reception");
+    if (recRefresh) recRefresh.addEventListener("click", function () {
+        receptionState.page = 1;
+        loadReception();
     });
 
     // ============================================================
-    // UI5: Settings (event handlers)
+    // RMTO Send
     // ============================================================
-    // --- Load Settings from Server ---
-    function loadSettings() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", "/api/settings", true);
-        xhr.withCredentials = true;
-        xhr.onload = function () {
-            if (xhr.status === 200) {
-                var s = JSON.parse(xhr.responseText);
-                if (s.system_name) $("#setting-name").value = s.system_name;
-                if (s.server_ip) $("#setting-server").value = s.server_ip;
-                if (s.server_port) $("#setting-port").value = s.server_port;
-                if (s.refresh_interval) $("#setting-refresh").value = s.refresh_interval;
-                if (s.max_speed) $("#setting-max-speed").value = s.max_speed;
-                if (s.offline_timeout) $("#setting-timeout").value = s.offline_timeout;
-                var ao = $("#setting-alert-offline"); if (ao) ao.checked = s.alert_offline !== "0";
-                var as = $("#setting-alert-speed"); if (as) as.checked = s.alert_speed !== "0";
-                var ae = $("#setting-alert-error"); if (ae) ae.checked = s.alert_error !== "0";
+    function loadRMTO() {
+        // Load queue
+        api("GET", "/api/rmto/queue", null, function (status, data) {
+            if (status !== 200 || !data) return;
+
+            // Unsent
+            var ubody = $("#rmto-unsent-body");
+            if (data.unsent && data.unsent.length) {
+                ubody.innerHTML = data.unsent.map(function (r) {
+                    return "<tr>" +
+                        '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
+                        '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(r.period_start)) + "</td>" +
+                        '<td dir="ltr" style="text-align:center">' + (r.total_vehicles||0) + "</td>" +
+                        '<td dir="ltr" style="text-align:center">' + (r.avg_speed||0) + "</td>" +
+                        '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
+                        "</tr>";
+                }).join("");
+                $("#rmto-unsent-count").textContent = data.unsent.length;
+            } else {
+                ubody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">صف ارسال خالی</td></tr>';
+                $("#rmto-unsent-count").textContent = "0";
             }
-        };
-        xhr.send();
-    }
-    loadSettings();
 
-    function saveSettings(data, msg) {
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/settings", true);
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.withCredentials = true;
-        xhr.onload = function () {
-            if (xhr.status === 200) alert(msg || "ذخیره شد");
-            else alert("خطا در ذخیره تنظیمات");
-        };
-        xhr.send(JSON.stringify(data));
+            // Sent
+            if (data.sent && data.sent.length) {
+                $("#rmto-sent-count").textContent = data.sent.length + "+";
+                var lastSent = data.sent[0];
+                if (lastSent && lastSent.sent_at) {
+                    $("#rmto-last-send").textContent = formatTime(lastSent.sent_at);
+                }
+            } else {
+                $("#rmto-sent-count").textContent = "0";
+                $("#rmto-last-send").textContent = "-";
+            }
+        });
+
+        // Load logs
+        api("GET", "/api/rmto/logs?limit=30", null, function (status, data) {
+            var lbody = $("#rmto-log-body");
+            if (status !== 200 || !data || !data.length) {
+                lbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                return;
+            }
+            lbody.innerHTML = data.map(function (r) {
+                var ok = r.success === 1;
+                var resp = r.response_data || "";
+                if (resp.length > 60) resp = resp.substring(0, 60) + "...";
+                return "<tr>" +
+                    "<td>" + escapeHtml(r.method) + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
+                    '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
+                    '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
+                    "</tr>";
+            }).join("");
+        });
     }
 
-    $("#btn-save-settings").addEventListener("click", function () {
+    var rmtoSendBtn = $("#btn-rmto-send-now");
+    if (rmtoSendBtn) rmtoSendBtn.addEventListener("click", function () {
+        rmtoSendBtn.disabled = true;
+        rmtoSendBtn.textContent = "در حال ارسال...";
+        api("POST", "/api/rmto/send-now", {}, function (status) {
+            rmtoSendBtn.disabled = false;
+            rmtoSendBtn.textContent = "ارسال الان";
+            if (status === 200) {
+                alert("ارسال انجام شد. نتیجه را در تاریخچه ببینید.");
+                loadRMTO();
+            } else alert("خطا در ارسال");
+        });
+    });
+
+    var rmtoAggBtn = $("#btn-rmto-aggregate");
+    if (rmtoAggBtn) rmtoAggBtn.addEventListener("click", function () {
+        rmtoAggBtn.disabled = true;
+        api("POST", "/api/rmto/aggregate", {}, function (status) {
+            rmtoAggBtn.disabled = false;
+            if (status === 200) {
+                alert("تجمیع و ارسال انجام شد.");
+                loadRMTO();
+            } else alert("خطا");
+        });
+    });
+
+    var rmtoRefreshBtn = $("#btn-rmto-refresh");
+    if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
+
+    // ============================================================
+    // Settings
+    // ============================================================
+    function loadSettings() {
+        api("GET", "/api/settings", null, function (status, data) {
+            if (status !== 200 || !data) return;
+            if (data.system_name) $("#setting-name").value = data.system_name;
+            if (data.server_ip) $("#setting-server").value = data.server_ip;
+            if (data.server_port) $("#setting-port").value = data.server_port;
+            if (data.refresh_interval) $("#setting-refresh").value = data.refresh_interval;
+            if (data.max_speed) $("#setting-max-speed").value = data.max_speed;
+            // RMTO
+            if (data.rmto_wsdl) $("#setting-rmto-wsdl").value = data.rmto_wsdl;
+            if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
+            if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
+            if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+        });
+    }
+
+    function saveSettings(body, msg) {
+        api("POST", "/api/settings", body, function (status) {
+            if (status === 200) alert(msg || "ذخیره شد");
+            else alert("خطا در ذخیره");
+        });
+    }
+
+    var saveSettingsBtn = $("#btn-save-settings");
+    if (saveSettingsBtn) saveSettingsBtn.addEventListener("click", function () {
         saveSettings({
             system_name: $("#setting-name").value,
             server_ip: $("#setting-server").value,
@@ -1782,61 +1740,65 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         }, "تنظیمات عمومی ذخیره شد.");
     });
 
-    $("#btn-save-alerts").addEventListener("click", function () {
+    var saveRmtoBtn = $("#btn-save-rmto");
+    if (saveRmtoBtn) saveRmtoBtn.addEventListener("click", function () {
         saveSettings({
-            alert_offline: $("#setting-alert-offline").checked ? "1" : "0",
-            alert_speed: $("#setting-alert-speed").checked ? "1" : "0",
-            alert_error: $("#setting-alert-error").checked ? "1" : "0",
-            offline_timeout: $("#setting-timeout").value
-        }, "تنظیمات هشدار ذخیره شد.");
+            rmto_wsdl: $("#setting-rmto-wsdl").value,
+            rmto_company_code: $("#setting-rmto-company").value,
+            rmto_username: $("#setting-rmto-user").value,
+            rmto_password: $("#setting-rmto-pass").value
+        }, "تنظیمات رهسام ذخیره شد.");
     });
 
-    // --- Change Password ---
-    $("#btn-change-pass").addEventListener("click", function () {
+    // Change password
+    var changePassBtn = $("#btn-change-pass");
+    if (changePassBtn) changePassBtn.addEventListener("click", function () {
         var oldP = $("#setting-old-pass").value;
         var newP = $("#setting-new-pass").value;
         if (!oldP || !newP) { alert("لطفا هر دو فیلد را پر کنید"); return; }
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/auth/change-password", true);
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.withCredentials = true;
-        xhr.onload = function () {
-            var r = JSON.parse(xhr.responseText);
-            if (xhr.status === 200) { alert("رمز عبور تغییر کرد"); $("#setting-old-pass").value = ""; $("#setting-new-pass").value = ""; }
-            else alert(r.error || "خطا");
-        };
-        xhr.send(JSON.stringify({ old_password: oldP, new_password: newP }));
+        api("POST", "/api/auth/change-password", { old_password: oldP, new_password: newP }, function (status, data) {
+            if (status === 200) { alert("رمز عبور تغییر کرد"); $("#setting-old-pass").value = ""; $("#setting-new-pass").value = ""; }
+            else alert((data && data.error) || "خطا");
+        });
     });
 
-    // --- Logout ---
-    $("#btn-logout").addEventListener("click", function () {
-        var xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/auth/logout", true);
-        xhr.withCredentials = true;
-        xhr.onload = function () { loginOverlay.classList.remove("hidden"); };
-        xhr.send();
+    // Logout
+    var logoutBtn = $("#btn-logout");
+    if (logoutBtn) logoutBtn.addEventListener("click", function () {
+        api("POST", "/api/auth/logout", {}, function () {
+            loginOverlay.classList.remove("hidden");
+        });
     });
 
-    // --- Backup Download ---
-    $("#btn-backup-download").addEventListener("click", function () {
+    // Backup download
+    var backupDlBtn = $("#btn-backup-download");
+    if (backupDlBtn) backupDlBtn.addEventListener("click", function () {
         window.location.href = "/api/backup/download";
     });
 
-    // --- Backup Restore ---
-    $("#btn-backup-restore").addEventListener("click", function () {
+    // Backup restore
+    var backupRestoreBtn = $("#btn-backup-restore");
+    if (backupRestoreBtn) backupRestoreBtn.addEventListener("click", function () {
         var fileInput = $("#backup-file");
         if (!fileInput.files || !fileInput.files[0]) { alert("لطفا فایل پشتیبان را انتخاب کنید"); return; }
         var formData = new FormData();
         formData.append("backup", fileInput.files[0]);
         var statusEl = $("#backup-status");
-        statusEl.textContent = "در حال آپلود...";
+        statusEl.textContent = "در حال آپلود و پردازش...";
+        statusEl.style.color = "#475569";
         var xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/backup/restore", true);
         xhr.withCredentials = true;
         xhr.onload = function () {
-            var r = JSON.parse(xhr.responseText);
-            if (xhr.status === 200) { statusEl.textContent = r.message || "بازیابی انجام شد"; statusEl.style.color = "#22c55e"; }
-            else { statusEl.textContent = r.error || "خطا در بازیابی"; statusEl.style.color = "#ef4444"; }
+            var r;
+            try { r = JSON.parse(xhr.responseText); } catch (e) { r = {}; }
+            if (xhr.status === 200) {
+                statusEl.textContent = r.message || "بازیابی انجام شد";
+                statusEl.style.color = "#22c55e";
+            } else {
+                statusEl.textContent = r.error || "خطا در بازیابی";
+                statusEl.style.color = "#ef4444";
+            }
         };
         xhr.onerror = function () { statusEl.textContent = "خطا در ارتباط با سرور"; statusEl.style.color = "#ef4444"; };
         xhr.send(formData);
@@ -1847,63 +1809,34 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     // ============================================================
     var currentAddMode = "";
 
-    $("#add-modal-save").addEventListener("click", function () {
-        if (currentAddMode === "route") {
-            var name = ($("#new-route-name") || {}).value;
-            if (!name || !name.trim()) { alert("لطفا نام محور را وارد کنید"); return; }
-            var maxNum = 0;
-            routes.forEach(function (r) {
-                var n = parseInt(r.id.split("-")[1], 10);
-                if (n > maxNum) maxNum = n;
-            });
-            routes.push({
-                id: "R-" + String(maxNum + 1).padStart(3, "0"),
-                name: name.trim(),
-                origin: ($("#new-route-origin") || {}).value || "",
-                destination: ($("#new-route-dest") || {}).value || "",
-                length: parseFloat(($("#new-route-length") || {}).value) || 0,
-                deviceCount: 0,
-                status: "online",
-                totalVehicles: 0,
-                avgSpeed: 0,
-                errors: 0,
-                lastUpdate: new Date().toISOString()
-            });
-            $("#add-modal-overlay").classList.remove("active");
-            renderRouteTable();
-        } else if (currentAddMode === "device") {
+    var addSaveBtn = $("#add-modal-save");
+    if (addSaveBtn) addSaveBtn.addEventListener("click", function () {
+        if (currentAddMode === "device") {
             var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
             if (!dcode || !/^\d{4}$/.test(dcode)) { alert("کد دستگاه باید ۴ رقمی باشد"); return; }
             if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
-            if (devices.some(function (d) { return d.deviceCode === dcode; })) { alert("کد دستگاه تکراری است"); return; }
-            var type = ($("#new-dev-type") || {}).value || "counter";
-            var prefix = { counter: "TC", sensor: "SEN", loop: "LP", radar: "RDR" }[type] || "DEV";
-            var dmax = 0;
-            devices.forEach(function (d) {
-                if (d.id.indexOf(prefix + "-") === 0) {
-                    var num = parseInt(d.id.split("-")[1], 10);
-                    if (num > dmax) dmax = num;
+            var dtype = ($("#new-dev-type") || {}).value || "counter";
+            var droute = ($("#new-dev-route") || {}).value || "";
+
+            api("POST", "/api/devices", {
+                device_code: dcode,
+                name: dname.trim(),
+                type: dtype,
+                route: droute
+            }, function (status, data) {
+                if (status === 200) {
+                    $("#add-modal-overlay").classList.remove("active");
+                    loadDevices();
+                } else {
+                    alert((data && data.error) || "خطا در ثبت دستگاه");
                 }
             });
-            devices.push({
-                id: prefix + "-" + String(dmax + 1).padStart(3, "0"),
-                deviceCode: dcode,
-                name: dname.trim(),
-                type: type,
-                route: ($("#new-dev-route") || {}).value || "",
-                ip: "",
-                status: "online",
-                lastSeen: new Date().toISOString(),
-                firmware: "v1.0.0"
-            });
-            $("#add-modal-overlay").classList.remove("active");
-            renderDeviceTable();
         }
     });
 
     // ============================================================
-    // Modal close handlers
+    // Modal Close Handlers
     // ============================================================
     ["modal-close", "modal-cancel"].forEach(function (id) {
         var el = $("#" + id);
@@ -1923,82 +1856,7 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     });
 
     // ============================================================
-    // Export Buttons
-    // ============================================================
-    $$(".export-btn").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-            var action = btn.getAttribute("data-action");
-            var table = btn.closest(".panel").querySelector(".data-table");
-            if (!table) return;
-
-            if (action === "copy") {
-                copyTableToClipboard(table);
-            } else if (action === "csv") {
-                downloadTableAsCSV(table);
-            } else if (action === "excel") {
-                downloadTableAsCSV(table, "xls");
-            } else if (action === "pdf" || action === "print") {
-                printTable(table);
-            }
-        });
-    });
-
-    function copyTableToClipboard(table) {
-        var text = tableToText(table);
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(text).then(function () {
-                alert("کپی شد!");
-            });
-        }
-    }
-
-    function downloadTableAsCSV(table, ext) {
-        var text = tableToCSV(table);
-        var blob = new Blob(["\uFEFF" + text], { type: "text/csv;charset=utf-8;" });
-        var link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "export." + (ext || "csv");
-        link.click();
-    }
-
-    function printTable(table) {
-        var win = window.open("", "_blank");
-        win.document.write('<html dir="rtl"><head><title>چاپ</title><style>body{font-family:Tahoma,sans-serif;direction:rtl}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:8px;text-align:right}th{background:#f0f0f0}</style></head><body>');
-        win.document.write(table.outerHTML);
-        win.document.write("</body></html>");
-        win.document.close();
-        win.print();
-    }
-
-    function tableToText(table) {
-        var rows = table.querySelectorAll("tr");
-        var lines = [];
-        rows.forEach(function (row) {
-            var cells = [];
-            row.querySelectorAll("th, td").forEach(function (cell) {
-                cells.push(cell.textContent.trim());
-            });
-            lines.push(cells.join("\t"));
-        });
-        return lines.join("\n");
-    }
-
-    function tableToCSV(table) {
-        var rows = table.querySelectorAll("tr");
-        var lines = [];
-        rows.forEach(function (row) {
-            var cells = [];
-            row.querySelectorAll("th, td").forEach(function (cell) {
-                var val = cell.textContent.trim().replace(/"/g, '""');
-                cells.push('"' + val + '"');
-            });
-            lines.push(cells.join(","));
-        });
-        return lines.join("\n");
-    }
-
-    // ============================================================
-    // Shared: Pagination, Sorting, Table Info
+    // Shared: Table Info & Pagination
     // ============================================================
     function renderTableInfo(prefix, start, count, total) {
         var el = $("#" + prefix + "-table-info");
@@ -2010,7 +1868,7 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         }
     }
 
-    function renderPagination(prefix, state, total) {
+    function renderPagination(prefix, state, total, renderFn) {
         var container = $("#" + prefix + "-pagination");
         if (!container) return;
         var pages = Math.ceil(total / PAGE_SIZE);
@@ -2018,7 +1876,9 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
 
         var html = "";
         html += '<button class="page-btn" data-p="prev" ' + (state.page <= 1 ? "disabled" : "") + '>&laquo;</button>';
-        for (var i = 1; i <= pages; i++) {
+        var startPage = Math.max(1, state.page - 2);
+        var endPage = Math.min(pages, startPage + 4);
+        for (var i = startPage; i <= endPage; i++) {
             html += '<button class="page-btn ' + (i === state.page ? "active" : "") + '" data-p="' + i + '">' + i + '</button>';
         }
         html += '<button class="page-btn" data-p="next" ' + (state.page >= pages ? "disabled" : "") + '>&raquo;</button>';
@@ -2030,275 +1890,27 @@ cat > "/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 if (p === "prev") state.page = Math.max(1, state.page - 1);
                 else if (p === "next") state.page = Math.min(pages, state.page + 1);
                 else state.page = parseInt(p, 10);
-
-                // Re-render
-                if (prefix === "home") renderHomeTable();
-                else if (prefix === "routes") renderRouteTable();
-                else if (prefix === "devices") renderDeviceTable();
-                else if (prefix === "report") renderReportTable();
-            });
-        });
-    }
-
-    function sortArray(arr, key, dir) {
-        return arr.slice().sort(function (a, b) {
-            var va = a[key] != null ? a[key] : "";
-            var vb = b[key] != null ? b[key] : "";
-            if (typeof va === "number" && typeof vb === "number") {
-                return dir === "asc" ? va - vb : vb - va;
-            }
-            va = String(va).toLowerCase();
-            vb = String(vb).toLowerCase();
-            if (va < vb) return dir === "asc" ? -1 : 1;
-            if (va > vb) return dir === "asc" ? 1 : -1;
-            return 0;
-        });
-    }
-
-    function bindTableSort(tableId, state, renderFn) {
-        var table = $("#" + tableId);
-        if (!table) return;
-        table.querySelectorAll("th[data-sort]").forEach(function (th) {
-            th.addEventListener("click", function () {
-                var key = th.getAttribute("data-sort");
-                if (state.sortKey === key) {
-                    state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
-                } else {
-                    state.sortKey = key;
-                    state.sortDir = "asc";
-                }
-                state.page = 1;
                 renderFn();
             });
         });
     }
 
-    function applySortHeaders(tableId, state) {
-        var table = $("#" + tableId);
-        if (!table) return;
-        table.querySelectorAll("th[data-sort]").forEach(function (th) {
-            th.classList.remove("sort-asc", "sort-desc");
-            if (th.getAttribute("data-sort") === state.sortKey) {
-                th.classList.add("sort-" + state.sortDir);
-            }
-        });
-    }
-
     // ============================================================
-    // Init
+    // Auto-refresh every 30s
     // ============================================================
-    renderHome();
+    setInterval(function () {
+        var activeView = document.querySelector(".view.active");
+        if (!activeView) return;
+        var id = activeView.id;
+        if (id === "view-dashboard") loadDashboard();
+        else if (id === "view-reception") loadReception();
+    }, 30000);
 
 })();
 ENDOFFILE_JS_APP_JS
 
-echo "[+] Writing data/devices.js..."
-cat > "/data/devices.js" << 'ENDOFFILE_DATA_DEVICES_JS'
-/**
- * Route and device data for TC Manager (Sistan Akbari).
- */
-
-var ROUTE_DATA = [
-    {
-        id: "R-001",
-        name: "آزادراه تهران-کرج",
-        origin: "تهران",
-        destination: "کرج",
-        length: 45,
-        deviceCount: 8,
-        status: "online",
-        totalVehicles: 124500,
-        avgSpeed: 95,
-        errors: 2,
-        lastUpdate: "2026-02-15T10:23:00"
-    },
-    {
-        id: "R-002",
-        name: "بزرگراه همت",
-        origin: "شرق تهران",
-        destination: "غرب تهران",
-        length: 22,
-        deviceCount: 12,
-        status: "online",
-        totalVehicles: 89200,
-        avgSpeed: 62,
-        errors: 0,
-        lastUpdate: "2026-02-15T10:22:45"
-    },
-    {
-        id: "R-003",
-        name: "بزرگراه صدر",
-        origin: "تجریش",
-        destination: "ستاری",
-        length: 18,
-        deviceCount: 6,
-        status: "warning",
-        totalVehicles: 67800,
-        avgSpeed: 48,
-        errors: 3,
-        lastUpdate: "2026-02-15T09:55:00"
-    },
-    {
-        id: "R-004",
-        name: "آزادراه تهران-قم",
-        origin: "تهران",
-        destination: "قم",
-        length: 155,
-        deviceCount: 15,
-        status: "online",
-        totalVehicles: 56300,
-        avgSpeed: 110,
-        errors: 1,
-        lastUpdate: "2026-02-15T10:20:00"
-    },
-    {
-        id: "R-005",
-        name: "بزرگراه نیایش",
-        origin: "شرق",
-        destination: "غرب",
-        length: 12,
-        deviceCount: 5,
-        status: "online",
-        totalVehicles: 43100,
-        avgSpeed: 55,
-        errors: 0,
-        lastUpdate: "2026-02-15T10:22:30"
-    },
-    {
-        id: "R-006",
-        name: "بزرگراه شیخ فضل‌الله",
-        origin: "شمال",
-        destination: "جنوب",
-        length: 14,
-        deviceCount: 7,
-        status: "online",
-        totalVehicles: 78900,
-        avgSpeed: 58,
-        errors: 0,
-        lastUpdate: "2026-02-15T10:21:00"
-    },
-    {
-        id: "R-007",
-        name: "آزادراه تهران-شمال",
-        origin: "تهران",
-        destination: "چالوس",
-        length: 120,
-        deviceCount: 10,
-        status: "error",
-        totalVehicles: 31200,
-        avgSpeed: 75,
-        errors: 5,
-        lastUpdate: "2026-02-15T08:10:00"
-    },
-    {
-        id: "R-008",
-        name: "بزرگراه چمران",
-        origin: "اوین",
-        destination: "آرژانتین",
-        length: 10,
-        deviceCount: 4,
-        status: "online",
-        totalVehicles: 52400,
-        avgSpeed: 51,
-        errors: 0,
-        lastUpdate: "2026-02-15T10:23:10"
-    },
-    {
-        id: "R-009",
-        name: "بزرگراه بعثت",
-        origin: "شرق",
-        destination: "غرب",
-        length: 16,
-        deviceCount: 6,
-        status: "offline",
-        totalVehicles: 0,
-        avgSpeed: 0,
-        errors: 0,
-        lastUpdate: "2026-02-14T23:45:00"
-    },
-    {
-        id: "R-010",
-        name: "محور آزادی",
-        origin: "میدان آزادی",
-        destination: "میدان انقلاب",
-        length: 5,
-        deviceCount: 3,
-        status: "online",
-        totalVehicles: 38700,
-        avgSpeed: 35,
-        errors: 1,
-        lastUpdate: "2026-02-15T10:18:00"
-    },
-    {
-        id: "R-011",
-        name: "بزرگراه یادگار امام",
-        origin: "شمال",
-        destination: "جنوب",
-        length: 20,
-        deviceCount: 9,
-        status: "online",
-        totalVehicles: 71600,
-        avgSpeed: 65,
-        errors: 0,
-        lastUpdate: "2026-02-15T10:22:00"
-    },
-    {
-        id: "R-012",
-        name: "محور ولیعصر",
-        origin: "تجریش",
-        destination: "راه‌آهن",
-        length: 18,
-        deviceCount: 8,
-        status: "warning",
-        totalVehicles: 45200,
-        avgSpeed: 28,
-        errors: 2,
-        lastUpdate: "2026-02-15T10:10:00"
-    }
-];
-
-var DEVICE_DATA = [
-    { id: "TC-001", deviceCode: "1001", name: "ترددشمار کیلومتر ۵ آزادراه تهران-کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v3.2.1" },
-    { id: "TC-002", deviceCode: "1002", name: "ترددشمار ورودی آزادراه تهران-کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:22:50", firmware: "v3.2.1" },
-    { id: "TC-003", deviceCode: "1003", name: "ترددشمار همت شرق", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:30", firmware: "v3.1.5" },
-    { id: "TC-004", deviceCode: "1004", name: "ترددشمار بزرگراه صدر", type: "counter", route: "R-003", ip: "", status: "warning", lastSeen: "2026-02-15T09:50:00", firmware: "v3.1.5" },
-    { id: "TC-005", deviceCode: "2001", name: "ترددشمار خروجی کرج", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:05", firmware: "v2.1.0" },
-    { id: "TC-006", deviceCode: "2002", name: "ترددشمار همت غرب", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:40", firmware: "v2.1.0" },
-    { id: "TC-007", deviceCode: "2003", name: "ترددشمار نیایش", type: "counter", route: "R-005", ip: "", status: "online", lastSeen: "2026-02-15T10:22:20", firmware: "v2.0.8" },
-    { id: "TC-008", deviceCode: "2004", name: "ترددشمار تهران-شمال", type: "counter", route: "R-007", ip: "", status: "error", lastSeen: "2026-02-15T08:05:00", firmware: "v2.0.8" },
-    { id: "TC-009", deviceCode: "3001", name: "ترددشمار محور آزادی", type: "counter", route: "R-010", ip: "", status: "online", lastSeen: "2026-02-15T10:23:10", firmware: "v4.0.2" },
-    { id: "TC-010", deviceCode: "3002", name: "ترددشمار ولیعصر", type: "counter", route: "R-012", ip: "", status: "warning", lastSeen: "2026-02-15T10:10:00", firmware: "v4.0.1" },
-    { id: "TC-011", deviceCode: "3003", name: "ترددشمار تقاطع همت", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:55", firmware: "v4.0.2" },
-    { id: "TC-012", deviceCode: "4001", name: "ترددشمار مرکزی منطقه ۱", type: "counter", route: "R-001", ip: "", status: "online", lastSeen: "2026-02-15T10:23:15", firmware: "v5.1.0" },
-    { id: "TC-013", deviceCode: "4002", name: "ترددشمار منطقه ۶", type: "counter", route: "R-002", ip: "", status: "online", lastSeen: "2026-02-15T10:22:45", firmware: "v5.1.0" },
-    { id: "TC-014", deviceCode: "4003", name: "ترددشمار جاده چالوس", type: "counter", route: "R-007", ip: "", status: "error", lastSeen: "2026-02-15T08:00:00", firmware: "v5.0.9" },
-    { id: "TC-015", deviceCode: "1005", name: "ترددشمار آزادراه قم", type: "counter", route: "R-004", ip: "", status: "online", lastSeen: "2026-02-15T10:20:00", firmware: "v3.2.1" },
-    { id: "TC-016", deviceCode: "2005", name: "ترددشمار چمران", type: "counter", route: "R-008", ip: "", status: "online", lastSeen: "2026-02-15T10:23:00", firmware: "v2.1.0" },
-    { id: "TC-017", deviceCode: "1006", name: "ترددشمار یادگار امام", type: "counter", route: "R-011", ip: "", status: "online", lastSeen: "2026-02-15T10:22:00", firmware: "v3.2.1" },
-    { id: "SEN-001", deviceCode: "2006", name: "سنسور بعثت", type: "sensor", route: "R-009", ip: "", status: "offline", lastSeen: "2026-02-14T23:40:00", firmware: "v2.0.8" }
-];
-
-var REPORT_DATA = [
-    { date: "2026-02-15", route: "آزادراه تهران-کرج", vehicles: 124500, avgSpeed: 95, maxSpeed: 185, violations: 23 },
-    { date: "2026-02-15", route: "بزرگراه همت", vehicles: 89200, avgSpeed: 62, maxSpeed: 130, violations: 8 },
-    { date: "2026-02-15", route: "بزرگراه صدر", vehicles: 67800, avgSpeed: 48, maxSpeed: 115, violations: 12 },
-    { date: "2026-02-15", route: "آزادراه تهران-قم", vehicles: 56300, avgSpeed: 110, maxSpeed: 195, violations: 31 },
-    { date: "2026-02-15", route: "بزرگراه نیایش", vehicles: 43100, avgSpeed: 55, maxSpeed: 105, violations: 5 },
-    { date: "2026-02-15", route: "بزرگراه شیخ فضل‌الله", vehicles: 78900, avgSpeed: 58, maxSpeed: 120, violations: 9 },
-    { date: "2026-02-14", route: "آزادراه تهران-کرج", vehicles: 118700, avgSpeed: 98, maxSpeed: 190, violations: 19 },
-    { date: "2026-02-14", route: "بزرگراه همت", vehicles: 91500, avgSpeed: 60, maxSpeed: 128, violations: 11 },
-    { date: "2026-02-14", route: "بزرگراه صدر", vehicles: 70200, avgSpeed: 45, maxSpeed: 112, violations: 15 },
-    { date: "2026-02-14", route: "آزادراه تهران-قم", vehicles: 52800, avgSpeed: 112, maxSpeed: 200, violations: 28 },
-    { date: "2026-02-14", route: "بزرگراه نیایش", vehicles: 40200, avgSpeed: 52, maxSpeed: 100, violations: 3 },
-    { date: "2026-02-14", route: "بزرگراه شیخ فضل‌الله", vehicles: 80100, avgSpeed: 56, maxSpeed: 118, violations: 7 },
-    { date: "2026-02-13", route: "آزادراه تهران-کرج", vehicles: 115300, avgSpeed: 92, maxSpeed: 180, violations: 21 },
-    { date: "2026-02-13", route: "بزرگراه همت", vehicles: 87600, avgSpeed: 59, maxSpeed: 125, violations: 10 },
-    { date: "2026-02-13", route: "بزرگراه صدر", vehicles: 65400, avgSpeed: 50, maxSpeed: 118, violations: 14 }
-];
-ENDOFFILE_DATA_DEVICES_JS
-
 echo "[+] Writing server/index.js..."
-cat > "/server/index.js" << 'ENDOFFILE_SERVER_INDEX_JS'
+cat > "$APP_DIR/server/index.js" << 'ENDOFFILE_SERVER_INDEX_JS'
 /**
  * TC Manager Server (Noavaran Jonoob Shargh)
  * - Login authentication
@@ -2530,7 +2142,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout"];
+    var allowed = ["system_name", "server_ip", "server_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -2633,6 +2245,51 @@ app.get("/api/traffic", function (req, res) {
     params.push(limit);
     var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
     res.json(rows);
+});
+
+// ============================================================
+// API: irawdata list (Data Reception view)
+// ============================================================
+app.use("/api/irawdata/list", requireAuth);
+app.get("/api/irawdata/list", function (req, res) {
+    var limit = parseInt(req.query.limit, 10) || 100;
+    var offset = parseInt(req.query.offset, 10) || 0;
+    var code = req.query.device_code || "";
+    var sql = "SELECT * FROM irawdata WHERE 1=1";
+    var countSql = "SELECT COUNT(*) as total FROM irawdata WHERE 1=1";
+    var params = [];
+    var countParams = [];
+    if (code) { sql += " AND device_code = ?"; countSql += " AND device_code = ?"; params.push(code); countParams.push(code); }
+    sql += " ORDER BY create_at DESC LIMIT ? OFFSET ?";
+    params.push(limit, offset);
+    var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
+    var total = db.prepare(countSql).all.apply(db.prepare(countSql), countParams)[0].total;
+    res.json({ rows: rows, total: total });
+});
+
+// ============================================================
+// API: Mehvar (routes from DB)
+// ============================================================
+app.use("/api/mehvar", requireAuth);
+app.get("/api/mehvar", function (req, res) {
+    res.json(db.prepare("SELECT * FROM mehvar ORDER BY code").all());
+});
+
+app.post("/api/mehvar", function (req, res) {
+    var b = req.body;
+    if (!b.code || !b.name) return res.status(400).json({ error: "code and name required" });
+    try {
+        db.prepare("INSERT INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)").run(parseInt(b.code), b.name, b.send_enable !== undefined ? parseInt(b.send_enable) : 1, b.repair ? parseInt(b.repair) : 0, b.ostan || "");
+        res.json({ success: true });
+    } catch (e) {
+        if (e.message.indexOf("UNIQUE") !== -1) return res.status(409).json({ error: "duplicate code" });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete("/api/mehvar/:code", function (req, res) {
+    db.prepare("DELETE FROM mehvar WHERE code = ?").run(parseInt(req.params.code));
+    res.json({ success: true });
 });
 
 // ============================================================
@@ -2820,7 +2477,7 @@ app.listen(PORT, HOST, function () {
 ENDOFFILE_SERVER_INDEX_JS
 
 echo "[+] Writing server/db.js..."
-cat > "/server/db.js" << 'ENDOFFILE_SERVER_DB_JS'
+cat > "$APP_DIR/server/db.js" << 'ENDOFFILE_SERVER_DB_JS'
 /**
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
@@ -3015,7 +2672,11 @@ var defaultSettings = {
     alert_offline: "1",
     alert_speed: "1",
     alert_error: "1",
-    offline_timeout: "5"
+    offline_timeout: "5",
+    rmto_company_code: "58",
+    rmto_username: "",
+    rmto_password: "",
+    rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL"
 };
 var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
 Object.keys(defaultSettings).forEach(function (k) {
@@ -3026,7 +2687,7 @@ module.exports = db;
 ENDOFFILE_SERVER_DB_JS
 
 echo "[+] Writing server/rmto-client.js..."
-cat > "/server/rmto-client.js" << 'ENDOFFILE_SERVER_RMTO-CLIENT_JS'
+cat > "$APP_DIR/server/rmto-client.js" << 'ENDOFFILE_SERVER_RMTO-CLIENT_JS'
 /**
  * RMTO SOAP Client
  * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
@@ -3218,7 +2879,7 @@ module.exports = {
 ENDOFFILE_SERVER_RMTO-CLIENT_JS
 
 echo "[+] Writing server/scheduler.js..."
-cat > "/server/scheduler.js" << 'ENDOFFILE_SERVER_SCHEDULER_JS'
+cat > "$APP_DIR/server/scheduler.js" << 'ENDOFFILE_SERVER_SCHEDULER_JS'
 /**
  * Scheduler - Aggregates traffic data every 15 minutes and sends to RMTO.
  */
@@ -3395,7 +3056,7 @@ module.exports = {
 ENDOFFILE_SERVER_SCHEDULER_JS
 
 echo "[+] Writing server/package.json..."
-cat > "/server/package.json" << 'ENDOFFILE_SERVER_PACKAGE_JSON'
+cat > "$APP_DIR/server/package.json" << 'ENDOFFILE_SERVER_PACKAGE_JSON'
 {
   "name": "tc-manager-server",
   "version": "1.0.0",
@@ -3419,10 +3080,9 @@ cat > "/server/package.json" << 'ENDOFFILE_SERVER_PACKAGE_JSON'
 }
 ENDOFFILE_SERVER_PACKAGE_JSON
 
-# Create .env file if not exists
 echo "[2/7] Creating .env file..."
-if [ ! -f "/server/.env" ]; then
-cat > "/server/.env" << 'ENDENV'
+if [ ! -f "$APP_DIR/server/.env" ]; then
+cat > "$APP_DIR/server/.env" << 'ENDENV'
 PORT=3000
 HOST=0.0.0.0
 ADMIN_USER=admin
@@ -3439,7 +3099,6 @@ else
 echo "  .env already exists, skipping"
 fi
 
-# Install Node.js if not present
 echo "[3/7] Checking Node.js..."
 if ! command -v node &> /dev/null; then
     echo "  Installing Node.js 18.x..."
@@ -3449,13 +3108,11 @@ else
     echo "  Node.js already installed: v22.22.0"
 fi
 
-# Install dependencies
 echo "[4/7] Installing npm dependencies..."
-cd "/server"
+cd "$APP_DIR/server"
 npm install --production 2>&1 | tail -5
 echo "  Dependencies installed"
 
-# Create systemd service
 echo "[5/7] Creating systemd service..."
 cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
 [Unit]
@@ -3478,7 +3135,6 @@ ENDSVC
 systemctl daemon-reload
 systemctl enable tc-manager
 
-# Setup nginx
 echo "[6/7] Configuring nginx..."
 if command -v nginx &> /dev/null; then
 cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX'
@@ -3486,39 +3142,32 @@ server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name _;
-
     client_max_body_size 500M;
-
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade ;
+        proxy_set_header Upgrade \;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host ;
-        proxy_set_header X-Real-IP ;
-        proxy_set_header X-Forwarded-For ;
-        proxy_cache_bypass ;
+        proxy_set_header Host \;
+        proxy_set_header X-Real-IP \;
+        proxy_set_header X-Forwarded-For \;
+        proxy_cache_bypass \;
     }
 }
 ENDNGINX
-
-    # Enable site
     ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
     rm -f /etc/nginx/sites-enabled/default
     nginx -t && systemctl reload nginx
     echo "  Nginx configured"
 else
-    echo "  Nginx not installed, installing..."
+    echo "  Installing nginx..."
     apt-get install -y nginx
-    # Re-run nginx config
-    cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX2'
+cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX2'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name _;
-
     client_max_body_size 500M;
-
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -3537,18 +3186,16 @@ ENDNGINX2
     echo "  Nginx installed and configured"
 fi
 
-# Start service
 echo "[7/7] Starting TC Manager..."
 systemctl restart tc-manager
 sleep 2
 
-# Verify
 if systemctl is-active --quiet tc-manager; then
     echo ""
     echo "========================================"
     echo "  Deployment Complete!"
     echo "  TC Manager is running"
-    echo "  URL: http://21.0.0.192"
+    echo "  URL: http://$(hostname -I | awk '{print $1}')"
     echo "  Login: admin / admin123"
     echo "========================================"
 else
