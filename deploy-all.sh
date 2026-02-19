@@ -1,23 +1,38 @@
 #!/bin/bash
 # =============================================================
-# TC Manager - Full Deployment Script
-# Noavaran Jonoob Shargh
-# Auto-generated deploy script - embeds ALL source files
+# TC Manager - Noavaran Jonoob Shargh
+# Full Deployment Script (auto-generated)
+# Usage: bash deploy-all.sh [--fresh]
+#   --fresh : Delete old database and start clean
 # =============================================================
 set -e
 
 APP_DIR="/opt/tc-manager"
+FRESH=0
+if [ "$1" = "--fresh" ]; then FRESH=1; fi
+
 echo "========================================"
-echo "  TC Manager Deployment"
-echo "  Noavaran Jonoob Shargh"
+echo "  TC Manager - Noavaran Jonoob Shargh"
+echo "  Deployment Script"
 echo "========================================"
 echo ""
+
+# Stop service if running
+systemctl stop tc-manager 2>/dev/null || true
 
 echo "[1/7] Creating directories..."
 mkdir -p $APP_DIR/css
 mkdir -p $APP_DIR/js
 mkdir -p $APP_DIR/data
 mkdir -p $APP_DIR/server/uploads
+
+# Delete old DB if --fresh
+if [ $FRESH -eq 1 ]; then
+    echo "[!] Deleting old database (--fresh mode)..."
+    rm -f $APP_DIR/server/data.db
+    rm -f $APP_DIR/server/data.db-wal
+    rm -f $APP_DIR/server/data.db-shm
+fi
 
 echo "[+] Writing index.html..."
 cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
@@ -3094,9 +3109,9 @@ RMTO_USERNAME=
 RMTO_PASSWORD=
 SEND_INTERVAL_MINUTES=15
 ENDENV
-echo "  .env created with defaults"
+echo "  .env created"
 else
-echo "  .env already exists, skipping"
+echo "  .env exists, keeping"
 fi
 
 echo "[3/7] Checking Node.js..."
@@ -3105,18 +3120,18 @@ if ! command -v node &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
     apt-get install -y nodejs
 else
-    echo "  Node.js already installed: v22.22.0"
+    echo "  Node.js: v22.22.0"
 fi
 
-echo "[4/7] Installing npm dependencies..."
+echo "[4/7] Installing dependencies..."
 cd "$APP_DIR/server"
-npm install --production 2>&1 | tail -5
-echo "  Dependencies installed"
+npm install --production 2>&1 | tail -3
+echo "  Done"
 
 echo "[5/7] Creating systemd service..."
 cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
 [Unit]
-Description=TC Manager Server (Noavaran Jonoob Shargh)
+Description=TC Manager (Noavaran Jonoob Shargh)
 After=network.target
 
 [Service]
@@ -3136,7 +3151,7 @@ systemctl daemon-reload
 systemctl enable tc-manager
 
 echo "[6/7] Configuring nginx..."
-if command -v nginx &> /dev/null; then
+apt-get install -y nginx 2>/dev/null || true
 cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX'
 server {
     listen 80 default_server;
@@ -3146,60 +3161,41 @@ server {
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade \;
+        proxy_set_header Upgrade ;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \;
-        proxy_set_header X-Real-IP \;
-        proxy_set_header X-Forwarded-For \;
-        proxy_cache_bypass \;
+        proxy_set_header Host ;
+        proxy_set_header X-Real-IP ;
+        proxy_set_header X-Forwarded-For ;
+        proxy_cache_bypass ;
     }
 }
 ENDNGINX
-    ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
-    rm -f /etc/nginx/sites-enabled/default
-    nginx -t && systemctl reload nginx
-    echo "  Nginx configured"
-else
-    echo "  Installing nginx..."
-    apt-get install -y nginx
-cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX2'
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-    client_max_body_size 500M;
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \;
-        proxy_set_header X-Real-IP \;
-        proxy_set_header X-Forwarded-For \;
-        proxy_cache_bypass \;
-    }
-}
-ENDNGINX2
-    ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
-    rm -f /etc/nginx/sites-enabled/default
-    nginx -t && systemctl reload nginx
-    echo "  Nginx installed and configured"
-fi
+ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
+rm -f /etc/nginx/sites-enabled/default
+nginx -t 2>/dev/null && systemctl reload nginx
 
 echo "[7/7] Starting TC Manager..."
 systemctl restart tc-manager
 sleep 2
 
 if systemctl is-active --quiet tc-manager; then
+    IP=21.0.0.92
     echo ""
     echo "========================================"
-    echo "  Deployment Complete!"
-    echo "  TC Manager is running"
-    echo "  URL: http://$(hostname -I | awk '{print $1}')"
+    echo "  OK! TC Manager is running"
+    echo "  URL: http://"
     echo "  Login: admin / admin123"
+    echo "========================================"
+    echo ""
+    echo "  Next steps:"
+    echo "  1. Open http:// in browser"
+    echo "  2. Login with admin / admin123"
+    echo "  3. Go to Settings > RMTO Settings"
+    echo "  4. Enter company code, username, password"
+    echo "  5. Add devices or import .sql.gz backup"
     echo "========================================"
 else
     echo ""
-    echo "  [ERROR] Service failed to start!"
-    echo "  Check logs: journalctl -u tc-manager -n 50"
+    echo "  [ERROR] Service failed!"
+    echo "  Run: journalctl -u tc-manager -n 50"
 fi
