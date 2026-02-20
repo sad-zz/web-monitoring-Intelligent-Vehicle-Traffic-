@@ -588,6 +588,106 @@ var net = require("net");
 var TCP_PORT = parseInt(process.env.TCP_PORT, 10) || 2022;
 
 /**
+ * Parse RATCX1 firmware interval data (264 chars sent after "8821" + datetime prefix).
+ * Firmware format (from 91-7.c / Interval.h):
+ *   [0-7]:    system_id (8 digits, e.g. "10001704")
+ *   [8-17]:   datetime  YYMMDDHHMI (10 chars)
+ *   --- Lane 1: 6 classes (A,B,C,D,E,X) x 19 chars each = 114 ---
+ *   Per class: count(4) + avgSpeed(3) + speedViolation(4) + grab(4) + headway(4)
+ *   [18-36]:   class A lane1     [37-55]:  class B lane1
+ *   [56-74]:   class C lane1     [75-93]:  class D lane1
+ *   [94-112]:  class E lane1     [113-131]: class X lane1
+ *   [132-134]: lane1 occupancy (3 chars)
+ *   --- Lane 2: same structure = 114 + 3 ---
+ *   [135-153]: class A lane2     [154-172]: class B lane2
+ *   [173-191]: class C lane2     [192-210]: class D lane2
+ *   [211-229]: class E lane2     [230-248]: class X lane2
+ *   [249-251]: lane2 occupancy (3 chars)
+ *   [252-254]: battery voltage (3 chars)
+ *   [255-257]: solar voltage (3 chars)
+ *   [258-261]: error_byte (4 chars)
+ *   [262-263]: CR+LF
+ */
+function parseRATCX1Interval(intervalStr) {
+    var s = intervalStr.replace(/[\r\n\x00]/g, "");
+    if (s.length < 262) return null;
+
+    var deviceCode = s.substring(0, 8).replace(/^0+/, "") || "0";
+    var yy = s.substring(8, 10), mm = s.substring(10, 12), dd = s.substring(12, 14);
+    var hh = s.substring(14, 16), mi = s.substring(16, 18);
+    var year = parseInt(yy, 10) > 50 ? "19" + yy : "20" + yy;
+    var dateStr = year + "-" + mm + "-" + dd + "T" + hh + ":" + mi + ":00";
+
+    function parseClass(offset) {
+        return {
+            count: parseInt(s.substring(offset, offset + 4), 10) || 0,
+            avgSpeed: parseInt(s.substring(offset + 4, offset + 7), 10) || 0,
+            speedViolation: parseInt(s.substring(offset + 7, offset + 11), 10) || 0,
+            grab: parseInt(s.substring(offset + 11, offset + 15), 10) || 0,
+            headway: parseInt(s.substring(offset + 15, offset + 19), 10) || 0
+        };
+    }
+
+    // Lane 1
+    var l1a = parseClass(18);
+    var l1b = parseClass(37);
+    var l1c = parseClass(56);
+    var l1d = parseClass(75);
+    var l1e = parseClass(94);
+    var l1x = parseClass(113);
+    var l1occ = parseInt(s.substring(132, 135), 10) || 0;
+
+    // Lane 2
+    var l2a = parseClass(135);
+    var l2b = parseClass(154);
+    var l2c = parseClass(173);
+    var l2d = parseClass(192);
+    var l2e = parseClass(211);
+    var l2x = parseClass(230);
+    var l2occ = parseInt(s.substring(249, 252), 10) || 0;
+
+    var battery = parseInt(s.substring(252, 255), 10) || 0;
+    var solar = parseInt(s.substring(255, 258), 10) || 0;
+    var errorByte = parseInt(s.substring(258, 262), 10) || 0;
+
+    return {
+        device_code: deviceCode,
+        create_at: dateStr,
+        lane1: { a: l1a, b: l1b, c: l1c, d: l1d, e: l1e, x: l1x, occupancy: l1occ },
+        lane2: { a: l2a, b: l2b, c: l2c, d: l2d, e: l2e, x: l2x, occupancy: l2occ },
+        battery: battery,
+        solar: solar,
+        error_byte: errorByte
+    };
+}
+
+/** Convert RATCX1 parsed interval to irawdata rows (one per lane) */
+function ratcx1ToIrawdata(parsed) {
+    var rows = [];
+    [{ lane: 1, data: parsed.lane1 }, { lane: 2, data: parsed.lane2 }].forEach(function (l) {
+        var d = l.data;
+        var totalCount = d.a.count + d.b.count + d.c.count + d.d.count + d.e.count + d.x.count;
+        if (totalCount === 0) return; // skip empty lane
+        rows.push({
+            device_code: parsed.device_code,
+            create_at: parsed.create_at,
+            stop: parsed.create_at,
+            lane: l.lane,
+            a: d.a.count, b: d.b.count, c: d.c.count, d: d.d.count, e: d.e.count, x: d.x.count,
+            sa: d.a.avgSpeed * d.a.count, sb: d.b.avgSpeed * d.b.count,
+            sc: d.c.avgSpeed * d.c.count, sd: d.d.avgSpeed * d.d.count,
+            se: d.e.avgSpeed * d.e.count, sx: d.x.avgSpeed * d.x.count,
+            sao: d.a.speedViolation, sbo: d.b.speedViolation,
+            sco: d.c.speedViolation, sdo: d.d.speedViolation,
+            seo: d.e.speedViolation, sxo: d.x.speedViolation,
+            overtaking: d.a.grab + d.b.grab + d.c.grab + d.d.grab + d.e.grab + d.x.grab,
+            tooclose: d.a.headway + d.b.headway + d.c.headway + d.d.headway + d.e.headway + d.x.headway
+        });
+    });
+    return rows;
+}
+
+/**
  * Parse iccore fixed-length raw data from device.
  * Format (based on standard iccore TC protocol):
  *   8 chars: device_code
@@ -662,9 +762,13 @@ function parseIccoreData(raw) {
     return result;
 }
 
+// Track connected RATCX1 devices for sending commands
+var connectedDevices = {};
+
 var tcpServer = net.createServer(function (socket) {
     var clientIP = socket.remoteAddress || "";
     var buffer = "";
+    var deviceId = null;
     console.log("[TCP] Connection from " + clientIP);
 
     socket.on("data", function (chunk) {
@@ -678,6 +782,16 @@ var tcpServer = net.createServer(function (socket) {
             line = line.trim();
             if (!line) return;
             processRawData(line, clientIP);
+
+            // Track device ID from handshake for command sending
+            var clean = line.replace(/[\r\n\x00]/g, "").trim();
+            if (clean.substring(0, 4) === "8000") {
+                deviceId = clean.substring(25, 33).replace(/^0+/, "") || null;
+                if (deviceId) {
+                    connectedDevices[deviceId] = socket;
+                    console.log("[TCP] Device " + deviceId + " registered for commands");
+                }
+            }
         });
 
         // If buffer is long enough without newline, try to process it
@@ -691,18 +805,115 @@ var tcpServer = net.createServer(function (socket) {
         if (buffer.trim().length >= 37) {
             processRawData(buffer.trim(), clientIP);
         }
-        console.log("[TCP] Disconnected " + clientIP);
+        if (deviceId && connectedDevices[deviceId] === socket) {
+            delete connectedDevices[deviceId];
+        }
+        console.log("[TCP] Disconnected " + clientIP + (deviceId ? " (device " + deviceId + ")" : ""));
     });
 
     socket.on("error", function (err) {
+        if (deviceId && connectedDevices[deviceId] === socket) {
+            delete connectedDevices[deviceId];
+        }
         console.error("[TCP] Error from " + clientIP + ": " + err.message);
     });
 });
 
+function storeIrawdata(parsed) {
+    var insertRaw = db.prepare(
+        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    insertRaw.run(
+        parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,
+        parsed.a, parsed.b, parsed.c, parsed.d, parsed.e, parsed.x,
+        parsed.sa, parsed.sb, parsed.sc, parsed.sd, parsed.se, parsed.sx,
+        parsed.sao, parsed.sbo, parsed.sco, parsed.sdo, parsed.seo, parsed.sxo,
+        parsed.overtaking, parsed.tooclose
+    );
+}
+
 function processRawData(raw, ip) {
     console.log("[TCP] Raw data (" + raw.length + " chars): " + raw.substring(0, 80) + (raw.length > 80 ? "..." : ""));
 
-    // Log to live monitor
+    // Detect RATCX1 firmware format: starts with "8xxx" command code
+    var clean = raw.replace(/[\r\n\x00]/g, "").trim();
+
+    // --- RATCX1 Handshake: "8000" + datetime(21) + system_id(8) + model + version + "READY" ---
+    if (clean.substring(0, 4) === "8000") {
+        var datetime = clean.substring(4, 25);
+        var sysId = clean.substring(25, 33);
+        var rest = clean.substring(33);
+        console.log("[TCP] RATCX1 handshake: device=" + sysId + " time=" + datetime + " info=" + rest);
+        addLiveLog({
+            ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1",
+            ip: ip, device: sysId, detail: "اتصال اولیه: " + rest
+        });
+        autoRegisterDevice(sysId);
+        // Update device firmware info
+        try {
+            var modelMatch = rest.match(/^(RATCX\d+)(HW:[^,]+,SW:[^R]+)/);
+            if (modelMatch) {
+                db.prepare("UPDATE devices SET firmware = ? WHERE device_code = ?").run(modelMatch[2], sysId);
+            }
+        } catch (e) { /* ok */ }
+        return;
+    }
+
+    // --- RATCX1 Interval data: "8821" + datetime(21) + interval_data(264) ---
+    if (clean.substring(0, 4) === "8821") {
+        var datetime21 = clean.substring(4, 25);
+        var intervalStr = clean.substring(25);
+        console.log("[TCP] RATCX1 interval: time=" + datetime21 + " datalen=" + intervalStr.length);
+
+        var parsed = parseRATCX1Interval(intervalStr);
+        if (!parsed) {
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 parse fail len=" + intervalStr.length });
+            return;
+        }
+
+        var rows = ratcx1ToIrawdata(parsed);
+        var totalAll = 0;
+        autoRegisterDevice(parsed.device_code);
+
+        try {
+            rows.forEach(function (r) {
+                var t = r.a + r.b + r.c + r.d + r.e + r.x;
+                totalAll += t;
+                storeIrawdata(r);
+            });
+            // Update device battery/solar info
+            db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(parsed.device_code);
+            console.log("[TCP] RATCX1 stored: device=" + parsed.device_code + " vehicles=" + totalAll + " lanes=" + rows.length + " bat=" + parsed.battery + " sol=" + parsed.solar);
+        } catch (e) {
+            console.error("[TCP] DB error: " + e.message);
+        }
+
+        addLiveLog({
+            ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1",
+            ip: ip, device: parsed.device_code,
+            a: (parsed.lane1.a.count + parsed.lane2.a.count),
+            b: (parsed.lane1.b.count + parsed.lane2.b.count),
+            c: (parsed.lane1.c.count + parsed.lane2.c.count),
+            d: (parsed.lane1.d.count + parsed.lane2.d.count),
+            e: (parsed.lane1.e.count + parsed.lane2.e.count),
+            x: (parsed.lane1.x.count + parsed.lane2.x.count),
+            total: totalAll, battery: parsed.battery, solar: parsed.solar,
+            detail: "تردد=" + totalAll + " باتری=" + parsed.battery + " سولار=" + parsed.solar + " خطا=" + parsed.error_byte
+        });
+        return;
+    }
+
+    // --- RATCX1 Time set response: "8012" + datetime(21) + system_id(8) ---
+    if (clean.substring(0, 4) === "8012") {
+        var dt = clean.substring(4, 25);
+        var sid = clean.substring(25, 33);
+        console.log("[TCP] RATCX1 time-set: device=" + sid + " time=" + dt);
+        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "تنظیم ساعت: " + dt });
+        return;
+    }
+
+    // --- Fallback: iccore format ---
     var parsed = parseIccoreData(raw);
 
     if (!parsed || !parsed.device_code) {
@@ -722,27 +933,38 @@ function processRawData(raw, ip) {
         detail: "تردد=" + total + " لاین=" + parsed.lane
     });
 
-    // Auto-register device
     autoRegisterDevice(parsed.device_code);
 
-    // Store in irawdata
     try {
-        var insertRaw = db.prepare(
-            "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
-            "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        insertRaw.run(
-            parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,
-            parsed.a, parsed.b, parsed.c, parsed.d, parsed.e, parsed.x,
-            parsed.sa, parsed.sb, parsed.sc, parsed.sd, parsed.se, parsed.sx,
-            parsed.sao, parsed.sbo, parsed.sco, parsed.sdo, parsed.seo, parsed.sxo,
-            parsed.overtaking, parsed.tooclose
-        );
+        storeIrawdata(parsed);
         console.log("[TCP] Stored: device=" + parsed.device_code + " vehicles=" + total);
     } catch (e) {
         console.error("[TCP] DB error: " + e.message);
     }
 }
+
+// API: Connected devices list & send command
+app.get("/api/tcp/connected", requireAuth, function (req, res) {
+    var devices = Object.keys(connectedDevices).map(function (id) {
+        var s = connectedDevices[id];
+        return { device_code: id, ip: s.remoteAddress || "", connected: !s.destroyed };
+    }).filter(function (d) { return d.connected; });
+    res.json(devices);
+});
+
+app.post("/api/tcp/send", requireAuth, function (req, res) {
+    var code = String(req.body.device_code || "");
+    var command = String(req.body.command || "");
+    if (!code || !command) return res.status(400).json({ error: "device_code and command required" });
+    var sock = connectedDevices[code];
+    if (!sock || sock.destroyed) return res.status(404).json({ error: "دستگاه متصل نیست" });
+    try {
+        sock.write(command + "\r\n");
+        res.json({ success: true, sent: command });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
