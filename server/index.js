@@ -120,11 +120,35 @@ app.post("/api/auth/change-password", requireAuth, function (req, res) {
 app.use(express.static(path.join(__dirname, "..")));
 
 // ============================================================
+// Live Log - keeps last 100 incoming requests for monitoring
+// ============================================================
+var liveLog = [];
+var MAX_LOG = 200;
+
+function addLiveLog(entry) {
+    liveLog.unshift(entry);
+    if (liveLog.length > MAX_LOG) liveLog.length = MAX_LOG;
+}
+
+// API to read live log (requires auth)
+app.get("/api/live", requireAuth, function (req, res) {
+    var since = parseInt(req.query.since, 10) || 0;
+    if (since > 0) {
+        var filtered = liveLog.filter(function (e) { return e.ts > since; });
+        return res.json(filtered);
+    }
+    var limit = parseInt(req.query.limit, 10) || 50;
+    res.json(liveLog.slice(0, limit));
+});
+
+// ============================================================
 // Device data reception - NO AUTH (devices send data here)
 // ============================================================
 app.post("/api/data", function (req, res) {
     var b = req.body;
     var code = String(b.device_code || b.device_id || b.code || "");
+
+    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "data", ip: req.ip, device: code, body: b });
 
     if (!code || !/^\d+$/.test(code)) {
         return res.status(400).json({ error: "device_code required" });
@@ -164,6 +188,9 @@ app.post("/api/data", function (req, res) {
 app.post("/api/irawdata", function (req, res) {
     var b = req.body;
     var code = String(b.device_id || b.device_code || b.code || "");
+
+    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "irawdata", ip: req.ip, device: code, a: b.a||0, b: b.b||0, c: b.c||0, d: b.d||0, e: b.e||0, x: b.x||0, lane: b.lane||1 });
+
     if (!code || !/^\d+$/.test(code)) return res.status(400).json({ error: "device_id required" });
 
     autoRegisterDevice(code);
@@ -205,6 +232,14 @@ function autoRegisterDevice(code) {
     }
     db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
 }
+
+// Log ALL POST requests to catch unknown device formats
+app.post("*", function (req, res, next) {
+    if (req.path.indexOf("/api/auth") === -1 && req.path.indexOf("/api/settings") === -1 && req.path.indexOf("/api/backup") === -1) {
+        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "unknown", ip: req.ip, path: req.path, body: req.body });
+    }
+    next();
+});
 
 // ============================================================
 // All API below requires authentication
@@ -256,7 +291,7 @@ app.get("/api/devices/:code", function (req, res) {
 app.post("/api/devices", function (req, res) {
     var b = req.body;
     if (!b.device_code || !b.name) return res.status(400).json({ error: "device_code and name required" });
-    if (!/^\d{4}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 4 digits" });
+    if (!/^\d{1,8}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 1-8 digits" });
     try {
         db.prepare("INSERT INTO devices (device_code, name, type, route, ip, status, firmware) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.device_code, b.name, b.type || "sensor", b.route || "", b.ip || "", "offline", b.firmware || "");
         res.json({ success: true, device_code: b.device_code });

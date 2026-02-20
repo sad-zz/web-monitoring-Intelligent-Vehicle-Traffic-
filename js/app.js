@@ -204,6 +204,78 @@
     if (refreshDashBtn) refreshDashBtn.addEventListener("click", loadDashboard);
 
     // ============================================================
+    // Live Monitor
+    // ============================================================
+    var lastLiveTs = 0;
+
+    function loadLive() {
+        var url = "/api/live?limit=50";
+        if (lastLiveTs > 0) url = "/api/live?since=" + lastLiveTs;
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#live-table-body");
+            if (status !== 200 || !data || !data.length) {
+                if (lastLiveTs === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">هنوز داده‌ای دریافت نشده</td></tr>';
+                }
+                return;
+            }
+
+            if (lastLiveTs === 0) tbody.innerHTML = "";
+
+            // Update timestamp
+            if (data[0] && data[0].ts) lastLiveTs = data[0].ts;
+
+            var newHtml = data.map(function (e) {
+                var typeLabel = { data: "داده عمومی", irawdata: "irawdata", unknown: "نامشخص" }[e.type] || e.type;
+                var typeClass = { data: "online", irawdata: "online", unknown: "warning" }[e.type] || "";
+                var detail = "";
+                if (e.type === "irawdata") {
+                    detail = "a:" + (e.a||0) + " b:" + (e.b||0) + " c:" + (e.c||0) + " d:" + (e.d||0) + " e:" + (e.e||0) + " x:" + (e.x||0);
+                } else if (e.type === "unknown") {
+                    detail = escapeHtml(e.path || "");
+                    if (e.body) {
+                        var keys = Object.keys(e.body).slice(0, 5).join(",");
+                        detail += " {" + keys + "}";
+                    }
+                } else if (e.type === "data") {
+                    if (e.body && e.body.records) detail = e.body.records.length + " records";
+                    else detail = "1 record";
+                }
+                var time = e.time || "";
+                if (time) {
+                    var d = new Date(time);
+                    time = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0") + ":" + String(d.getSeconds()).padStart(2,"0");
+                }
+                return "<tr>" +
+                    '<td dir="ltr" style="text-align:right;font-size:12px;font-family:monospace">' + escapeHtml(time) + "</td>" +
+                    '<td><span class="status-badge ' + typeClass + '">' + escapeHtml(typeLabel) + "</span></td>" +
+                    '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(e.ip || "-") + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(e.device || "-") + "</td>" +
+                    '<td dir="ltr" style="font-size:11px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(detail) + "</td>" +
+                    "</tr>";
+            }).join("");
+
+            tbody.insertAdjacentHTML("afterbegin", newHtml);
+
+            // Keep max 100 rows
+            while (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
+        });
+    }
+
+    var refreshLiveBtn = $("#btn-refresh-live");
+    if (refreshLiveBtn) refreshLiveBtn.addEventListener("click", function () { lastLiveTs = 0; loadLive(); });
+
+    // Auto-refresh live monitor every 3 seconds
+    setInterval(function () {
+        var autoCheck = $("#live-auto-refresh");
+        var activeView = document.querySelector(".view.active");
+        if (autoCheck && autoCheck.checked && activeView && activeView.id === "view-dashboard") {
+            loadLive();
+        }
+    }, 3000);
+
+    // ============================================================
     // Devices
     // ============================================================
     var allDevices = [];
@@ -283,7 +355,7 @@
         $("#add-modal-title").textContent = "افزودن دستگاه جدید";
         $("#add-modal-body").innerHTML =
             '<form id="add-device-form">' +
-                '<div class="form-group"><label>کد دستگاه (۴ رقمی)</label><input type="text" id="new-dev-code" maxlength="4" pattern="\\d{4}" dir="ltr" placeholder="مثال: 1001" required></div>' +
+                '<div class="form-group"><label>کد دستگاه (حداکثر ۸ رقم)</label><input type="text" id="new-dev-code" maxlength="8" pattern="\\d{1,8}" dir="ltr" placeholder="مثال: 10010001" required></div>' +
                 '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" required></div>' +
                 '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
                     '<option value="counter">ترددشمار</option>' +
@@ -558,7 +630,7 @@
         if (currentAddMode === "device") {
             var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
-            if (!dcode || !/^\d{4}$/.test(dcode)) { alert("کد دستگاه باید ۴ رقمی باشد"); return; }
+            if (!dcode || !/^\d{1,8}$/.test(dcode)) { alert("کد دستگاه باید عددی و حداکثر ۸ رقم باشد"); return; }
             if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
             var dtype = ($("#new-dev-type") || {}).value || "counter";
             var droute = ($("#new-dev-route") || {}).value || "";

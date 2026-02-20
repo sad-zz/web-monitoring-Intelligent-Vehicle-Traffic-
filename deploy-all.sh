@@ -1,9 +1,8 @@
 #!/bin/bash
 # =============================================================
 # TC Manager - Noavaran Jonoob Shargh
-# Full Deployment Script (auto-generated)
+# Full Deployment Script
 # Usage: bash deploy-all.sh [--fresh]
-#   --fresh : Delete old database and start clean
 # =============================================================
 set -e
 
@@ -13,25 +12,16 @@ if [ "$1" = "--fresh" ]; then FRESH=1; fi
 
 echo "========================================"
 echo "  TC Manager - Noavaran Jonoob Shargh"
-echo "  Deployment Script"
 echo "========================================"
-echo ""
 
-# Stop service if running
 systemctl stop tc-manager 2>/dev/null || true
 
 echo "[1/7] Creating directories..."
-mkdir -p $APP_DIR/css
-mkdir -p $APP_DIR/js
-mkdir -p $APP_DIR/data
-mkdir -p $APP_DIR/server/uploads
+mkdir -p $APP_DIR/css $APP_DIR/js $APP_DIR/data $APP_DIR/server/uploads
 
-# Delete old DB if --fresh
 if [ $FRESH -eq 1 ]; then
-    echo "[!] Deleting old database (--fresh mode)..."
-    rm -f $APP_DIR/server/data.db
-    rm -f $APP_DIR/server/data.db-wal
-    rm -f $APP_DIR/server/data.db-shm
+    echo "[!] Deleting old database (--fresh)..."
+    rm -f $APP_DIR/server/data.db $APP_DIR/server/data.db-wal $APP_DIR/server/data.db-shm
 fi
 
 echo "[+] Writing index.html..."
@@ -172,6 +162,36 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             <div class="stat-value" id="stat-unsent-rmto">-</div>
                             <div class="stat-label">صف ارسال رهسام</div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Live Monitor -->
+                <div class="panel" style="margin-bottom:16px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">مانیتور زنده (درخواست‌های ورودی)</h3>
+                        <div class="panel-tools">
+                            <label class="toggle-label" style="font-size:12px">
+                                <input type="checkbox" id="live-auto-refresh" checked>
+                                <span>بروزرسانی خودکار</span>
+                            </label>
+                            <button class="btn btn-sm btn-primary" id="btn-refresh-live">بروزرسانی</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper" style="max-height:300px;overflow-y:auto">
+                        <table class="data-table" id="live-table">
+                            <thead>
+                                <tr>
+                                    <th>زمان</th>
+                                    <th>نوع</th>
+                                    <th>IP</th>
+                                    <th>کد دستگاه</th>
+                                    <th>جزئیات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="live-table-body">
+                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">منتظر داده...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
@@ -1475,6 +1495,78 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     if (refreshDashBtn) refreshDashBtn.addEventListener("click", loadDashboard);
 
     // ============================================================
+    // Live Monitor
+    // ============================================================
+    var lastLiveTs = 0;
+
+    function loadLive() {
+        var url = "/api/live?limit=50";
+        if (lastLiveTs > 0) url = "/api/live?since=" + lastLiveTs;
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#live-table-body");
+            if (status !== 200 || !data || !data.length) {
+                if (lastLiveTs === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">هنوز داده‌ای دریافت نشده</td></tr>';
+                }
+                return;
+            }
+
+            if (lastLiveTs === 0) tbody.innerHTML = "";
+
+            // Update timestamp
+            if (data[0] && data[0].ts) lastLiveTs = data[0].ts;
+
+            var newHtml = data.map(function (e) {
+                var typeLabel = { data: "داده عمومی", irawdata: "irawdata", unknown: "نامشخص" }[e.type] || e.type;
+                var typeClass = { data: "online", irawdata: "online", unknown: "warning" }[e.type] || "";
+                var detail = "";
+                if (e.type === "irawdata") {
+                    detail = "a:" + (e.a||0) + " b:" + (e.b||0) + " c:" + (e.c||0) + " d:" + (e.d||0) + " e:" + (e.e||0) + " x:" + (e.x||0);
+                } else if (e.type === "unknown") {
+                    detail = escapeHtml(e.path || "");
+                    if (e.body) {
+                        var keys = Object.keys(e.body).slice(0, 5).join(",");
+                        detail += " {" + keys + "}";
+                    }
+                } else if (e.type === "data") {
+                    if (e.body && e.body.records) detail = e.body.records.length + " records";
+                    else detail = "1 record";
+                }
+                var time = e.time || "";
+                if (time) {
+                    var d = new Date(time);
+                    time = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0") + ":" + String(d.getSeconds()).padStart(2,"0");
+                }
+                return "<tr>" +
+                    '<td dir="ltr" style="text-align:right;font-size:12px;font-family:monospace">' + escapeHtml(time) + "</td>" +
+                    '<td><span class="status-badge ' + typeClass + '">' + escapeHtml(typeLabel) + "</span></td>" +
+                    '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(e.ip || "-") + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(e.device || "-") + "</td>" +
+                    '<td dir="ltr" style="font-size:11px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(detail) + "</td>" +
+                    "</tr>";
+            }).join("");
+
+            tbody.insertAdjacentHTML("afterbegin", newHtml);
+
+            // Keep max 100 rows
+            while (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
+        });
+    }
+
+    var refreshLiveBtn = $("#btn-refresh-live");
+    if (refreshLiveBtn) refreshLiveBtn.addEventListener("click", function () { lastLiveTs = 0; loadLive(); });
+
+    // Auto-refresh live monitor every 3 seconds
+    setInterval(function () {
+        var autoCheck = $("#live-auto-refresh");
+        var activeView = document.querySelector(".view.active");
+        if (autoCheck && autoCheck.checked && activeView && activeView.id === "view-dashboard") {
+            loadLive();
+        }
+    }, 3000);
+
+    // ============================================================
     // Devices
     // ============================================================
     var allDevices = [];
@@ -1554,7 +1646,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         $("#add-modal-title").textContent = "افزودن دستگاه جدید";
         $("#add-modal-body").innerHTML =
             '<form id="add-device-form">' +
-                '<div class="form-group"><label>کد دستگاه (۴ رقمی)</label><input type="text" id="new-dev-code" maxlength="4" pattern="\\d{4}" dir="ltr" placeholder="مثال: 1001" required></div>' +
+                '<div class="form-group"><label>کد دستگاه (حداکثر ۸ رقم)</label><input type="text" id="new-dev-code" maxlength="8" pattern="\\d{1,8}" dir="ltr" placeholder="مثال: 10010001" required></div>' +
                 '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" required></div>' +
                 '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
                     '<option value="counter">ترددشمار</option>' +
@@ -1829,7 +1921,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         if (currentAddMode === "device") {
             var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
-            if (!dcode || !/^\d{4}$/.test(dcode)) { alert("کد دستگاه باید ۴ رقمی باشد"); return; }
+            if (!dcode || !/^\d{1,8}$/.test(dcode)) { alert("کد دستگاه باید عددی و حداکثر ۸ رقم باشد"); return; }
             if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
             var dtype = ($("#new-dev-type") || {}).value || "counter";
             var droute = ($("#new-dev-route") || {}).value || "";
@@ -2048,11 +2140,35 @@ app.post("/api/auth/change-password", requireAuth, function (req, res) {
 app.use(express.static(path.join(__dirname, "..")));
 
 // ============================================================
+// Live Log - keeps last 100 incoming requests for monitoring
+// ============================================================
+var liveLog = [];
+var MAX_LOG = 200;
+
+function addLiveLog(entry) {
+    liveLog.unshift(entry);
+    if (liveLog.length > MAX_LOG) liveLog.length = MAX_LOG;
+}
+
+// API to read live log (requires auth)
+app.get("/api/live", requireAuth, function (req, res) {
+    var since = parseInt(req.query.since, 10) || 0;
+    if (since > 0) {
+        var filtered = liveLog.filter(function (e) { return e.ts > since; });
+        return res.json(filtered);
+    }
+    var limit = parseInt(req.query.limit, 10) || 50;
+    res.json(liveLog.slice(0, limit));
+});
+
+// ============================================================
 // Device data reception - NO AUTH (devices send data here)
 // ============================================================
 app.post("/api/data", function (req, res) {
     var b = req.body;
     var code = String(b.device_code || b.device_id || b.code || "");
+
+    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "data", ip: req.ip, device: code, body: b });
 
     if (!code || !/^\d+$/.test(code)) {
         return res.status(400).json({ error: "device_code required" });
@@ -2092,6 +2208,9 @@ app.post("/api/data", function (req, res) {
 app.post("/api/irawdata", function (req, res) {
     var b = req.body;
     var code = String(b.device_id || b.device_code || b.code || "");
+
+    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "irawdata", ip: req.ip, device: code, a: b.a||0, b: b.b||0, c: b.c||0, d: b.d||0, e: b.e||0, x: b.x||0, lane: b.lane||1 });
+
     if (!code || !/^\d+$/.test(code)) return res.status(400).json({ error: "device_id required" });
 
     autoRegisterDevice(code);
@@ -2133,6 +2252,14 @@ function autoRegisterDevice(code) {
     }
     db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
 }
+
+// Log ALL POST requests to catch unknown device formats
+app.post("*", function (req, res, next) {
+    if (req.path.indexOf("/api/auth") === -1 && req.path.indexOf("/api/settings") === -1 && req.path.indexOf("/api/backup") === -1) {
+        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "unknown", ip: req.ip, path: req.path, body: req.body });
+    }
+    next();
+});
 
 // ============================================================
 // All API below requires authentication
@@ -2184,7 +2311,7 @@ app.get("/api/devices/:code", function (req, res) {
 app.post("/api/devices", function (req, res) {
     var b = req.body;
     if (!b.device_code || !b.name) return res.status(400).json({ error: "device_code and name required" });
-    if (!/^\d{4}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 4 digits" });
+    if (!/^\d{1,8}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 1-8 digits" });
     try {
         db.prepare("INSERT INTO devices (device_code, name, type, route, ip, status, firmware) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.device_code, b.name, b.type || "sensor", b.route || "", b.ip || "", "offline", b.firmware || "");
         res.json({ success: true, device_code: b.device_code });
@@ -3095,7 +3222,7 @@ cat > "$APP_DIR/server/package.json" << 'ENDOFFILE_SERVER_PACKAGE_JSON'
 }
 ENDOFFILE_SERVER_PACKAGE_JSON
 
-echo "[2/7] Creating .env file..."
+echo "[2/7] Creating .env..."
 if [ ! -f "$APP_DIR/server/.env" ]; then
 cat > "$APP_DIR/server/.env" << 'ENDENV'
 PORT=3000
@@ -3109,26 +3236,20 @@ RMTO_USERNAME=
 RMTO_PASSWORD=
 SEND_INTERVAL_MINUTES=15
 ENDENV
-echo "  .env created"
-else
-echo "  .env exists, keeping"
 fi
 
 echo "[3/7] Checking Node.js..."
 if ! command -v node &> /dev/null; then
-    echo "  Installing Node.js 18.x..."
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
     apt-get install -y nodejs
-else
-    echo "  Node.js: v22.22.0"
 fi
+echo "  Node: v22.22.0"
 
-echo "[4/7] Installing dependencies..."
+echo "[4/7] npm install..."
 cd "$APP_DIR/server"
 npm install --production 2>&1 | tail -3
-echo "  Done"
 
-echo "[5/7] Creating systemd service..."
+echo "[5/7] systemd service..."
 cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
 [Unit]
 Description=TC Manager (Noavaran Jonoob Shargh)
@@ -3146,11 +3267,10 @@ Environment=NODE_ENV=production
 [Install]
 WantedBy=multi-user.target
 ENDSVC
-
 systemctl daemon-reload
 systemctl enable tc-manager
 
-echo "[6/7] Configuring nginx..."
+echo "[6/7] nginx..."
 apt-get install -y nginx 2>/dev/null || true
 cat > /etc/nginx/sites-available/tc-manager << 'ENDNGINX'
 server {
@@ -3174,28 +3294,17 @@ ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
 rm -f /etc/nginx/sites-enabled/default
 nginx -t 2>/dev/null && systemctl reload nginx
 
-echo "[7/7] Starting TC Manager..."
+echo "[7/7] Starting..."
 systemctl restart tc-manager
 sleep 2
 
 if systemctl is-active --quiet tc-manager; then
-    IP=21.0.0.92
+    IP=21.0.0.20
     echo ""
     echo "========================================"
-    echo "  OK! TC Manager is running"
-    echo "  URL: http://"
+    echo "  OK! http://"
     echo "  Login: admin / admin123"
     echo "========================================"
-    echo ""
-    echo "  Next steps:"
-    echo "  1. Open http:// in browser"
-    echo "  2. Login with admin / admin123"
-    echo "  3. Go to Settings > RMTO Settings"
-    echo "  4. Enter company code, username, password"
-    echo "  5. Add devices or import .sql.gz backup"
-    echo "========================================"
 else
-    echo ""
-    echo "  [ERROR] Service failed!"
-    echo "  Run: journalctl -u tc-manager -n 50"
+    echo "  [ERROR] journalctl -u tc-manager -n 50"
 fi
