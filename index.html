@@ -201,6 +201,8 @@
                         <h3 class="panel-title">مدیریت دستگاه‌ها</h3>
                         <div class="panel-tools">
                             <button class="btn btn-primary" id="btn-add-device">+ دستگاه جدید</button>
+                            <button class="btn btn-secondary" id="btn-import-devices">واردکردن از فایل</button>
+                            <input type="file" id="import-devices-file" accept=".json,.csv" style="display:none">
                             <div class="search-box">
                                 <label>جستجو:</label>
                                 <input type="text" id="devices-search" class="search-input">
@@ -363,6 +365,28 @@
             <!-- ===== Settings ===== -->
             <section class="view" id="view-settings">
                 <div class="settings-grid">
+                    <!-- Server Time -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3 class="panel-title">ساعت سرور</h3>
+                        </div>
+                        <div class="panel-body">
+                            <div class="form-group">
+                                <label>زمان فعلی سرور</label>
+                                <div dir="ltr" id="server-time-display" style="font-size:22px;font-weight:700;color:#1e40af;margin:8px 0;font-family:monospace">--:--:--</div>
+                            </div>
+                            <div class="form-group">
+                                <label>منطقه زمانی</label>
+                                <div id="server-timezone" dir="ltr" style="color:#475569">-</div>
+                            </div>
+                            <div class="form-group">
+                                <label>مدت روشن بودن سرور</label>
+                                <div id="server-uptime" dir="ltr" style="color:#475569">-</div>
+                            </div>
+                            <button class="btn btn-secondary" id="btn-refresh-server-time">بروزرسانی</button>
+                        </div>
+                    </div>
+
                     <!-- RMTO Settings -->
                     <div class="panel">
                         <div class="panel-header">

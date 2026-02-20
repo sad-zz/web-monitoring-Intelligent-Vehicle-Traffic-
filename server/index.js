@@ -276,6 +276,19 @@ app.post("/api/settings", function (req, res) {
 });
 
 // ============================================================
+// API: Server Time
+// ============================================================
+app.get("/api/server/time", requireAuth, function (req, res) {
+    var now = new Date();
+    res.json({
+        time: now.toISOString(),
+        local: now.toLocaleString("fa-IR", { timeZone: process.env.TZ || "Asia/Tehran" }),
+        timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tehran",
+        uptime: process.uptime()
+    });
+});
+
+// ============================================================
 // API: Device Management
 // ============================================================
 app.get("/api/devices", function (req, res) {
@@ -312,6 +325,23 @@ app.delete("/api/devices/:code", function (req, res) {
     res.json({ success: true });
 });
 
+// Import multiple devices from JSON array
+app.post("/api/devices/import", function (req, res) {
+    var devices = req.body.devices;
+    if (!Array.isArray(devices) || !devices.length) return res.status(400).json({ error: "devices array required" });
+    var insert = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, route, status) VALUES (?, ?, ?, ?, 'offline')");
+    var imported = 0;
+    var tx = db.transaction(function () {
+        devices.forEach(function (d) {
+            if (!d.device_code || !/^\d{1,8}$/.test(String(d.device_code))) return;
+            insert.run(String(d.device_code), d.name || ("Device " + d.device_code), d.type || "counter", d.route || "");
+            imported++;
+        });
+    });
+    tx();
+    res.json({ success: true, imported: imported });
+});
+
 // ============================================================
 // API: Dashboard Stats
 // ============================================================
@@ -319,11 +349,12 @@ app.get("/api/stats", function (req, res) {
     var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
     var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
     var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    var todayVehicles = db.prepare("SELECT COUNT(*) as c FROM traffic_data WHERE timestamp >= ?").get(todayStart.toISOString()).c;
-    var todayAvgSpeed = db.prepare("SELECT AVG(speed) as avg FROM traffic_data WHERE timestamp >= ? AND speed > 0").get(todayStart.toISOString()).avg || 0;
+    // Count today's vehicles from irawdata (where TCP/HTTP device data is stored)
+    var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e+x), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStart.toISOString());
+    var todayVehicles = (todayIraw && todayIraw.c) || 0;
     var unsentCount = db.prepare("SELECT COUNT(*) as c FROM rmto_queue WHERE sent = 0").get().c;
     var unsent5Count = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0").get().c;
-    res.json({ totalDevices: totalDevices, onlineDevices: onlineDevices, todayVehicles: todayVehicles, todayAvgSpeed: Math.round(todayAvgSpeed), unsentRMTO: unsentCount, unsentRMTO5: unsent5Count });
+    res.json({ totalDevices: totalDevices, onlineDevices: onlineDevices, todayVehicles: todayVehicles, unsentRMTO: unsentCount, unsentRMTO5: unsent5Count });
 });
 
 // ============================================================

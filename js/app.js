@@ -329,10 +329,20 @@
                     '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
                     "<td>" +
                         '<div class="action-btns">' +
+                            '<button class="btn btn-sm btn-primary btn-dev-edit" data-code="' + escapeHtml(d.device_code) + '">ویرایش</button>' +
                             '<button class="btn btn-sm btn-danger btn-dev-delete" data-code="' + escapeHtml(d.device_code) + '">حذف</button>' +
                         "</div></td>" +
                     "</tr>";
             }).join("");
+
+            tbody.querySelectorAll(".btn-dev-edit").forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    var code = btn.getAttribute("data-code");
+                    var dev = allDevices.filter(function (d) { return d.device_code === code; })[0];
+                    if (!dev) return;
+                    openDeviceEditModal(dev);
+                });
+            });
 
             tbody.querySelectorAll(".btn-dev-delete").forEach(function (btn) {
                 btn.addEventListener("click", function () {
@@ -361,6 +371,7 @@
     // Add device
     var addDevBtn = $("#btn-add-device");
     if (addDevBtn) addDevBtn.addEventListener("click", function () {
+        currentEditCode = null;
         $("#add-modal-title").textContent = "افزودن دستگاه جدید";
         $("#add-modal-body").innerHTML =
             '<form id="add-device-form">' +
@@ -373,10 +384,81 @@
                     '<option value="radar">رادار</option>' +
                 '</select></div>' +
                 '<div class="form-group"><label>محور</label><input type="text" id="new-dev-route" placeholder="نام محور"></div>' +
+                '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
             '</form>';
         currentAddMode = "device";
         $("#add-modal-overlay").classList.add("active");
     });
+
+    // Edit device modal
+    var currentEditCode = null;
+
+    function openDeviceEditModal(dev) {
+        $("#add-modal-title").textContent = "ویرایش دستگاه " + dev.device_code;
+        $("#add-modal-body").innerHTML =
+            '<form id="add-device-form">' +
+                '<div class="form-group"><label>کد دستگاه</label><input type="text" id="new-dev-code" value="' + escapeHtml(dev.device_code) + '" dir="ltr" disabled style="background:#f1f5f9"></div>' +
+                '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" value="' + escapeHtml(dev.name) + '" required></div>' +
+                '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
+                    '<option value="counter"' + (dev.type === "counter" ? " selected" : "") + '>ترددشمار</option>' +
+                    '<option value="sensor"' + (dev.type === "sensor" ? " selected" : "") + '>سنسور</option>' +
+                    '<option value="loop"' + (dev.type === "loop" ? " selected" : "") + '>حلقه القایی</option>' +
+                    '<option value="radar"' + (dev.type === "radar" ? " selected" : "") + '>رادار</option>' +
+                '</select></div>' +
+                '<div class="form-group"><label>محور</label><input type="text" id="new-dev-route" value="' + escapeHtml(dev.route || "") + '" placeholder="نام محور"></div>' +
+                '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" value="' + escapeHtml(dev.ip || "") + '" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
+            '</form>';
+        currentAddMode = "device";
+        currentEditCode = dev.device_code;
+        $("#add-modal-overlay").classList.add("active");
+    }
+
+    // Import devices from JSON/CSV file
+    var importBtn = $("#btn-import-devices");
+    var importFile = $("#import-devices-file");
+    if (importBtn && importFile) {
+        importBtn.addEventListener("click", function () { importFile.click(); });
+        importFile.addEventListener("change", function () {
+            var file = importFile.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                var text = e.target.result;
+                var devices = [];
+                try {
+                    // Try JSON first
+                    var parsed = JSON.parse(text);
+                    devices = Array.isArray(parsed) ? parsed : (parsed.devices || []);
+                } catch (_) {
+                    // Try CSV: device_code,name,type,route
+                    var lines = text.split(/[\r\n]+/).filter(function (l) { return l.trim(); });
+                    for (var i = 0; i < lines.length; i++) {
+                        var parts = lines[i].split(",");
+                        if (parts.length >= 1 && /^\d{1,8}$/.test(parts[0].trim())) {
+                            devices.push({
+                                device_code: parts[0].trim(),
+                                name: parts[1] ? parts[1].trim() : ("Device " + parts[0].trim()),
+                                type: parts[2] ? parts[2].trim() : "counter",
+                                route: parts[3] ? parts[3].trim() : ""
+                            });
+                        }
+                    }
+                }
+                if (!devices.length) { alert("هیچ دستگاهی در فایل یافت نشد"); return; }
+                if (!confirm(devices.length + " دستگاه یافت شد. وارد شوند؟")) return;
+                api("POST", "/api/devices/import", { devices: devices }, function (status, data) {
+                    if (status === 200) {
+                        alert((data && data.imported || 0) + " دستگاه وارد شد");
+                        loadDevices();
+                    } else {
+                        alert("خطا در واردکردن");
+                    }
+                });
+            };
+            reader.readAsText(file);
+            importFile.value = "";
+        });
+    }
 
     // ============================================================
     // Data Reception (irawdata)
@@ -532,6 +614,7 @@
     // Settings
     // ============================================================
     function loadSettings() {
+        loadServerTime();
         api("GET", "/api/settings", null, function (status, data) {
             if (status !== 200 || !data) return;
             if (data.system_name) $("#setting-name").value = data.system_name;
@@ -577,6 +660,32 @@
             rmto_password: $("#setting-rmto-pass").value
         }, "تنظیمات رهسام ذخیره شد.");
     });
+
+    // Server Time
+    function loadServerTime() {
+        api("GET", "/api/server/time", null, function (status, data) {
+            if (status !== 200 || !data) return;
+            var el = $("#server-time-display");
+            if (el && data.local) el.textContent = data.local;
+            else if (el && data.time) {
+                var d = new Date(data.time);
+                el.textContent = d.toLocaleString("fa-IR");
+            }
+            var tz = $("#server-timezone");
+            if (tz) tz.textContent = data.timezone || "-";
+            var ut = $("#server-uptime");
+            if (ut && data.uptime) {
+                var sec = Math.floor(data.uptime);
+                var days = Math.floor(sec / 86400);
+                var hrs = Math.floor((sec % 86400) / 3600);
+                var mins = Math.floor((sec % 3600) / 60);
+                ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
+            }
+        });
+    }
+
+    var refreshTimeBtn = $("#btn-refresh-server-time");
+    if (refreshTimeBtn) refreshTimeBtn.addEventListener("click", loadServerTime);
 
     // Change password
     var changePassBtn = $("#btn-change-pass");
@@ -642,24 +751,45 @@
         if (currentAddMode === "device") {
             var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
-            if (!dcode || !/^\d{1,8}$/.test(dcode)) { alert("کد دستگاه باید عددی و حداکثر ۸ رقم باشد"); return; }
             if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
             var dtype = ($("#new-dev-type") || {}).value || "counter";
             var droute = ($("#new-dev-route") || {}).value || "";
+            var dip = ($("#new-dev-ip") || {}).value || "";
 
-            api("POST", "/api/devices", {
-                device_code: dcode,
-                name: dname.trim(),
-                type: dtype,
-                route: droute
-            }, function (status, data) {
-                if (status === 200) {
-                    $("#add-modal-overlay").classList.remove("active");
-                    loadDevices();
-                } else {
-                    alert((data && data.error) || "خطا در ثبت دستگاه");
-                }
-            });
+            if (currentEditCode) {
+                // Edit mode - PUT
+                api("PUT", "/api/devices/" + currentEditCode, {
+                    name: dname.trim(),
+                    type: dtype,
+                    route: droute,
+                    ip: dip
+                }, function (status) {
+                    if (status === 200) {
+                        $("#add-modal-overlay").classList.remove("active");
+                        currentEditCode = null;
+                        loadDevices();
+                    } else {
+                        alert("خطا در ویرایش");
+                    }
+                });
+            } else {
+                // Add mode - POST
+                if (!dcode || !/^\d{1,8}$/.test(dcode)) { alert("کد دستگاه باید عددی و حداکثر ۸ رقم باشد"); return; }
+                api("POST", "/api/devices", {
+                    device_code: dcode,
+                    name: dname.trim(),
+                    type: dtype,
+                    route: droute,
+                    ip: dip
+                }, function (status, data) {
+                    if (status === 200) {
+                        $("#add-modal-overlay").classList.remove("active");
+                        loadDevices();
+                    } else {
+                        alert((data && data.error) || "خطا در ثبت دستگاه");
+                    }
+                });
+            }
         }
     });
 
