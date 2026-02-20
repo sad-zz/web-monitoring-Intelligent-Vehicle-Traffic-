@@ -227,10 +227,14 @@
             if (data[0] && data[0].ts) lastLiveTs = data[0].ts;
 
             var newHtml = data.map(function (e) {
-                var typeLabel = { data: "داده عمومی", irawdata: "irawdata", unknown: "نامشخص" }[e.type] || e.type;
-                var typeClass = { data: "online", irawdata: "online", unknown: "warning" }[e.type] || "";
+                var typeLabel = { data: "HTTP", irawdata: "HTTP-iraw", tcp: "TCP", "tcp-raw": "TCP-خام", unknown: "نامشخص" }[e.type] || e.type;
+                var typeClass = { data: "online", irawdata: "online", tcp: "online", "tcp-raw": "warning", unknown: "warning" }[e.type] || "";
                 var detail = "";
-                if (e.type === "irawdata") {
+                if (e.type === "tcp") {
+                    detail = "تردد=" + (e.total||0) + " | a:" + (e.a||0) + " b:" + (e.b||0) + " c:" + (e.c||0) + " d:" + (e.d||0) + " e:" + (e.e||0) + " x:" + (e.x||0) + " لاین:" + (e.lane||1);
+                } else if (e.type === "tcp-raw") {
+                    detail = e.detail || "raw data";
+                } else if (e.type === "irawdata") {
                     detail = "a:" + (e.a||0) + " b:" + (e.b||0) + " c:" + (e.c||0) + " d:" + (e.d||0) + " e:" + (e.e||0) + " x:" + (e.x||0);
                 } else if (e.type === "unknown") {
                     detail = escapeHtml(e.path || "");

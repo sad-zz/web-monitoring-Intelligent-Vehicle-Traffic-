@@ -228,7 +228,7 @@ app.post("/api/irawdata", function (req, res) {
 function autoRegisterDevice(code) {
     var existing = db.prepare("SELECT device_code FROM devices WHERE device_code = ?").get(code);
     if (!existing) {
-        try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'sensor', 'online')").run(code, "Device " + code); } catch(e){}
+        try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "ترددشمار " + code); } catch(e){}
     }
     db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
 }
@@ -581,13 +581,189 @@ app.get("/api/backup/list", function (req, res) {
 });
 
 // ============================================================
-// Start Server
+// TCP Server for raw device data (port 2022)
+// Devices send fixed-length ASCII strings via TCP
+// ============================================================
+var net = require("net");
+var TCP_PORT = parseInt(process.env.TCP_PORT, 10) || 2022;
+
+/**
+ * Parse iccore fixed-length raw data from device.
+ * Format (based on standard iccore TC protocol):
+ *   8 chars: device_code
+ *  14 chars: start datetime YYYYMMDDHHmmss
+ *  14 chars: stop datetime  YYYYMMDDHHmmss
+ *   1 char:  lane
+ *   5 chars each: a, b, c, d, e, x     (vehicle counts)     = 30
+ *   8 chars each: sa, sb, sc, sd, se, sx (speed sums)        = 48
+ *   5 chars each: sao, sbo, sco, sdo, seo, sxo (over-speed)  = 30
+ *   5 chars: overtaking
+ *   5 chars: tooclose
+ * Total minimum: 8+14+14+1+30+48+30+5+5 = 155 chars
+ */
+function parseIccoreData(raw) {
+    raw = raw.replace(/[\r\n\x00]/g, "").trim();
+    if (raw.length < 37) return null; // too short - at least device + timestamps + lane
+
+    var pos = 0;
+    function take(n) { var s = raw.substring(pos, pos + n); pos += n; return s; }
+
+    var deviceCode = take(8).replace(/^0+/, "") || "0";
+    var startStr = take(14);
+    var stopStr = take(14);
+    var lane = parseInt(take(1), 10) || 1;
+
+    function parseDateTime(s) {
+        if (!s || s.length < 14 || s === "00000000000000") return new Date().toISOString();
+        var y = s.substring(0, 4), mo = s.substring(4, 6), d = s.substring(6, 8);
+        var h = s.substring(8, 10), mi = s.substring(10, 12), se = s.substring(12, 14);
+        return y + "-" + mo + "-" + d + "T" + h + ":" + mi + ":" + se;
+    }
+
+    var result = {
+        device_code: deviceCode,
+        create_at: parseDateTime(startStr),
+        stop: parseDateTime(stopStr),
+        lane: lane,
+        a: 0, b: 0, c: 0, d: 0, e: 0, x: 0,
+        sa: 0, sb: 0, sc: 0, sd: 0, se: 0, sx: 0,
+        sao: 0, sbo: 0, sco: 0, sdo: 0, seo: 0, sxo: 0,
+        overtaking: 0, tooclose: 0
+    };
+
+    // Parse remaining fields if data is long enough
+    if (raw.length >= 67) { // 37 + 30 vehicle counts
+        result.a = parseInt(take(5), 10) || 0;
+        result.b = parseInt(take(5), 10) || 0;
+        result.c = parseInt(take(5), 10) || 0;
+        result.d = parseInt(take(5), 10) || 0;
+        result.e = parseInt(take(5), 10) || 0;
+        result.x = parseInt(take(5), 10) || 0;
+    }
+    if (raw.length >= 115) { // 67 + 48 speed sums
+        result.sa = parseInt(take(8), 10) || 0;
+        result.sb = parseInt(take(8), 10) || 0;
+        result.sc = parseInt(take(8), 10) || 0;
+        result.sd = parseInt(take(8), 10) || 0;
+        result.se = parseInt(take(8), 10) || 0;
+        result.sx = parseInt(take(8), 10) || 0;
+    }
+    if (raw.length >= 145) { // 115 + 30 over-speed
+        result.sao = parseInt(take(5), 10) || 0;
+        result.sbo = parseInt(take(5), 10) || 0;
+        result.sco = parseInt(take(5), 10) || 0;
+        result.sdo = parseInt(take(5), 10) || 0;
+        result.seo = parseInt(take(5), 10) || 0;
+        result.sxo = parseInt(take(5), 10) || 0;
+    }
+    if (raw.length >= 150) result.overtaking = parseInt(take(5), 10) || 0;
+    if (raw.length >= 155) result.tooclose = parseInt(take(5), 10) || 0;
+
+    return result;
+}
+
+var tcpServer = net.createServer(function (socket) {
+    var clientIP = socket.remoteAddress || "";
+    var buffer = "";
+    console.log("[TCP] Connection from " + clientIP);
+
+    socket.on("data", function (chunk) {
+        buffer += chunk.toString();
+
+        // Process complete lines or full messages
+        var lines = buffer.split(/[\r\n]+/);
+        buffer = lines.pop(); // keep incomplete line in buffer
+
+        lines.forEach(function (line) {
+            line = line.trim();
+            if (!line) return;
+            processRawData(line, clientIP);
+        });
+
+        // If buffer is long enough without newline, try to process it
+        if (buffer.length >= 37) {
+            processRawData(buffer.trim(), clientIP);
+            buffer = "";
+        }
+    });
+
+    socket.on("end", function () {
+        if (buffer.trim().length >= 37) {
+            processRawData(buffer.trim(), clientIP);
+        }
+        console.log("[TCP] Disconnected " + clientIP);
+    });
+
+    socket.on("error", function (err) {
+        console.error("[TCP] Error from " + clientIP + ": " + err.message);
+    });
+});
+
+function processRawData(raw, ip) {
+    console.log("[TCP] Raw data (" + raw.length + " chars): " + raw.substring(0, 80) + (raw.length > 80 ? "..." : ""));
+
+    // Log to live monitor
+    var parsed = parseIccoreData(raw);
+
+    if (!parsed || !parsed.device_code) {
+        addLiveLog({
+            ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw",
+            ip: ip, device: "-", detail: "len=" + raw.length + " data=" + raw.substring(0, 60)
+        });
+        return;
+    }
+
+    var total = parsed.a + parsed.b + parsed.c + parsed.d + parsed.e + parsed.x;
+    addLiveLog({
+        ts: Date.now(), time: new Date().toISOString(), type: "tcp",
+        ip: ip, device: parsed.device_code,
+        a: parsed.a, b: parsed.b, c: parsed.c, d: parsed.d, e: parsed.e, x: parsed.x,
+        total: total, lane: parsed.lane,
+        detail: "تردد=" + total + " لاین=" + parsed.lane
+    });
+
+    // Auto-register device
+    autoRegisterDevice(parsed.device_code);
+
+    // Store in irawdata
+    try {
+        var insertRaw = db.prepare(
+            "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+            "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+        insertRaw.run(
+            parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,
+            parsed.a, parsed.b, parsed.c, parsed.d, parsed.e, parsed.x,
+            parsed.sa, parsed.sb, parsed.sc, parsed.sd, parsed.se, parsed.sx,
+            parsed.sao, parsed.sbo, parsed.sco, parsed.sdo, parsed.seo, parsed.sxo,
+            parsed.overtaking, parsed.tooclose
+        );
+        console.log("[TCP] Stored: device=" + parsed.device_code + " vehicles=" + total);
+    } catch (e) {
+        console.error("[TCP] DB error: " + e.message);
+    }
+}
+
+tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
+    console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
+});
+
+tcpServer.on("error", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[TCP] Port " + TCP_PORT + " already in use, will retry in 5s");
+        setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
+    }
+});
+
+// ============================================================
+// Start HTTP Server
 // ============================================================
 app.listen(PORT, HOST, function () {
     console.log("============================================");
     console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
-    console.log("  http://" + HOST + ":" + PORT);
-    console.log("  Default login: admin / admin123");
+    console.log("  HTTP: http://" + HOST + ":" + PORT);
+    console.log("  TCP:  port " + TCP_PORT + " (device data)");
+    console.log("  Login: admin / admin123");
     console.log("============================================");
 
     rmto.initClient(function (err) {
