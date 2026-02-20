@@ -228,7 +228,7 @@ app.post("/api/irawdata", function (req, res) {
 function autoRegisterDevice(code) {
     var existing = db.prepare("SELECT device_code FROM devices WHERE device_code = ?").get(code);
     if (!existing) {
-        try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "ترددشمار " + code); } catch(e){}
+        try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "Device " + code); } catch(e){}
     }
     db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
 }
@@ -264,7 +264,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -765,6 +765,66 @@ function parseIccoreData(raw) {
 // Track connected RATCX1 devices for sending commands
 var connectedDevices = {};
 
+// ============================================================
+// TCP: Active polling - request interval data from devices
+// ============================================================
+function formatPollTimestamp(date) {
+    var yy = String(date.getFullYear()).substring(2);
+    var mm = String(date.getMonth() + 1).padStart(2, "0");
+    var dd = String(date.getDate()).padStart(2, "0");
+    var hh = String(date.getHours()).padStart(2, "0");
+    var mi = String(date.getMinutes()).padStart(2, "0");
+    return yy + mm + dd + hh + mi;
+}
+
+function startDevicePoll(deviceCode, socket) {
+    console.log("[TCP] Starting data poll for device " + deviceCode);
+
+    // Build list of intervals to request (last 2 hours = 24 x 5min)
+    var now = new Date();
+    var requests = [];
+    for (var i = 0; i < 24; i++) {
+        var t = new Date(now.getTime() - i * 5 * 60 * 1000);
+        t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
+        requests.push(formatPollTimestamp(t));
+    }
+    requests.reverse(); // oldest first
+
+    var idx = 0;
+    function sendNextRequest() {
+        if (socket.destroyed || idx >= requests.length) {
+            // Done catching up, start periodic polling
+            startPeriodicPoll(deviceCode, socket);
+            return;
+        }
+        var cmd = "0197" + requests[idx];
+        console.log("[TCP] Poll device " + deviceCode + ": " + cmd);
+        try { socket.write(cmd + "\r\n"); } catch (e) { return; }
+        idx++;
+        setTimeout(sendNextRequest, 3000); // 3 seconds between requests
+    }
+
+    // Start polling after 2 seconds
+    setTimeout(sendNextRequest, 2000);
+}
+
+function startPeriodicPoll(deviceCode, socket) {
+    var intervalId = setInterval(function () {
+        if (socket.destroyed) {
+            clearInterval(intervalId);
+            return;
+        }
+        var now = new Date();
+        now.setMinutes(Math.floor(now.getMinutes() / 5) * 5, 0, 0);
+        var cmd = "0197" + formatPollTimestamp(now);
+        console.log("[TCP] Periodic poll device " + deviceCode + ": " + cmd);
+        try { socket.write(cmd + "\r\n"); } catch (e) { clearInterval(intervalId); }
+    }, 5 * 60 * 1000); // every 5 minutes
+
+    // Store interval ID on socket for cleanup
+    socket._pollInterval = intervalId;
+}
+
 var tcpServer = net.createServer(function (socket) {
     var clientIP = socket.remoteAddress || "";
     var buffer = "";
@@ -790,6 +850,8 @@ var tcpServer = net.createServer(function (socket) {
                 if (deviceId) {
                     connectedDevices[deviceId] = socket;
                     console.log("[TCP] Device " + deviceId + " registered for commands");
+                    // Start actively polling device for interval data
+                    startDevicePoll(deviceId, socket);
                 }
             }
         });
@@ -805,6 +867,7 @@ var tcpServer = net.createServer(function (socket) {
         if (buffer.trim().length >= 37) {
             processRawData(buffer.trim(), clientIP);
         }
+        if (socket._pollInterval) clearInterval(socket._pollInterval);
         if (deviceId && connectedDevices[deviceId] === socket) {
             delete connectedDevices[deviceId];
         }
@@ -812,6 +875,7 @@ var tcpServer = net.createServer(function (socket) {
     });
 
     socket.on("error", function (err) {
+        if (socket._pollInterval) clearInterval(socket._pollInterval);
         if (deviceId && connectedDevices[deviceId] === socket) {
             delete connectedDevices[deviceId];
         }

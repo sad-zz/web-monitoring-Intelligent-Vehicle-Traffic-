@@ -227,10 +227,15 @@
             if (data[0] && data[0].ts) lastLiveTs = data[0].ts;
 
             var newHtml = data.map(function (e) {
-                var typeLabel = { data: "HTTP", irawdata: "HTTP-iraw", tcp: "TCP", "tcp-raw": "TCP-خام", unknown: "نامشخص" }[e.type] || e.type;
-                var typeClass = { data: "online", irawdata: "online", tcp: "online", "tcp-raw": "warning", unknown: "warning" }[e.type] || "";
+                var typeLabel = { data: "HTTP", irawdata: "HTTP-iraw", tcp: "TCP", "tcp-raw": "TCP-خام", "tcp-ratcx1": "RATCX1", unknown: "نامشخص" }[e.type] || e.type;
+                var typeClass = { data: "online", irawdata: "online", tcp: "online", "tcp-raw": "warning", "tcp-ratcx1": "online", unknown: "warning" }[e.type] || "";
                 var detail = "";
-                if (e.type === "tcp") {
+                if (e.type === "tcp-ratcx1" && e.total !== undefined) {
+                    detail = "تردد=" + (e.total||0) + " | a:" + (e.a||0) + " b:" + (e.b||0) + " c:" + (e.c||0) + " d:" + (e.d||0) + " e:" + (e.e||0) + " x:" + (e.x||0);
+                    if (e.battery !== undefined) detail += " | باتری:" + e.battery + " سولار:" + (e.solar||0);
+                } else if (e.type === "tcp-ratcx1") {
+                    detail = e.detail || "";
+                } else if (e.type === "tcp") {
                     detail = "تردد=" + (e.total||0) + " | a:" + (e.a||0) + " b:" + (e.b||0) + " c:" + (e.c||0) + " d:" + (e.d||0) + " e:" + (e.e||0) + " x:" + (e.x||0) + " لاین:" + (e.lane||1);
                 } else if (e.type === "tcp-raw") {
                     detail = e.detail || "raw data";
@@ -532,6 +537,7 @@
             if (data.system_name) $("#setting-name").value = data.system_name;
             if (data.server_ip) $("#setting-server").value = data.server_ip;
             if (data.server_port) $("#setting-port").value = data.server_port;
+            if (data.tcp_port) { var tp = $("#setting-tcp-port"); if (tp) tp.value = data.tcp_port; }
             if (data.refresh_interval) $("#setting-refresh").value = data.refresh_interval;
             if (data.max_speed) $("#setting-max-speed").value = data.max_speed;
             // RMTO
@@ -551,10 +557,12 @@
 
     var saveSettingsBtn = $("#btn-save-settings");
     if (saveSettingsBtn) saveSettingsBtn.addEventListener("click", function () {
+        var tcpPort = $("#setting-tcp-port");
         saveSettings({
             system_name: $("#setting-name").value,
             server_ip: $("#setting-server").value,
             server_port: $("#setting-port").value,
+            tcp_port: tcpPort ? tcpPort.value : "2022",
             refresh_interval: $("#setting-refresh").value,
             max_speed: $("#setting-max-speed").value
         }, "تنظیمات عمومی ذخیره شد.");

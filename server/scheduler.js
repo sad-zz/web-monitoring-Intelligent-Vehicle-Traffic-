@@ -22,47 +22,73 @@ function aggregateAndSend() {
     var startStr = periodStart.toISOString();
     var endStr = periodEnd.toISOString();
 
-    // Get all active devices
-    var devices = db.prepare("SELECT device_code FROM devices WHERE status != 'offline'").all();
+    // Get all devices (not just online - they may have sent data before going offline)
+    var devices = db.prepare("SELECT device_code FROM devices").all();
 
     devices.forEach(function (dev) {
         var code = dev.device_code;
 
-        // Aggregate raw data for this period
-        var agg = db.prepare(
-            "SELECT COUNT(*) as total, AVG(speed) as avg_speed, " +
-            "SUM(CASE WHEN vehicle_class = 1 THEN 1 ELSE 0 END) as c1, " +
-            "SUM(CASE WHEN vehicle_class = 2 THEN 1 ELSE 0 END) as c2, " +
-            "SUM(CASE WHEN vehicle_class = 3 THEN 1 ELSE 0 END) as c3, " +
-            "SUM(CASE WHEN vehicle_class = 4 THEN 1 ELSE 0 END) as c4, " +
-            "SUM(CASE WHEN vehicle_class = 5 THEN 1 ELSE 0 END) as c5, " +
-            "SUM(CASE WHEN speed < 60 THEN 1 ELSE 0 END) as s1, " +
-            "SUM(CASE WHEN speed >= 60 AND speed < 80 THEN 1 ELSE 0 END) as s2, " +
-            "SUM(CASE WHEN speed >= 80 AND speed < 100 THEN 1 ELSE 0 END) as s3, " +
-            "SUM(CASE WHEN speed >= 100 AND speed < 120 THEN 1 ELSE 0 END) as s4, " +
-            "SUM(CASE WHEN speed >= 120 THEN 1 ELSE 0 END) as s5, " +
-            "SUM(CASE WHEN speed > 120 THEN 1 ELSE 0 END) as violations " +
-            "FROM traffic_data WHERE device_code = ? AND timestamp >= ? AND timestamp < ?"
+        // Aggregate from irawdata table (where TCP/HTTP device data is stored)
+        // This is the correct source - TCP RATCX1 data only goes to irawdata
+        var iraw = db.prepare(
+            "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
+            "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
+            "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo " +
+            "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0"
         ).get(code, startStr, endStr);
 
-        if (!agg || agg.total === 0) return;
+        if (!iraw) return;
+        var totalVehicles = (iraw.a||0) + (iraw.b||0) + (iraw.c||0) + (iraw.d||0) + (iraw.e||0) + (iraw.x||0);
+        if (totalVehicles === 0) return;
 
-        // Insert into simple queue
+        var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
+        var avgSpeed = totalVehicles > 0 ? totalSpeedSum / totalVehicles : 0;
+        var violations = (iraw.sao||0) + (iraw.sbo||0) + (iraw.sco||0) + (iraw.sdo||0) + (iraw.seo||0) + (iraw.sxo||0);
+
+        // Compute speed class distribution from per-class averages
+        // Speed ranges: S1(<60) S2(60-80) S3(80-100) S4(100-120) S5(>120)
+        var s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
+        var classes = [
+            { n: iraw.a||0, s: iraw.sa||0 },
+            { n: iraw.b||0, s: iraw.sb||0 },
+            { n: iraw.c||0, s: iraw.sc||0 },
+            { n: iraw.d||0, s: iraw.sd||0 },
+            { n: iraw.e||0, s: iraw.se||0 },
+            { n: iraw.x||0, s: iraw.sx_sum||0 }
+        ];
+        classes.forEach(function (c) {
+            if (c.n === 0) return;
+            var avg = c.s / c.n;
+            if (avg < 60) s1 += c.n;
+            else if (avg < 80) s2 += c.n;
+            else if (avg < 100) s3 += c.n;
+            else if (avg < 120) s4 += c.n;
+            else s5 += c.n;
+        });
+
+        // Insert into simple queue (AddData)
         db.prepare(
             "INSERT INTO rmto_queue (device_code, period_start, period_end, total_vehicles, avg_speed) " +
             "VALUES (?, ?, ?, ?, ?)"
-        ).run(code, startStr, endStr, agg.total, Math.round(agg.avg_speed || 0));
+        ).run(code, startStr, endStr, totalVehicles, Math.round(avgSpeed));
 
-        // Insert into 5-class queue
+        // Insert into 5-class queue (AddData5)
+        // Classes: a=motorcycle(C1) b=car(C2) c=van(C3) d=bus(C4) e+x=truck(C5)
         db.prepare(
             "INSERT INTO rmto_queue_5class (device_code, period_start, period_end, " +
             "class1_count, class2_count, class3_count, class4_count, class5_count, " +
             "speed1_count, speed2_count, speed3_count, speed4_count, speed5_count, " +
             "violations, avg_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ).run(code, startStr, endStr,
-            agg.c1, agg.c2, agg.c3, agg.c4, agg.c5,
-            agg.s1, agg.s2, agg.s3, agg.s4, agg.s5,
-            agg.violations, Math.round(agg.avg_speed || 0));
+            iraw.a||0, iraw.b||0, iraw.c||0, iraw.d||0, (iraw.e||0) + (iraw.x||0),
+            s1, s2, s3, s4, s5,
+            violations, Math.round(avgSpeed));
+
+        // Mark irawdata records as read so they won't be aggregated again
+        db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ?")
+            .run(code, startStr, endStr);
+
+        console.log("[Scheduler] Aggregated device " + code + ": " + totalVehicles + " vehicles, avg " + Math.round(avgSpeed) + " km/h");
     });
 
     // Now send unsent records

@@ -187,6 +187,7 @@ var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
     server_ip: "0.0.0.0",
     server_port: "3000",
+    tcp_port: "2022",
     refresh_interval: "30",
     max_speed: "120",
     alert_offline: "1",
