@@ -51,7 +51,20 @@ function initClient(callback) {
         }
         soapClient = client;
         console.log("[RMTO] SOAP client initialized");
-        console.log("[RMTO] Available methods:", Object.keys(client.describe().CompanySoap || {}));
+        // Auto-detect binding name (could be CompanySoap, CompaniesSoap, etc.)
+        var desc = client.describe();
+        var serviceName = Object.keys(desc)[0];
+        if (serviceName) {
+            var portName = Object.keys(desc[serviceName])[0];
+            if (portName) {
+                console.log("[RMTO] Service=" + serviceName + " Port=" + portName);
+                console.log("[RMTO] Available methods:", Object.keys(desc[serviceName][portName]));
+            } else {
+                console.log("[RMTO] WARNING: No SOAP port found in service " + serviceName);
+            }
+        } else {
+            console.log("[RMTO] WARNING: No SOAP service found in WSDL - check URL: " + WSDL_URL);
+        }
         callback(null, client);
     });
 }
