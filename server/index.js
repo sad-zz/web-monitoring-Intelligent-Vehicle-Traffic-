@@ -814,14 +814,18 @@ function formatPollTimestamp(date) {
     return yy + mm + dd + hh + mi;
 }
 
+/**
+ * Format date for time sync command "0012" (compact: yyMMddHHmmss).
+ * Must match original C# firmware: DateTime.Now.ToString("yyMMddHHmmss")
+ */
 function formatDeviceDatetime(date) {
-    var y = date.getFullYear();
+    var yy = String(date.getFullYear()).substring(2);
     var mo = String(date.getMonth() + 1).padStart(2, "0");
     var dy = String(date.getDate()).padStart(2, "0");
     var h = String(date.getHours()).padStart(2, "0");
     var m = String(date.getMinutes()).padStart(2, "0");
     var s = String(date.getSeconds()).padStart(2, "0");
-    return y + "." + mo + "." + dy + "-" + h + ":" + m + ":" + s + ".0";
+    return yy + mo + dy + h + m + s;
 }
 
 /**
@@ -844,7 +848,7 @@ function sendToDevice(deviceCode, socket, cmd, label) {
 
 /**
  * Send time sync "0012" command to device.
- * Format: "0012YYYY.MM.DD-HH:MM:SS.0" (4+21 = 25 bytes)
+ * Format: "0012yyMMddHHmmss" (4+12 = 16 bytes) - matches C# original firmware protocol
  */
 function syncDeviceTime(deviceCode, socket) {
     var now = new Date();
