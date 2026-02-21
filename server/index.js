@@ -797,7 +797,7 @@ function parseIccoreData(raw) {
 var connectedDevices = {};
 
 // ============================================================
-// TCP: Active polling - request interval data from devices
+// TCP: Time sync & Active polling
 // ============================================================
 function formatPollTimestamp(date) {
     var yy = String(date.getFullYear()).substring(2);
@@ -808,13 +808,45 @@ function formatPollTimestamp(date) {
     return yy + mm + dd + hh + mi;
 }
 
+function formatDeviceDatetime(date) {
+    var y = date.getFullYear();
+    var mo = String(date.getMonth() + 1).padStart(2, "0");
+    var dy = String(date.getDate()).padStart(2, "0");
+    var h = String(date.getHours()).padStart(2, "0");
+    var m = String(date.getMinutes()).padStart(2, "0");
+    var s = String(date.getSeconds()).padStart(2, "0");
+    return y + "." + mo + "." + dy + "-" + h + ":" + m + ":" + s + ".0";
+}
+
+/**
+ * Send time sync "0012" command to device.
+ * Format: "0012YYYY.MM.DD-HH:MM:SS.0" (4+21 = 25 bytes)
+ */
+function syncDeviceTime(deviceCode, socket) {
+    var now = new Date();
+    var cmd = "0012" + formatDeviceDatetime(now);
+    console.log("[TCP] Sync time to device " + deviceCode + ": " + cmd);
+    try { socket.write(cmd); } catch (e) { console.error("[TCP] Write error:", e.message); }
+}
+
+/**
+ * Start polling device for interval data after handshake.
+ * First sync time, then request last 30min of data (6 intervals),
+ * then poll every 5 minutes.
+ */
 function startDevicePoll(deviceCode, socket) {
     console.log("[TCP] Starting data poll for device " + deviceCode);
 
-    // Build list of intervals to request (last 2 hours = 24 x 5min)
+    // Step 1: Sync time immediately (500ms after handshake)
+    setTimeout(function () {
+        if (socket.destroyed) return;
+        syncDeviceTime(deviceCode, socket);
+    }, 500);
+
+    // Step 2: Request last 30 minutes of interval data (6 x 5min)
     var now = new Date();
     var requests = [];
-    for (var i = 0; i < 24; i++) {
+    for (var i = 0; i < 6; i++) {
         var t = new Date(now.getTime() - i * 5 * 60 * 1000);
         t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
         requests.push(formatPollTimestamp(t));
@@ -830,13 +862,13 @@ function startDevicePoll(deviceCode, socket) {
         }
         var cmd = "0197" + requests[idx];
         console.log("[TCP] Poll device " + deviceCode + ": " + cmd);
-        try { socket.write(cmd + "\r\n"); } catch (e) { return; }
+        try { socket.write(cmd); } catch (e) { return; }
         idx++;
-        setTimeout(sendNextRequest, 3000); // 3 seconds between requests
+        setTimeout(sendNextRequest, 2000); // 2 seconds between requests
     }
 
-    // Start polling after 2 seconds
-    setTimeout(sendNextRequest, 2000);
+    // Start polling 2 seconds after time sync
+    setTimeout(sendNextRequest, 2500);
 }
 
 function startPeriodicPoll(deviceCode, socket) {
@@ -849,7 +881,7 @@ function startPeriodicPoll(deviceCode, socket) {
         now.setMinutes(Math.floor(now.getMinutes() / 5) * 5, 0, 0);
         var cmd = "0197" + formatPollTimestamp(now);
         console.log("[TCP] Periodic poll device " + deviceCode + ": " + cmd);
-        try { socket.write(cmd + "\r\n"); } catch (e) { clearInterval(intervalId); }
+        try { socket.write(cmd); } catch (e) { clearInterval(intervalId); }
     }, 5 * 60 * 1000); // every 5 minutes
 
     // Store interval ID on socket for cleanup
@@ -863,7 +895,10 @@ var tcpServer = net.createServer(function (socket) {
     console.log("[TCP] Connection from " + clientIP);
 
     socket.on("data", function (chunk) {
-        buffer += chunk.toString();
+        var incoming = chunk.toString();
+        // Strip SIM900 modem +IPD prefix if present (e.g. "+IPD,287:")
+        incoming = incoming.replace(/\+IPD,\d+:/g, "");
+        buffer += incoming;
 
         // Process complete lines or full messages
         var lines = buffer.split(/[\r\n]+/);
@@ -872,6 +907,8 @@ var tcpServer = net.createServer(function (socket) {
         lines.forEach(function (line) {
             line = line.trim();
             if (!line) return;
+            // Skip AT command echoes from modem
+            if (line.indexOf("AT+") === 0 || line === "OK" || line === "ERROR" || line === "SEND OK" || line === ">") return;
             processRawData(line, clientIP);
 
             // Track device ID from handshake for command sending
@@ -1003,8 +1040,15 @@ function processRawData(raw, ip) {
     if (clean.substring(0, 4) === "8012") {
         var dt = clean.substring(4, 25);
         var sid = clean.substring(25, 33);
-        console.log("[TCP] RATCX1 time-set: device=" + sid + " time=" + dt);
-        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "تنظیم ساعت: " + dt });
+        console.log("[TCP] RATCX1 time-sync OK: device=" + sid + " device_time=" + dt);
+        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد: " + dt });
+        return;
+    }
+
+    // --- RATCX1 Unknown 8xxx response (log for debugging) ---
+    if (clean.length > 4 && clean.charAt(0) === "8") {
+        console.log("[TCP] RATCX1 unknown response code " + clean.substring(0, 4) + " from " + ip + " len=" + clean.length);
+        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: "-", detail: "پاسخ " + clean.substring(0, 4) + " (len=" + clean.length + ")" });
         return;
     }
 
