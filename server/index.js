@@ -796,6 +796,9 @@ function parseIccoreData(raw) {
 // Track connected RATCX1 devices for sending commands
 var connectedDevices = {};
 
+// Track pending time syncs waiting for ACK (device_code -> { retries, timer })
+var pendingSyncs = {};
+
 // ============================================================
 // TCP: Time sync & Active polling
 // ============================================================
@@ -843,7 +846,29 @@ function sendToDevice(deviceCode, socket, cmd, label) {
 function syncDeviceTime(deviceCode, socket) {
     var now = new Date();
     var cmd = "0012" + formatDeviceDatetime(now);
-    return sendToDevice(deviceCode, socket, cmd, "TIME_SYNC");
+    var sent = sendToDevice(deviceCode, socket, cmd, "TIME_SYNC");
+    if (!sent) return false;
+
+    // Track this sync and set up ACK timeout with retry
+    if (!pendingSyncs[deviceCode]) {
+        pendingSyncs[deviceCode] = { retries: 0 };
+    }
+    var ps = pendingSyncs[deviceCode];
+    if (ps.timer) clearTimeout(ps.timer);
+
+    ps.timer = setTimeout(function () {
+        if (!pendingSyncs[deviceCode]) return; // ACK already received
+        if (pendingSyncs[deviceCode].retries < 3) {
+            pendingSyncs[deviceCode].retries++;
+            console.log("[TCP] TIME_SYNC ACK not received for " + deviceCode + ", retry " + pendingSyncs[deviceCode].retries + "/3");
+            syncDeviceTime(deviceCode, socket);
+        } else {
+            console.log("[TCP] TIME_SYNC failed for " + deviceCode + " after 3 retries");
+            delete pendingSyncs[deviceCode];
+        }
+    }, 10000); // Wait 10 seconds for ACK
+
+    return true;
 }
 
 /**
@@ -922,8 +947,8 @@ function startPeriodicPoll(deviceCode, socket) {
         }
         var now = new Date();
 
-        // Re-sync time every hour (when minutes == 0)
-        if (now.getMinutes() % 60 === 0) {
+        // Re-sync time every 15 minutes (at :00, :15, :30, :45)
+        if (now.getMinutes() % 15 === 0) {
             syncDeviceTime(deviceCode, socket);
         }
 
@@ -1033,6 +1058,11 @@ var tcpServer = net.createServer(function (socket) {
         if (deviceId && connectedDevices[deviceId] === socket) {
             delete connectedDevices[deviceId];
         }
+        // Clean up pending time syncs
+        if (deviceId && pendingSyncs[deviceId]) {
+            clearTimeout(pendingSyncs[deviceId].timer);
+            delete pendingSyncs[deviceId];
+        }
         // Mark device offline when it disconnects
         if (deviceId) {
             try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
@@ -1045,6 +1075,11 @@ var tcpServer = net.createServer(function (socket) {
         if (socket._pollInterval) clearInterval(socket._pollInterval);
         if (deviceId && connectedDevices[deviceId] === socket) {
             delete connectedDevices[deviceId];
+        }
+        // Clean up pending time syncs
+        if (deviceId && pendingSyncs[deviceId]) {
+            clearTimeout(pendingSyncs[deviceId].timer);
+            delete pendingSyncs[deviceId];
         }
         if (deviceId) {
             try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
@@ -1080,6 +1115,19 @@ function processRawData(raw, ip) {
         var sysId = clean.substring(25, 33);
         var rest = clean.substring(33);
         console.log("[TCP] RATCX1 handshake: device=" + sysId + " time=" + datetime + " info=" + rest);
+
+        // Check device clock drift on handshake
+        var devTimeParts = datetime.match(/^(\d{4})\.(\d{2})\.(\d{2})-(\d{2}):(\d{2}):(\d{2})/);
+        if (devTimeParts) {
+            var devDate = new Date(devTimeParts[1] + "-" + devTimeParts[2] + "-" + devTimeParts[3] + "T" + devTimeParts[4] + ":" + devTimeParts[5] + ":" + devTimeParts[6]);
+            var srvDate = new Date();
+            var driftM = Math.round(Math.abs(srvDate.getTime() - devDate.getTime()) / 60000);
+            console.log("[TCP] Device " + sysId + " clock drift: " + driftM + " minutes");
+            if (driftM > 2) {
+                console.log("[TCP] WARNING: Device " + sysId + " clock drift detected: " + driftM + " minutes - will sync");
+            }
+        }
+
         addLiveLog({
             ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1",
             ip: ip, device: sysId, detail: "اتصال اولیه: " + rest
@@ -1108,6 +1156,23 @@ function processRawData(raw, ip) {
             console.error("[TCP]   PARSE FAILED - need >= 262 chars, got " + intervalStr.length);
             addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 parse fail: need 262 chars, got " + intervalStr.length });
             return;
+        }
+
+        // Validate device timestamp - detect clock drift
+        var serverNow = new Date();
+        var deviceTime = new Date(parsed.create_at);
+        if (!isNaN(deviceTime.getTime())) {
+            var driftMs = Math.abs(serverNow.getTime() - deviceTime.getTime());
+            var driftMinutes = Math.round(driftMs / 60000);
+            if (driftMinutes > 30) {
+                console.log("[TCP] WARNING: Device " + parsed.device_code + " clock drift = " + driftMinutes + " min (device=" + parsed.create_at + " server=" + serverNow.toISOString() + ")");
+                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "اختلاف ساعت: " + driftMinutes + " دقیقه - سینک مجدد" });
+                // Force immediate re-sync
+                var sock = connectedDevices[parsed.device_code];
+                if (sock && !sock.destroyed) {
+                    syncDeviceTime(parsed.device_code, sock);
+                }
+            }
         }
 
         var rows = ratcx1ToIrawdata(parsed);
@@ -1145,9 +1210,17 @@ function processRawData(raw, ip) {
     // --- RATCX1 Time set response: "8012" + datetime(21) + system_id(8) ---
     if (clean.substring(0, 4) === "8012") {
         var dt = clean.substring(4, 25);
-        var sid = clean.substring(25, 33);
+        var sid = clean.substring(25, 33).replace(/^0+/, "") || "0";
         console.log("[TCP] *** TIME SYNC ACK RECEIVED ***");
         console.log("[TCP]   device=" + sid + " device_time=" + dt + " total_len=" + clean.length);
+
+        // Clear pending sync - ACK confirmed
+        if (pendingSyncs[sid]) {
+            clearTimeout(pendingSyncs[sid].timer);
+            delete pendingSyncs[sid];
+            console.log("[TCP]   TIME_SYNC confirmed for " + sid);
+        }
+
         addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد: " + dt });
         return;
     }
