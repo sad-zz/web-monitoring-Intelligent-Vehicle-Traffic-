@@ -129,7 +129,7 @@ function sendUnsentData() {
         }, function (err, response) {
             var success = !err && response;
             db.prepare(
-                "UPDATE rmto_queue SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?"
+                "UPDATE rmto_queue SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
             ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
 
             db.prepare(
@@ -164,7 +164,7 @@ function sendUnsentData() {
         }, function (err, response) {
             var success = !err && response;
             db.prepare(
-                "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?"
+                "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
             ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
 
             db.prepare(

@@ -24,7 +24,7 @@ db.exec([
     "  status TEXT NOT NULL DEFAULT 'offline',",
     "  last_seen TEXT,",
     "  firmware TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
     // Raw traffic data received from devices
@@ -37,7 +37,7 @@ db.exec([
     "  direction INTEGER DEFAULT 1,",
     "  lane INTEGER DEFAULT 1,",
     "  raw_payload TEXT,",
-    "  received_at TEXT DEFAULT (datetime('now')),",
+    "  received_at TEXT DEFAULT (datetime('now','localtime')),",
     "  FOREIGN KEY (device_code) REFERENCES devices(device_code)",
     ");",
 
@@ -52,7 +52,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
     // 5-class data for RMTO (AddData5)
@@ -79,7 +79,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
     // 8-class data for RMTO (AddData8)
@@ -109,7 +109,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
     // Send log for auditing
@@ -121,7 +121,7 @@ db.exec([
     "  response_data TEXT,",
     "  success INTEGER DEFAULT 0,",
     "  error_message TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
     // Indexes
@@ -159,7 +159,7 @@ db.exec([
     "  sxo INTEGER DEFAULT 0,",
     "  overtaking INTEGER DEFAULT 0,",
     "  tooclose INTEGER DEFAULT 0,",
-    "  received_at TEXT DEFAULT (datetime('now'))",
+    "  received_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
     // Mehvar (routes) table

@@ -25,7 +25,7 @@ db.exec([
     "  status TEXT NOT NULL DEFAULT 'offline',",
     "  last_seen TEXT,",
     "  firmware TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
     "CREATE TABLE IF NOT EXISTS traffic_data (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
@@ -36,7 +36,7 @@ db.exec([
     "  direction INTEGER DEFAULT 1,",
     "  lane INTEGER DEFAULT 1,",
     "  raw_payload TEXT,",
-    "  received_at TEXT DEFAULT (datetime('now')),",
+    "  received_at TEXT DEFAULT (datetime('now','localtime')),",
     "  FOREIGN KEY (device_code) REFERENCES devices(device_code)",
     ");",
     "CREATE TABLE IF NOT EXISTS rmto_queue (",
@@ -49,7 +49,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
     "CREATE TABLE IF NOT EXISTS rmto_queue_5class (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
@@ -71,7 +71,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
     "CREATE TABLE IF NOT EXISTS rmto_queue_8class (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
@@ -99,7 +99,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
     "CREATE TABLE IF NOT EXISTS send_log (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
@@ -109,7 +109,7 @@ db.exec([
     "  response_data TEXT,",
     "  success INTEGER DEFAULT 0,",
     "  error_message TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now'))",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
     "CREATE INDEX IF NOT EXISTS idx_traffic_device ON traffic_data(device_code);",
     "CREATE INDEX IF NOT EXISTS idx_traffic_time ON traffic_data(timestamp);",
@@ -236,7 +236,7 @@ function sendUnsentData() {
         var dt = formatDateTime(row.period_start);
         rmto.sendAddData({ deviceCode: row.device_code, dateTime: dt, totalCount: row.total_vehicles, avgSpeed: row.avg_speed }, function (err, response) {
             var success = !err && response;
-            db.prepare("UPDATE rmto_queue SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?").run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
+            db.prepare("UPDATE rmto_queue SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?").run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
             db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) VALUES (?, ?, ?, ?, ?, ?)").run("AddData", row.device_code, JSON.stringify(row), JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
         });
     });
@@ -245,7 +245,7 @@ function sendUnsentData() {
         var dt = formatDateTime(row.period_start);
         rmto.sendAddData5({ deviceCode: row.device_code, dateTime: dt, class1Count: row.class1_count, class2Count: row.class2_count, class3Count: row.class3_count, class4Count: row.class4_count, class5Count: row.class5_count, speed1Count: row.speed1_count, speed2Count: row.speed2_count, speed3Count: row.speed3_count, speed4Count: row.speed4_count, speed5Count: row.speed5_count, violations: row.violations, avgSpeed: row.avg_speed }, function (err, response) {
             var success = !err && response;
-            db.prepare("UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now'), rmto_response = ? WHERE id = ?").run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
+            db.prepare("UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?").run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
             db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) VALUES (?, ?, ?, ?, ?, ?)").run("AddData5", row.device_code, JSON.stringify(row), JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
         });
     });
@@ -322,7 +322,7 @@ app.post("/api/data", function (req, res) {
     var b = req.body;
     var code = b.device_code;
     if (!code || !/^\d{4}$/.test(code)) return res.status(400).json({ error: "4-digit device_code required" });
-    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
+    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(code);
     var insert = db.prepare("INSERT INTO traffic_data (device_code, timestamp, vehicle_class, speed, direction, lane, raw_payload) VALUES (?, ?, ?, ?, ?, ?, ?)");
     var count = 0;
     if (b.records && Array.isArray(b.records)) {

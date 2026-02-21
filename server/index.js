@@ -37,7 +37,7 @@ var ADMIN_PASS_HASH = null;
         "  username TEXT NOT NULL UNIQUE,",
         "  password_hash TEXT NOT NULL,",
         "  role TEXT DEFAULT 'admin',",
-        "  created_at TEXT DEFAULT (datetime('now'))",
+        "  created_at TEXT DEFAULT (datetime('now','localtime'))",
         ");"
     ].join("\n"));
 
@@ -230,7 +230,7 @@ function autoRegisterDevice(code) {
     if (!existing) {
         try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "Device " + code); } catch(e){}
     }
-    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(code);
+    db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(code);
 }
 
 // Log ALL POST requests to catch unknown device formats
@@ -1210,6 +1210,16 @@ function processRawData(raw, ip) {
         var serverNow = new Date();
         var deviceTime = new Date(parsed.create_at);
         var timestampCorrected = false;
+        // Pre-check: if device date is NaN (e.g. month=26), correct it to server time
+        if (isNaN(deviceTime.getTime())) {
+            var corrNow = new Date();
+            corrNow.setMinutes(Math.floor(corrNow.getMinutes() / 5) * 5, 0, 0);
+            var corrStr = corrNow.getFullYear() + "-" + String(corrNow.getMonth() + 1).padStart(2, "0") + "-" + String(corrNow.getDate()).padStart(2, "0") + "T" + String(corrNow.getHours()).padStart(2, "0") + ":" + String(corrNow.getMinutes()).padStart(2, "0") + ":00";
+            console.log("[TCP] Device " + parsed.device_code + " has INVALID date: " + parsed.create_at + " -> correcting to " + corrStr);
+            parsed.create_at = corrStr;
+            timestampCorrected = true;
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "تاریخ نامعتبر: " + parsed.create_at + " - اصلاح شد به " + corrStr });
+        }
         if (!isNaN(deviceTime.getTime())) {
             var driftMs = Math.abs(serverNow.getTime() - deviceTime.getTime());
             var driftMinutes = Math.round(driftMs / 60000);
@@ -1242,7 +1252,7 @@ function processRawData(raw, ip) {
                 storeIrawdata(r);
             });
             // Update device battery/solar info
-            db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(parsed.device_code);
+            db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(parsed.device_code);
             console.log("[TCP] RATCX1 stored: device=" + parsed.device_code + " vehicles=" + totalAll + " lanes=" + rows.length + " bat=" + parsed.battery + " sol=" + parsed.solar + (timestampCorrected ? " (timestamp corrected)" : ""));
         } catch (e) {
             console.error("[TCP] DB error: " + e.message);
