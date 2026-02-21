@@ -1153,9 +1153,18 @@ function processRawData(raw, ip) {
         // Check device clock drift on handshake and store for poll decision
         var devTimeParts = datetime.match(/^(\d{4})\.(\d{2})\.(\d{2})-(\d{2}):(\d{2}):(\d{2})/);
         if (devTimeParts) {
+            var devMonth = parseInt(devTimeParts[2], 10);
+            var devDay = parseInt(devTimeParts[3], 10);
             var devDate = new Date(devTimeParts[1] + "-" + devTimeParts[2] + "-" + devTimeParts[3] + "T" + devTimeParts[4] + ":" + devTimeParts[5] + ":" + devTimeParts[6]);
             var srvDate = new Date();
-            var driftM = Math.round(Math.abs(srvDate.getTime() - devDate.getTime()) / 60000);
+            var driftM;
+            // If device date is invalid (e.g. month=26), treat as very large drift
+            if (devMonth < 1 || devMonth > 12 || devDay < 1 || devDay > 31 || isNaN(devDate.getTime())) {
+                driftM = 9999;
+                console.log("[TCP] Device " + sysId + " clock INVALID date: " + devTimeParts[1] + "-" + devTimeParts[2] + "-" + devTimeParts[3] + " (month=" + devMonth + " day=" + devDay + ") - treating as large drift");
+            } else {
+                driftM = Math.round(Math.abs(srvDate.getTime() - devDate.getTime()) / 60000);
+            }
             // Store drift so startDevicePoll can decide whether to request old data
             deviceClockDrift[sysId] = driftM;
             console.log("[TCP] Device " + sysId + " clock drift: " + driftM + " minutes (device=" + devTimeParts[1] + "-" + devTimeParts[2] + "-" + devTimeParts[3] + " " + devTimeParts[4] + ":" + devTimeParts[5] + " server=" + srvDate.toISOString() + ")");
@@ -1261,6 +1270,29 @@ function processRawData(raw, ip) {
         console.log("[TCP] *** TIME SYNC ACK RECEIVED ***");
         console.log("[TCP]   device=" + sid + " device_time=" + dt + " total_len=" + clean.length);
 
+        // Verify device actually updated its clock by checking ACK timestamp
+        var ackTimeParts = dt.match(/^(\d{4})\.(\d{2})\.(\d{2})-(\d{2}):(\d{2}):(\d{2})/);
+        var syncVerified = false;
+        if (ackTimeParts) {
+            var ackMonth = parseInt(ackTimeParts[2], 10);
+            var ackDay = parseInt(ackTimeParts[3], 10);
+            var ackDate = new Date(ackTimeParts[1] + "-" + ackTimeParts[2] + "-" + ackTimeParts[3] + "T" + ackTimeParts[4] + ":" + ackTimeParts[5] + ":" + ackTimeParts[6]);
+            if (ackMonth < 1 || ackMonth > 12 || ackDay < 1 || ackDay > 31 || isNaN(ackDate.getTime())) {
+                console.log("[TCP] WARNING: Device " + sid + " ACK still has INVALID date after TIME_SYNC: " + dt + " - device may not support time sync");
+                addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "هشدار: دستگاه ساعت را تنظیم نکرد (تاریخ نامعتبر: " + dt + ")" });
+            } else {
+                var srvNow = new Date();
+                var ackDrift = Math.round(Math.abs(srvNow.getTime() - ackDate.getTime()) / 60000);
+                if (ackDrift > 5) {
+                    console.log("[TCP] WARNING: Device " + sid + " ACK time still drifted by " + ackDrift + " min after TIME_SYNC: " + dt);
+                    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "هشدار: ساعت دستگاه بعد از تنظیم هنوز " + ackDrift + " دقیقه اختلاف دارد" });
+                } else {
+                    syncVerified = true;
+                    console.log("[TCP]   TIME_SYNC verified - device clock now correct (drift=" + ackDrift + "min)");
+                }
+            }
+        }
+
         // Check if we need to start deferred data polling after large drift
         var shouldStartPoll = false;
         var deferredSocket = null;
@@ -1268,16 +1300,21 @@ function processRawData(raw, ip) {
             if (pendingSyncs[sid].deferDataRequest) {
                 shouldStartPoll = true;
                 deferredSocket = pendingSyncs[sid].socket;
-                console.log("[TCP]   TIME_SYNC confirmed for " + sid + " - starting deferred periodic polling (clock was out of sync)");
-                addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد - شروع دریافت داده‌های جدید" });
+                if (syncVerified) {
+                    console.log("[TCP]   TIME_SYNC confirmed for " + sid + " - starting deferred periodic polling (clock was out of sync)");
+                    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد - شروع دریافت داده‌های جدید" });
+                } else {
+                    console.log("[TCP]   TIME_SYNC ACK received for " + sid + " but clock not verified - starting polling anyway (data timestamps from server)");
+                    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم نشد ولی پولینگ شروع می‌شود (تاریخ از سرور)" });
+                }
             } else {
-                console.log("[TCP]   TIME_SYNC confirmed for " + sid);
+                console.log("[TCP]   TIME_SYNC confirmed for " + sid + (syncVerified ? "" : " (clock not verified)"));
             }
             clearTimeout(pendingSyncs[sid].timer);
             delete pendingSyncs[sid];
         }
 
-        // Clear drift tracking after successful sync
+        // Clear drift tracking after successful sync (even if not verified - data timestamps come from server)
         delete deviceClockDrift[sid];
 
         // Start data requests + periodic polling if it was deferred due to large clock drift
@@ -1285,7 +1322,7 @@ function processRawData(raw, ip) {
             startDataRequests(sid, deferredSocket);
         }
 
-        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد: " + dt });
+        addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "پاسخ تنظیم ساعت: " + dt + (syncVerified ? " ✓" : " (تنظیم نشد)") });
         return;
     }
 
