@@ -834,7 +834,7 @@ function sendToDevice(deviceCode, socket, cmd, label) {
     }
     console.log("[TCP] >> " + deviceCode + " " + label + ": " + cmd + " (" + cmd.length + " bytes)");
     try {
-        socket.write(cmd);
+        socket.write(cmd + "\r\n");
         return true;
     } catch (e) {
         console.error("[TCP] >> " + deviceCode + " write error: " + e.message);

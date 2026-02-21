@@ -11,8 +11,17 @@ var idx = fs.readFileSync(idxFile, "utf8");
 // Backup
 fs.writeFileSync(idxFile + ".bak", idx);
 
-// Fix 1: After TIME_SYNC ACK, use startDataRequests instead of startPeriodicPoll
+// Fix 0: Add \r\n terminator to sendToDevice (CRITICAL - device won't process commands without it)
 var count = 0;
+if (idx.indexOf('socket.write(cmd)') !== -1 && idx.indexOf('socket.write(cmd + "\\r\\n")') === -1) {
+    idx = idx.replace('socket.write(cmd)', 'socket.write(cmd + "\\r\\n")');
+    count++;
+    console.log("[Fix 0] OK - added \\r\\n terminator to sendToDevice");
+} else {
+    console.log("[Fix 0] SKIP - already patched");
+}
+
+// Fix 1: After TIME_SYNC ACK, use startDataRequests instead of startPeriodicPoll
 if (idx.indexOf("startPeriodicPoll(sid, deferredSocket)") !== -1) {
     idx = idx.replace("startPeriodicPoll(sid, deferredSocket)", "startDataRequests(sid, deferredSocket)");
     count++;
