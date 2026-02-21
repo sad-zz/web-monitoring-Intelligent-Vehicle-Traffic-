@@ -796,8 +796,11 @@ function parseIccoreData(raw) {
 // Track connected RATCX1 devices for sending commands
 var connectedDevices = {};
 
-// Track pending time syncs waiting for ACK (device_code -> { retries, timer })
+// Track pending time syncs waiting for ACK (device_code -> { retries, timer, deferDataRequest, socket })
 var pendingSyncs = {};
+
+// Track clock drift per device (device_code -> drift in minutes)
+var deviceClockDrift = {};
 
 // ============================================================
 // TCP: Time sync & Active polling
@@ -851,7 +854,7 @@ function syncDeviceTime(deviceCode, socket) {
 
     // Track this sync and set up ACK timeout with retry
     if (!pendingSyncs[deviceCode]) {
-        pendingSyncs[deviceCode] = { retries: 0 };
+        pendingSyncs[deviceCode] = { retries: 0, deferDataRequest: false, socket: null };
     }
     var ps = pendingSyncs[deviceCode];
     if (ps.timer) clearTimeout(ps.timer);
@@ -876,28 +879,48 @@ function syncDeviceTime(deviceCode, socket) {
  * Sequence:
  *   1. Send time sync (1s after handshake)
  *   2. Send time sync again (4s after first - redundancy)
- *   3. Wait for device to set clock, then request last 15min of data
+ *   3a. If clock drift <= 5 min: request last 15min of data (normal)
+ *   3b. If clock drift > 5 min: defer data request until TIME_SYNC ACK
  *   4. Start periodic polling every 5 minutes
  */
 function startDevicePoll(deviceCode, socket) {
-    console.log("[TCP] ====== Starting poll sequence for device " + deviceCode + " ======");
+    var drift = deviceClockDrift[deviceCode] || 0;
+    var largeDrift = drift > 5; // more than 5 minutes drift
+    console.log("[TCP] ====== Starting poll sequence for device " + deviceCode + " (drift=" + drift + "min, largeDrift=" + largeDrift + ") ======");
 
     // Step 1: First time sync (1 second after handshake)
     setTimeout(function () {
         if (socket.destroyed) return;
         syncDeviceTime(deviceCode, socket);
 
+        // If large drift, mark that we should defer data requests until ACK
+        if (largeDrift && pendingSyncs[deviceCode]) {
+            pendingSyncs[deviceCode].deferDataRequest = true;
+            pendingSyncs[deviceCode].socket = socket;
+            console.log("[TCP] Device " + deviceCode + ": اختلاف ساعت زیاد (" + drift + " دقیقه) - درخواست داده تا تایید سینک به تعویق افتاد");
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: "", device: deviceCode, detail: "اختلاف ساعت " + drift + " دقیقه - منتظر تنظیم ساعت قبل از درخواست داده" });
+        }
+
         // Step 2: Second time sync (3 seconds later, for redundancy)
         setTimeout(function () {
             if (socket.destroyed) return;
             syncDeviceTime(deviceCode, socket);
 
-            // Step 3: Request last 15 minutes of data (3 intervals)
-            // Wait 5 seconds after time sync for device to set its clock
-            setTimeout(function () {
-                if (socket.destroyed) return;
-                startDataRequests(deviceCode, socket);
-            }, 5000);
+            // Preserve deferDataRequest flag on the new pendingSync entry
+            if (largeDrift && pendingSyncs[deviceCode]) {
+                pendingSyncs[deviceCode].deferDataRequest = true;
+                pendingSyncs[deviceCode].socket = socket;
+            }
+
+            // Step 3: Only request old data if clock drift was small
+            if (!largeDrift) {
+                setTimeout(function () {
+                    if (socket.destroyed) return;
+                    startDataRequests(deviceCode, socket);
+                }, 5000);
+            } else {
+                console.log("[TCP] Device " + deviceCode + ": skipping old data request (drift=" + drift + "min) - waiting for TIME_SYNC ACK to start polling");
+            }
         }, 3000);
     }, 1000);
 }
@@ -1116,14 +1139,19 @@ function processRawData(raw, ip) {
         var rest = clean.substring(33);
         console.log("[TCP] RATCX1 handshake: device=" + sysId + " time=" + datetime + " info=" + rest);
 
-        // Check device clock drift on handshake
+        // Check device clock drift on handshake and store for poll decision
         var devTimeParts = datetime.match(/^(\d{4})\.(\d{2})\.(\d{2})-(\d{2}):(\d{2}):(\d{2})/);
         if (devTimeParts) {
             var devDate = new Date(devTimeParts[1] + "-" + devTimeParts[2] + "-" + devTimeParts[3] + "T" + devTimeParts[4] + ":" + devTimeParts[5] + ":" + devTimeParts[6]);
             var srvDate = new Date();
             var driftM = Math.round(Math.abs(srvDate.getTime() - devDate.getTime()) / 60000);
-            console.log("[TCP] Device " + sysId + " clock drift: " + driftM + " minutes");
-            if (driftM > 2) {
+            // Store drift so startDevicePoll can decide whether to request old data
+            deviceClockDrift[sysId] = driftM;
+            console.log("[TCP] Device " + sysId + " clock drift: " + driftM + " minutes (device=" + devTimeParts[1] + "-" + devTimeParts[2] + "-" + devTimeParts[3] + " " + devTimeParts[4] + ":" + devTimeParts[5] + " server=" + srvDate.toISOString() + ")");
+            if (driftM > 5) {
+                console.log("[TCP] WARNING: Device " + sysId + " clock drift too large (" + driftM + " min) - will sync first, then start polling");
+                addLiveLog({ ts: Date.now(), time: srvDate.toISOString(), type: "tcp-ratcx1", ip: ip, device: sysId, detail: "هشدار: ساعت دستگاه " + driftM + " دقیقه عقب‌تر است - ابتدا ساعت تنظیم می‌شود" });
+            } else if (driftM > 2) {
                 console.log("[TCP] WARNING: Device " + sysId + " clock drift detected: " + driftM + " minutes - will sync");
             }
         }
@@ -1158,15 +1186,23 @@ function processRawData(raw, ip) {
             return;
         }
 
-        // Validate device timestamp - detect clock drift
+        // Validate device timestamp - detect clock drift and correct if needed
         var serverNow = new Date();
         var deviceTime = new Date(parsed.create_at);
+        var timestampCorrected = false;
         if (!isNaN(deviceTime.getTime())) {
             var driftMs = Math.abs(serverNow.getTime() - deviceTime.getTime());
             var driftMinutes = Math.round(driftMs / 60000);
             if (driftMinutes > 30) {
                 console.log("[TCP] WARNING: Device " + parsed.device_code + " clock drift = " + driftMinutes + " min (device=" + parsed.create_at + " server=" + serverNow.toISOString() + ")");
-                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "اختلاف ساعت: " + driftMinutes + " دقیقه - سینک مجدد" });
+                // Correct the timestamp to server time (round to nearest 5-min interval)
+                var corrected = new Date(serverNow);
+                corrected.setMinutes(Math.floor(corrected.getMinutes() / 5) * 5, 0, 0);
+                var correctedStr = corrected.getFullYear() + "-" + String(corrected.getMonth() + 1).padStart(2, "0") + "-" + String(corrected.getDate()).padStart(2, "0") + "T" + String(corrected.getHours()).padStart(2, "0") + ":" + String(corrected.getMinutes()).padStart(2, "0") + ":00";
+                console.log("[TCP] Correcting timestamp: " + parsed.create_at + " -> " + correctedStr);
+                parsed.create_at = correctedStr;
+                timestampCorrected = true;
+                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "اختلاف ساعت " + driftMinutes + " دقیقه - زمان اصلاح شد به " + correctedStr });
                 // Force immediate re-sync
                 var sock = connectedDevices[parsed.device_code];
                 if (sock && !sock.destroyed) {
@@ -1187,7 +1223,7 @@ function processRawData(raw, ip) {
             });
             // Update device battery/solar info
             db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now') WHERE device_code = ?").run(parsed.device_code);
-            console.log("[TCP] RATCX1 stored: device=" + parsed.device_code + " vehicles=" + totalAll + " lanes=" + rows.length + " bat=" + parsed.battery + " sol=" + parsed.solar);
+            console.log("[TCP] RATCX1 stored: device=" + parsed.device_code + " vehicles=" + totalAll + " lanes=" + rows.length + " bat=" + parsed.battery + " sol=" + parsed.solar + (timestampCorrected ? " (timestamp corrected)" : ""));
         } catch (e) {
             console.error("[TCP] DB error: " + e.message);
         }
@@ -1214,11 +1250,28 @@ function processRawData(raw, ip) {
         console.log("[TCP] *** TIME SYNC ACK RECEIVED ***");
         console.log("[TCP]   device=" + sid + " device_time=" + dt + " total_len=" + clean.length);
 
-        // Clear pending sync - ACK confirmed
+        // Check if we need to start deferred data polling after large drift
+        var shouldStartPoll = false;
+        var deferredSocket = null;
         if (pendingSyncs[sid]) {
+            if (pendingSyncs[sid].deferDataRequest) {
+                shouldStartPoll = true;
+                deferredSocket = pendingSyncs[sid].socket;
+                console.log("[TCP]   TIME_SYNC confirmed for " + sid + " - starting deferred periodic polling (clock was out of sync)");
+                addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد - شروع دریافت داده‌های جدید" });
+            } else {
+                console.log("[TCP]   TIME_SYNC confirmed for " + sid);
+            }
             clearTimeout(pendingSyncs[sid].timer);
             delete pendingSyncs[sid];
-            console.log("[TCP]   TIME_SYNC confirmed for " + sid);
+        }
+
+        // Clear drift tracking after successful sync
+        delete deviceClockDrift[sid];
+
+        // Start periodic polling if it was deferred due to large clock drift
+        if (shouldStartPoll && deferredSocket && !deferredSocket.destroyed) {
+            startPeriodicPoll(sid, deferredSocket);
         }
 
         addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد: " + dt });
