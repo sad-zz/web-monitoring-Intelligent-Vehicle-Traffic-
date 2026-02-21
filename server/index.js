@@ -815,17 +815,18 @@ function formatPollTimestamp(date) {
 }
 
 /**
- * Format date for time sync command "0012" (compact: yyMMddHHmmss).
- * Must match original C# firmware: DateTime.Now.ToString("yyMMddHHmmss")
+ * Format date for time sync command "0012" (verbose: YYYY.MM.DD-HH:MM:SS.0).
+ * RATCX1 firmware (SW:JA11) expects this verbose format - NOT compact yyMMddHHmmss.
+ * The original C# server used compact format for an older firmware version.
  */
 function formatDeviceDatetime(date) {
-    var yy = String(date.getFullYear()).substring(2);
+    var y = date.getFullYear();
     var mo = String(date.getMonth() + 1).padStart(2, "0");
     var dy = String(date.getDate()).padStart(2, "0");
     var h = String(date.getHours()).padStart(2, "0");
     var m = String(date.getMinutes()).padStart(2, "0");
     var s = String(date.getSeconds()).padStart(2, "0");
-    return yy + mo + dy + h + m + s;
+    return y + "." + mo + "." + dy + "-" + h + ":" + m + ":" + s + ".0";
 }
 
 /**
@@ -848,7 +849,7 @@ function sendToDevice(deviceCode, socket, cmd, label) {
 
 /**
  * Send time sync "0012" command to device.
- * Format: "0012yyMMddHHmmss" (4+12 = 16 bytes) - matches C# original firmware protocol
+ * Format: "0012YYYY.MM.DD-HH:MM:SS.0" (4+21 = 25 bytes) - matches RATCX1 JA11 firmware
  */
 function syncDeviceTime(deviceCode, socket) {
     var now = new Date();
@@ -871,6 +872,14 @@ function syncDeviceTime(deviceCode, socket) {
             syncDeviceTime(deviceCode, socket);
         } else {
             console.log("[TCP] TIME_SYNC failed for " + deviceCode + " after 3 retries");
+            // Fallback: if data polling was deferred due to large drift, start it anyway
+            // so the device doesn't stay stuck without polling
+            var failedSync = pendingSyncs[deviceCode];
+            if (failedSync && failedSync.deferDataRequest && failedSync.socket && !failedSync.socket.destroyed) {
+                console.log("[TCP] Starting deferred polling for " + deviceCode + " despite TIME_SYNC failure (fallback)");
+                addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: "", device: deviceCode, detail: "تنظیم ساعت ناموفق - شروع پولینگ بدون تنظیم ساعت" });
+                startDataRequests(deviceCode, failedSync.socket);
+            }
             delete pendingSyncs[deviceCode];
         }
     }, 10000); // Wait 10 seconds for ACK
