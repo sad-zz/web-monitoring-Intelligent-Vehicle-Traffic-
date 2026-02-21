@@ -819,39 +819,79 @@ function formatDeviceDatetime(date) {
 }
 
 /**
+ * Send a command to device via TCP with detailed logging.
+ */
+function sendToDevice(deviceCode, socket, cmd, label) {
+    if (socket.destroyed) {
+        console.log("[TCP] >> " + deviceCode + " SKIP (disconnected): " + label);
+        return false;
+    }
+    console.log("[TCP] >> " + deviceCode + " " + label + ": " + cmd + " (" + cmd.length + " bytes)");
+    try {
+        socket.write(cmd);
+        return true;
+    } catch (e) {
+        console.error("[TCP] >> " + deviceCode + " write error: " + e.message);
+        return false;
+    }
+}
+
+/**
  * Send time sync "0012" command to device.
  * Format: "0012YYYY.MM.DD-HH:MM:SS.0" (4+21 = 25 bytes)
  */
 function syncDeviceTime(deviceCode, socket) {
     var now = new Date();
     var cmd = "0012" + formatDeviceDatetime(now);
-    console.log("[TCP] Sync time to device " + deviceCode + ": " + cmd);
-    try { socket.write(cmd); } catch (e) { console.error("[TCP] Write error:", e.message); }
+    return sendToDevice(deviceCode, socket, cmd, "TIME_SYNC");
 }
 
 /**
  * Start polling device for interval data after handshake.
- * First sync time, then request last 30min of data (6 intervals),
- * then poll every 5 minutes.
+ * Sequence:
+ *   1. Send time sync (1s after handshake)
+ *   2. Send time sync again (4s after first - redundancy)
+ *   3. Wait for device to set clock, then request last 15min of data
+ *   4. Start periodic polling every 5 minutes
  */
 function startDevicePoll(deviceCode, socket) {
-    console.log("[TCP] Starting data poll for device " + deviceCode);
+    console.log("[TCP] ====== Starting poll sequence for device " + deviceCode + " ======");
 
-    // Step 1: Sync time immediately (500ms after handshake)
+    // Step 1: First time sync (1 second after handshake)
     setTimeout(function () {
         if (socket.destroyed) return;
         syncDeviceTime(deviceCode, socket);
-    }, 500);
 
-    // Step 2: Request last 30 minutes of interval data (6 x 5min)
+        // Step 2: Second time sync (3 seconds later, for redundancy)
+        setTimeout(function () {
+            if (socket.destroyed) return;
+            syncDeviceTime(deviceCode, socket);
+
+            // Step 3: Request last 15 minutes of data (3 intervals)
+            // Wait 5 seconds after time sync for device to set its clock
+            setTimeout(function () {
+                if (socket.destroyed) return;
+                startDataRequests(deviceCode, socket);
+            }, 5000);
+        }, 3000);
+    }, 1000);
+}
+
+/**
+ * Request recent interval data from device using "0197" command.
+ * Requests last 3 completed 5-minute intervals, then starts periodic polling.
+ */
+function startDataRequests(deviceCode, socket) {
     var now = new Date();
     var requests = [];
-    for (var i = 0; i < 6; i++) {
+    for (var i = 0; i < 3; i++) {
         var t = new Date(now.getTime() - i * 5 * 60 * 1000);
         t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
         requests.push(formatPollTimestamp(t));
     }
     requests.reverse(); // oldest first
+
+    console.log("[TCP] Requesting " + requests.length + " intervals from device " + deviceCode + ": " + requests.join(", "));
 
     var idx = 0;
     function sendNextRequest() {
@@ -861,27 +901,37 @@ function startDevicePoll(deviceCode, socket) {
             return;
         }
         var cmd = "0197" + requests[idx];
-        console.log("[TCP] Poll device " + deviceCode + ": " + cmd);
-        try { socket.write(cmd); } catch (e) { return; }
+        sendToDevice(deviceCode, socket, cmd, "DATA_REQ[" + (idx + 1) + "/" + requests.length + "]");
         idx++;
-        setTimeout(sendNextRequest, 2000); // 2 seconds between requests
+        setTimeout(sendNextRequest, 5000); // 5 seconds between requests (device needs time)
     }
 
-    // Start polling 2 seconds after time sync
-    setTimeout(sendNextRequest, 2500);
+    sendNextRequest();
 }
 
+/**
+ * Poll device every 5 minutes for the latest interval data.
+ * Also re-syncs time every hour.
+ */
 function startPeriodicPoll(deviceCode, socket) {
+    console.log("[TCP] Starting periodic poll for device " + deviceCode + " (every 5 min)");
     var intervalId = setInterval(function () {
         if (socket.destroyed) {
             clearInterval(intervalId);
             return;
         }
         var now = new Date();
-        now.setMinutes(Math.floor(now.getMinutes() / 5) * 5, 0, 0);
-        var cmd = "0197" + formatPollTimestamp(now);
-        console.log("[TCP] Periodic poll device " + deviceCode + ": " + cmd);
-        try { socket.write(cmd); } catch (e) { clearInterval(intervalId); }
+
+        // Re-sync time every hour (when minutes == 0)
+        if (now.getMinutes() % 60 === 0) {
+            syncDeviceTime(deviceCode, socket);
+        }
+
+        // Request current interval data
+        var reqTime = new Date(now);
+        reqTime.setMinutes(Math.floor(reqTime.getMinutes() / 5) * 5, 0, 0);
+        var cmd = "0197" + formatPollTimestamp(reqTime);
+        sendToDevice(deviceCode, socket, cmd, "PERIODIC_POLL");
     }, 5 * 60 * 1000); // every 5 minutes
 
     // Store interval ID on socket for cleanup
@@ -892,17 +942,53 @@ var tcpServer = net.createServer(function (socket) {
     var clientIP = socket.remoteAddress || "";
     var buffer = "";
     var deviceId = null;
-    console.log("[TCP] Connection from " + clientIP);
+    var pollStarted = false;
+    console.log("[TCP] New connection from " + clientIP);
+
+    // Helper: check for handshake and start polling (only once per connection)
+    function checkHandshake(line) {
+        var clean = line.replace(/[\r\n\x00]/g, "").trim();
+        if (clean.substring(0, 4) === "8000" && clean.length >= 33) {
+            var newId = clean.substring(25, 33).replace(/^0+/, "") || null;
+            if (newId && !pollStarted) {
+                deviceId = newId;
+                pollStarted = true;
+                connectedDevices[deviceId] = socket;
+                console.log("[TCP] Device " + deviceId + " registered for commands");
+                startDevicePoll(deviceId, socket);
+            }
+        }
+    }
 
     socket.on("data", function (chunk) {
         var incoming = chunk.toString();
-        // Strip SIM900 modem +IPD prefix if present (e.g. "+IPD,287:")
+
+        // Log raw incoming data for debugging
+        var logStr = incoming.substring(0, 120).replace(/[\r\n]/g, "\\n").replace(/[^\x20-\x7E\\]/g, ".");
+        console.log("[TCP] << " + (deviceId || clientIP) + " +" + incoming.length + "b (buf=" + buffer.length + "): " + logStr);
+
+        // Strip SIM900 modem +IPD/+RECEIVE prefix if present
         incoming = incoming.replace(/\+IPD,\d+:/g, "");
+        incoming = incoming.replace(/\+RECEIVE,\d+,\d+:/g, "");
         buffer += incoming;
 
-        // Process complete lines or full messages
+        // Reset buffer flush timer (flush incomplete data after 5s of silence)
+        if (socket._bufTimer) clearTimeout(socket._bufTimer);
+        socket._bufTimer = setTimeout(function () {
+            if (buffer.trim().length > 0) {
+                console.log("[TCP] Buffer timeout flush (" + buffer.length + "b): " + buffer.substring(0, 100));
+                var clean = buffer.replace(/[\r\n\x00]/g, "").trim();
+                if (clean.length > 0) {
+                    processRawData(clean, clientIP);
+                    checkHandshake(clean);
+                }
+                buffer = "";
+            }
+        }, 5000);
+
+        // Process complete lines (terminated by \r\n or \n)
         var lines = buffer.split(/[\r\n]+/);
-        buffer = lines.pop(); // keep incomplete line in buffer
+        buffer = lines.pop(); // keep incomplete part in buffer
 
         lines.forEach(function (line) {
             line = line.trim();
@@ -910,44 +996,60 @@ var tcpServer = net.createServer(function (socket) {
             // Skip AT command echoes from modem
             if (line.indexOf("AT+") === 0 || line === "OK" || line === "ERROR" || line === "SEND OK" || line === ">") return;
             processRawData(line, clientIP);
-
-            // Track device ID from handshake for command sending
-            var clean = line.replace(/[\r\n\x00]/g, "").trim();
-            if (clean.substring(0, 4) === "8000") {
-                deviceId = clean.substring(25, 33).replace(/^0+/, "") || null;
-                if (deviceId) {
-                    connectedDevices[deviceId] = socket;
-                    console.log("[TCP] Device " + deviceId + " registered for commands");
-                    // Start actively polling device for interval data
-                    startDevicePoll(deviceId, socket);
-                }
-            }
+            checkHandshake(line);
         });
 
-        // If buffer is long enough without newline, try to process it
-        if (buffer.length >= 37) {
-            processRawData(buffer.trim(), clientIP);
+        // Try to extract complete RATCX1 messages from buffer even without CRLF
+        // This handles cases where device sends fixed-length data without line terminators
+        // 8821 interval data = 4+21+262 = 287+ chars
+        // 8012 time sync ack = 4+21+8 = 33+ chars
+        // 8000 handshake = variable length, contains "READY"
+        var trimBuf = buffer.replace(/[\x00]/g, "").trim();
+        if (trimBuf.length >= 287 && trimBuf.substring(0, 4) === "8821") {
+            console.log("[TCP] Extracted 8821 message from buffer (" + trimBuf.length + "b without CRLF)");
+            processRawData(trimBuf.substring(0, 287), clientIP);
+            buffer = trimBuf.substring(287);
+        } else if (trimBuf.length >= 33 && trimBuf.substring(0, 4) === "8012") {
+            console.log("[TCP] Extracted 8012 message from buffer (" + trimBuf.length + "b without CRLF)");
+            processRawData(trimBuf, clientIP);
+            buffer = "";
+        } else if (trimBuf.substring(0, 4) === "8000" && trimBuf.indexOf("READY") !== -1) {
+            console.log("[TCP] Extracted 8000 handshake from buffer (" + trimBuf.length + "b without CRLF)");
+            processRawData(trimBuf, clientIP);
+            checkHandshake(trimBuf);
             buffer = "";
         }
     });
 
     socket.on("end", function () {
-        if (buffer.trim().length >= 37) {
-            processRawData(buffer.trim(), clientIP);
+        // Process any remaining buffer data on disconnect
+        if (buffer.trim().length > 0) {
+            console.log("[TCP] Processing remaining buffer on disconnect (" + buffer.length + "b)");
+            var clean = buffer.replace(/[\r\n\x00]/g, "").trim();
+            if (clean.length > 0) processRawData(clean, clientIP);
         }
+        if (socket._bufTimer) clearTimeout(socket._bufTimer);
         if (socket._pollInterval) clearInterval(socket._pollInterval);
         if (deviceId && connectedDevices[deviceId] === socket) {
             delete connectedDevices[deviceId];
+        }
+        // Mark device offline when it disconnects
+        if (deviceId) {
+            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
         }
         console.log("[TCP] Disconnected " + clientIP + (deviceId ? " (device " + deviceId + ")" : ""));
     });
 
     socket.on("error", function (err) {
+        if (socket._bufTimer) clearTimeout(socket._bufTimer);
         if (socket._pollInterval) clearInterval(socket._pollInterval);
         if (deviceId && connectedDevices[deviceId] === socket) {
             delete connectedDevices[deviceId];
         }
-        console.error("[TCP] Error from " + clientIP + ": " + err.message);
+        if (deviceId) {
+            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
+        }
+        console.error("[TCP] Error from " + clientIP + (deviceId ? " (device " + deviceId + ")" : "") + ": " + err.message);
     });
 });
 
@@ -966,7 +1068,8 @@ function storeIrawdata(parsed) {
 }
 
 function processRawData(raw, ip) {
-    console.log("[TCP] Raw data (" + raw.length + " chars): " + raw.substring(0, 80) + (raw.length > 80 ? "..." : ""));
+    var rawPreview = raw.substring(0, 100).replace(/[\r\n]/g, "\\n").replace(/[^\x20-\x7E\\]/g, ".");
+    console.log("[TCP] Processing (" + raw.length + " chars) code=" + raw.substring(0, 4) + ": " + rawPreview + (raw.length > 100 ? "..." : ""));
 
     // Detect RATCX1 firmware format: starts with "8xxx" command code
     var clean = raw.replace(/[\r\n\x00]/g, "").trim();
@@ -992,15 +1095,18 @@ function processRawData(raw, ip) {
         return;
     }
 
-    // --- RATCX1 Interval data: "8821" + datetime(21) + interval_data(264) ---
+    // --- RATCX1 Interval data: "8821" + datetime(21) + interval_data(262+) ---
     if (clean.substring(0, 4) === "8821") {
         var datetime21 = clean.substring(4, 25);
         var intervalStr = clean.substring(25);
-        console.log("[TCP] RATCX1 interval: time=" + datetime21 + " datalen=" + intervalStr.length);
+        console.log("[TCP] *** RATCX1 INTERVAL DATA RECEIVED ***");
+        console.log("[TCP]   response_time=" + datetime21 + " interval_len=" + intervalStr.length + " total_len=" + clean.length);
+        console.log("[TCP]   interval_preview: " + intervalStr.substring(0, 80) + (intervalStr.length > 80 ? "..." : ""));
 
         var parsed = parseRATCX1Interval(intervalStr);
         if (!parsed) {
-            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 parse fail len=" + intervalStr.length });
+            console.error("[TCP]   PARSE FAILED - need >= 262 chars, got " + intervalStr.length);
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 parse fail: need 262 chars, got " + intervalStr.length });
             return;
         }
 
@@ -1040,7 +1146,8 @@ function processRawData(raw, ip) {
     if (clean.substring(0, 4) === "8012") {
         var dt = clean.substring(4, 25);
         var sid = clean.substring(25, 33);
-        console.log("[TCP] RATCX1 time-sync OK: device=" + sid + " device_time=" + dt);
+        console.log("[TCP] *** TIME SYNC ACK RECEIVED ***");
+        console.log("[TCP]   device=" + sid + " device_time=" + dt + " total_len=" + clean.length);
         addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد: " + dt });
         return;
     }
@@ -1091,6 +1198,26 @@ app.get("/api/tcp/connected", requireAuth, function (req, res) {
     res.json(devices);
 });
 
+// API: Manually trigger time sync for a connected device
+app.post("/api/tcp/sync-time", requireAuth, function (req, res) {
+    var code = String(req.body.device_code || "");
+    if (!code) return res.status(400).json({ error: "device_code required" });
+    var sock = connectedDevices[code];
+    if (!sock || sock.destroyed) return res.status(404).json({ error: "دستگاه متصل نیست" });
+    syncDeviceTime(code, sock);
+    res.json({ success: true, message: "فرمان تنظیم ساعت ارسال شد" });
+});
+
+// API: Manually trigger data poll for a connected device
+app.post("/api/tcp/poll", requireAuth, function (req, res) {
+    var code = String(req.body.device_code || "");
+    if (!code) return res.status(400).json({ error: "device_code required" });
+    var sock = connectedDevices[code];
+    if (!sock || sock.destroyed) return res.status(404).json({ error: "دستگاه متصل نیست" });
+    startDataRequests(code, sock);
+    res.json({ success: true, message: "درخواست داده ارسال شد" });
+});
+
 app.post("/api/tcp/send", requireAuth, function (req, res) {
     var code = String(req.body.device_code || "");
     var command = String(req.body.command || "");
@@ -1098,7 +1225,8 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
     var sock = connectedDevices[code];
     if (!sock || sock.destroyed) return res.status(404).json({ error: "دستگاه متصل نیست" });
     try {
-        sock.write(command + "\r\n");
+        sock.write(command);
+        console.log("[TCP] >> " + code + " manual command: " + command + " (" + command.length + " bytes)");
         res.json({ success: true, sent: command });
     } catch (e) {
         res.status(500).json({ error: e.message });
