@@ -8,6 +8,21 @@ var rmto = require("./rmto-client");
 var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 15;
 
 /**
+ * Format Date as local ISO string (matching how device data is stored).
+ * Device data is stored as "YYYY-MM-DDTHH:MM:SS" in LOCAL time (no Z suffix).
+ * So scheduler queries must also use local time format.
+ */
+function toLocalISOString(d) {
+    var y = d.getFullYear();
+    var mo = String(d.getMonth() + 1).padStart(2, "0");
+    var dy = String(d.getDate()).padStart(2, "0");
+    var h = String(d.getHours()).padStart(2, "0");
+    var mi = String(d.getMinutes()).padStart(2, "0");
+    var s = String(d.getSeconds()).padStart(2, "0");
+    return y + "-" + mo + "-" + dy + "T" + h + ":" + mi + ":" + s;
+}
+
+/**
  * Aggregate raw traffic_data into rmto_queue and rmto_queue_5class,
  * then send unsent records to RMTO.
  */
@@ -19,8 +34,9 @@ function aggregateAndSend() {
     periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / INTERVAL) * INTERVAL, 0, 0);
     var periodStart = new Date(periodEnd.getTime() - INTERVAL * 60 * 1000);
 
-    var startStr = periodStart.toISOString();
-    var endStr = periodEnd.toISOString();
+    // Use local time format to match how device data is stored in irawdata
+    var startStr = toLocalISOString(periodStart);
+    var endStr = toLocalISOString(periodEnd);
 
     // Get all devices (not just online - they may have sent data before going offline)
     var devices = db.prepare("SELECT device_code FROM devices").all();

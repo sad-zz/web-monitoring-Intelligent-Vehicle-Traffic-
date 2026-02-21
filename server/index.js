@@ -958,11 +958,21 @@ function startDataRequests(deviceCode, socket) {
 }
 
 /**
- * Poll device every 5 minutes for the latest interval data.
- * Also re-syncs time every hour.
+ * Poll device every 5 minutes for the latest COMPLETED interval data.
+ * Also re-syncs time every 15 minutes.
  */
 function startPeriodicPoll(deviceCode, socket) {
     console.log("[TCP] Starting periodic poll for device " + deviceCode + " (every 5 min)");
+
+    // Immediate first request for the last completed interval (don't wait 5 min)
+    if (!socket.destroyed) {
+        var firstReq = new Date();
+        firstReq.setMinutes(Math.floor(firstReq.getMinutes() / 5) * 5, 0, 0);
+        firstReq = new Date(firstReq.getTime() - 5 * 60 * 1000); // last COMPLETED interval
+        var firstCmd = "0197" + formatPollTimestamp(firstReq);
+        sendToDevice(deviceCode, socket, firstCmd, "IMMEDIATE_POLL");
+    }
+
     var intervalId = setInterval(function () {
         if (socket.destroyed) {
             clearInterval(intervalId);
@@ -975,9 +985,10 @@ function startPeriodicPoll(deviceCode, socket) {
             syncDeviceTime(deviceCode, socket);
         }
 
-        // Request current interval data
+        // Request last COMPLETED interval (current - 5min) instead of in-progress one
         var reqTime = new Date(now);
         reqTime.setMinutes(Math.floor(reqTime.getMinutes() / 5) * 5, 0, 0);
+        reqTime = new Date(reqTime.getTime() - 5 * 60 * 1000); // go back to completed interval
         var cmd = "0197" + formatPollTimestamp(reqTime);
         sendToDevice(deviceCode, socket, cmd, "PERIODIC_POLL");
     }, 5 * 60 * 1000); // every 5 minutes
@@ -1269,9 +1280,9 @@ function processRawData(raw, ip) {
         // Clear drift tracking after successful sync
         delete deviceClockDrift[sid];
 
-        // Start periodic polling if it was deferred due to large clock drift
+        // Start data requests + periodic polling if it was deferred due to large clock drift
         if (shouldStartPoll && deferredSocket && !deferredSocket.destroyed) {
-            startPeriodicPoll(sid, deferredSocket);
+            startDataRequests(sid, deferredSocket);
         }
 
         addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد: " + dt });
