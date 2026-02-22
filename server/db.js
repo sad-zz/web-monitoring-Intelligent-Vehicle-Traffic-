@@ -27,6 +27,15 @@ db.exec([
     "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
+    // Users for authentication (admin login)
+    "CREATE TABLE IF NOT EXISTS users (",
+    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+    "  username TEXT NOT NULL UNIQUE,",
+    "  password_hash TEXT NOT NULL,",
+    "  role TEXT DEFAULT 'admin',",
+    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
+    ");",
+
     // Raw traffic data received from devices
     "CREATE TABLE IF NOT EXISTS traffic_data (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
@@ -174,6 +183,8 @@ db.exec([
     "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
     "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
     "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
+    // Prevent duplicate interval records when a TCP device reconnects and re-sends the same interval
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_irawdata_unique ON irawdata(device_code, create_at, stop, lane);",
 
     // Settings (key-value store)
     "CREATE TABLE IF NOT EXISTS settings (",

@@ -190,6 +190,39 @@ function formatDateTime(isoStr) {
 }
 
 /**
+ * Check for HTTP devices that have gone silent and mark them offline.
+ * TCP devices are already marked offline on socket disconnect (in index.js).
+ * HTTP devices have no connection to drop, so we check last_seen periodically.
+ */
+var stmtGetOfflineTimeout = db.prepare("SELECT value FROM settings WHERE key = 'offline_timeout'");
+var stmtMarkOffline = db.prepare(
+    "UPDATE devices SET status = 'offline' " +
+    "WHERE status = 'online' " +
+    "AND last_seen IS NOT NULL " +
+    "AND datetime(last_seen) < datetime(?)"
+);
+
+function checkOfflineDevices() {
+    try {
+        var timeoutRow = stmtGetOfflineTimeout.get();
+        var timeoutMin = parseInt((timeoutRow && timeoutRow.value) || "5", 10);
+        if (isNaN(timeoutMin) || timeoutMin < 1) timeoutMin = 5;
+
+        // Calculate threshold in JavaScript and pass as a bound parameter
+        var threshold = new Date(Date.now() - timeoutMin * 60 * 1000);
+        var thresholdStr = toLocalISOString(threshold);
+
+        var updated = stmtMarkOffline.run(thresholdStr).changes;
+
+        if (updated > 0) {
+            console.log("[Scheduler] checkOfflineDevices: marked " + updated + " device(s) offline (timeout=" + timeoutMin + " min)");
+        }
+    } catch (e) {
+        console.error("[Scheduler] checkOfflineDevices error:", e.message);
+    }
+}
+
+/**
  * Start the scheduler.
  */
 function start() {
@@ -199,6 +232,11 @@ function start() {
 
     cron.schedule(cronExpr, function () {
         aggregateAndSend();
+    });
+
+    // Check for offline devices every minute (covers HTTP devices that stop sending)
+    cron.schedule("* * * * *", function () {
+        checkOfflineDevices();
     });
 
     // Also allow manual retry of unsent data every hour
@@ -211,5 +249,6 @@ function start() {
 module.exports = {
     start: start,
     aggregateAndSend: aggregateAndSend,
-    sendUnsentData: sendUnsentData
+    sendUnsentData: sendUnsentData,
+    checkOfflineDevices: checkOfflineDevices
 };

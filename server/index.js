@@ -30,17 +30,6 @@ var ADMIN_PASS_HASH = null;
 
 // Initialize admin password
 (function initAdmin() {
-    // Check if users table exists
-    db.exec([
-        "CREATE TABLE IF NOT EXISTS users (",
-        "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-        "  username TEXT NOT NULL UNIQUE,",
-        "  password_hash TEXT NOT NULL,",
-        "  role TEXT DEFAULT 'admin',",
-        "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-        ");"
-    ].join("\n"));
-
     var admin = db.prepare("SELECT * FROM users WHERE username = ?").get(ADMIN_USER);
     if (!admin) {
         var defaultPass = process.env.ADMIN_PASS || "admin123";
@@ -196,7 +185,7 @@ app.post("/api/irawdata", function (req, res) {
     autoRegisterDevice(code);
 
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertTraffic = db.prepare(
@@ -349,8 +338,12 @@ app.get("/api/stats", function (req, res) {
     var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
     var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
     var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    // Use local time format (irawdata.create_at is stored as local time, not UTC)
+    var todayStartStr = todayStart.getFullYear() + "-" +
+        String(todayStart.getMonth() + 1).padStart(2, "0") + "-" +
+        String(todayStart.getDate()).padStart(2, "0") + "T00:00:00";
     // Count today's vehicles from irawdata (where TCP/HTTP device data is stored)
-    var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e+x), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStart.toISOString());
+    var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e+x), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStartStr);
     var todayVehicles = (todayIraw && todayIraw.c) || 0;
     var unsentCount = db.prepare("SELECT COUNT(*) as c FROM rmto_queue WHERE sent = 0").get().c;
     var unsent5Count = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0").get().c;
@@ -464,7 +457,7 @@ function importPostgresDump(filePath) {
 
     var insertDevice = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'offline')");
     var insertIraw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertMehvar = db.prepare("INSERT OR IGNORE INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)");
@@ -1137,7 +1130,7 @@ var tcpServer = net.createServer(function (socket) {
 
 function storeIrawdata(parsed) {
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     insertRaw.run(
