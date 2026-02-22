@@ -303,6 +303,22 @@ patchRegex(
 );
 
 // ============================================================
+// FIX 12 — server/index.js: حذف خطوط اضافه `}, 1000);` در startDevicePoll
+// Fix11a به اشتباه ۳ خط اضافه باقی گذاشت که باعث SyntaxError می‌شود و سرور crash می‌کند.
+// Remove 3 orphaned "}, 1000);" lines left by Fix11a that cause "SyntaxError: Unexpected token ','"
+// Regex groups:
+//   $1 = "    }, 1000);\n"  (correct closing of the single remaining setTimeout)
+//   $2 = "}\n"              (correct closing of startDevicePoll function)
+// ============================================================
+patchRegex(
+    "Fix12: remove orphaned }, 1000); lines causing SyntaxError in startDevicePoll",
+    "server/index.js",
+    /( {4}\}, 1000\);\n)\}, 1000\);\n\}, 1000\);\n\}, 1000\);\n(\}\n)/,
+    "Fix12 already applied: startDevicePoll has correct single closing brace",
+    "$1$2"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

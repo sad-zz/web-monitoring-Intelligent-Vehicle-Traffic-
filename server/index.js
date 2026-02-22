@@ -933,9 +933,6 @@ function startDevicePoll(deviceCode, socket) {
             startDataRequests(deviceCode, socket);
         }
     }, 1000);
-}, 1000);
-}, 1000);
-}, 1000);
 }
 
 /**
