@@ -28,29 +28,35 @@ echo "⬇️   [2/4] دانلود server/index.js از repo..."
 wget -q -O server/index.js.new "${REPO_RAW}/server/index.js"
 echo "      → دانلود شد ($(wc -c < server/index.js.new) بایت)"
 
-# 3. بررسی syntax
+# 3. بررسی syntax (از /tmp استفاده می‌کنیم تا extension .new مشکل ESM ایجاد نکند)
 echo ""
 echo "🔍  [3/4] بررسی syntax..."
-if node --check server/index.js.new; then
+cp server/index.js.new /tmp/tc-syntax-check.js
+if node --check /tmp/tc-syntax-check.js; then
     echo "      ✅ syntax درست است"
     mv server/index.js.new server/index.js
 else
     echo "      ❌ خطای syntax! فایل جایگزین نشد."
-    rm -f server/index.js.new
+    rm -f server/index.js.new /tmp/tc-syntax-check.js
     exit 1
 fi
+rm -f /tmp/tc-syntax-check.js
 
 # 4. راه‌اندازی مجدد
 echo ""
 echo "🔄  [4/4] راه‌اندازی مجدد سرور..."
-# آزاد کردن پورت 2022 اگر هنوز در اشغال باشد
-PORT_PID=$(fuser 2022/tcp 2>/dev/null || true)
-if [ -n "$PORT_PID" ]; then
-    echo "      ⚡ پورت 2022 توسط PID $PORT_PID اشغال است — در حال آزادسازی..."
-    fuser -k 2022/tcp 2>/dev/null || true
-    sleep 2
-fi
-pm2 restart tc-manager
+# توقف کامل PM2 اول
+pm2 stop tc-manager 2>/dev/null || true
+sleep 1
+# آزاد کردن پورت‌های 2022 و 3000 اگر هنوز در اشغال باشند
+for PORT in 2022 3000; do
+    if fuser ${PORT}/tcp >/dev/null 2>&1; then
+        echo "      ⚡ پورت ${PORT} اشغال است — در حال آزادسازی..."
+        fuser -k ${PORT}/tcp 2>/dev/null || true
+    fi
+done
+sleep 2
+pm2 start tc-manager
 echo ""
 pm2 list
 

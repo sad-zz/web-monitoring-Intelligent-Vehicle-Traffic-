@@ -341,6 +341,35 @@ patch(
 );
 
 // ============================================================
+// Fix15 — server/index.js: uncaughtException باید روی EADDRINUSE هم exit کند
+// بدون این، HTTP port 3000 "in use" توسط uncaughtException گرفته می‌شد
+// و "server kept running" چاپ می‌شد ولی HTTP listen انجام نشده بود.
+// ============================================================
+patch(
+    "Fix15: uncaughtException exits on EADDRINUSE",
+    "server/index.js",
+    "process.on(\"uncaughtException\", function (err) {\n    console.error(\"[FATAL] Uncaught exception (server kept running):\", err.message, err.stack || \"\");\n});",
+    "process.on(\"uncaughtException\", function (err) {\n    if (err.code === \"EADDRINUSE\") {\n        console.error(\"[FATAL] Port already in use (\" + (err.port || \"unknown\") + \") \u2014 exiting for clean PM2 restart\");\n        process.exit(1);\n    }\n    console.error(\"[FATAL] Uncaught exception (server kept running):\", err.message, err.stack || \"\");\n});"
+);
+
+// ============================================================
+// Fix16 — server/index.js: اضافه کردن error handler روی HTTP server
+// app.listen() باید به var httpServer تبدیل شود و error event داشته باشد.
+// ============================================================
+patch(
+    "Fix16: app.listen → httpServer + httpServer.on('error') for EADDRINUSE",
+    "server/index.js",
+    "app.listen(PORT, HOST, function () {",
+    "var httpServer = app.listen(PORT, HOST, function () {"
+);
+patch(
+    "Fix16b: add httpServer error handler after listen callback",
+    "server/index.js",
+    "    scheduler.start();\n});",
+    "    scheduler.start();\n});\nhttpServer.on(\"error\", function (err) {\n    if (err.code === \"EADDRINUSE\") {\n        console.error(\"[HTTP] Port \" + PORT + \" already in use \u2014 exiting for clean PM2 restart\");\n        process.exit(1);\n    }\n    throw err;\n});"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

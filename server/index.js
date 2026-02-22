@@ -1450,6 +1450,10 @@ tcpServer.on("error", function (err) {
 // Global Error Handlers — prevent process crash on unexpected errors
 // ============================================================
 process.on("uncaughtException", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[FATAL] Port already in use (" + (err.port || "unknown") + ") — exiting for clean PM2 restart");
+        process.exit(1);
+    }
     console.error("[FATAL] Uncaught exception (server kept running):", err.message, err.stack || "");
 });
 process.on("unhandledRejection", function (reason) {
@@ -1459,7 +1463,7 @@ process.on("unhandledRejection", function (reason) {
 // ============================================================
 // Start HTTP Server
 // ============================================================
-app.listen(PORT, HOST, function () {
+var httpServer = app.listen(PORT, HOST, function () {
     console.log("============================================");
     console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
     console.log("  HTTP: http://" + HOST + ":" + PORT);
@@ -1472,4 +1476,11 @@ app.listen(PORT, HOST, function () {
     });
 
     scheduler.start();
+});
+httpServer.on("error", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[HTTP] Port " + PORT + " already in use — exiting for clean PM2 restart");
+        process.exit(1);
+    }
+    throw err;
 });
