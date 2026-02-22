@@ -43,6 +43,13 @@ fi
 # 4. راه‌اندازی مجدد
 echo ""
 echo "🔄  [4/4] راه‌اندازی مجدد سرور..."
+# آزاد کردن پورت 2022 اگر هنوز در اشغال باشد
+PORT_PID=$(fuser 2022/tcp 2>/dev/null || true)
+if [ -n "$PORT_PID" ]; then
+    echo "      ⚡ پورت 2022 توسط PID $PORT_PID اشغال است — در حال آزادسازی..."
+    fuser -k 2022/tcp 2>/dev/null || true
+    sleep 2
+fi
 pm2 restart tc-manager
 echo ""
 pm2 list

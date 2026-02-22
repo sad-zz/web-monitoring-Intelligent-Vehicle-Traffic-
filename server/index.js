@@ -1428,10 +1428,21 @@ tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
 });
 
+var _tcpRetries = 0;
+var TCP_MAX_RETRIES = 10;
 tcpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
-        console.error("[TCP] Port " + TCP_PORT + " already in use, will retry in 5s");
-        setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
+        _tcpRetries++;
+        if (_tcpRetries > TCP_MAX_RETRIES) {
+            console.error("[TCP] Port " + TCP_PORT + " still in use after " + TCP_MAX_RETRIES + " retries — exiting so PM2 can restart cleanly");
+            process.exit(1);
+        }
+        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + _tcpRetries + "/" + TCP_MAX_RETRIES + " in 5s");
+        setTimeout(function () {
+            tcpServer.close(function () {
+                tcpServer.listen(TCP_PORT, "0.0.0.0");
+            });
+        }, 5000);
     }
 });
 

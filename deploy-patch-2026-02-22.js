@@ -331,6 +331,16 @@ patch(
 );
 
 // ============================================================
+// Fix14: اصلاح EADDRINUSE handler — close() قبل از retry + max retry
+// ============================================================
+patch(
+    "Fix14: EADDRINUSE — close() before retry + max 10 retries then exit",
+    "server/index.js",
+    "tcpServer.on(\"error\", function (err) {\n    if (err.code === \"EADDRINUSE\") {\n        console.error(\"[TCP] Port \" + TCP_PORT + \" already in use, will retry in 5s\");\n        setTimeout(function () { tcpServer.listen(TCP_PORT, \"0.0.0.0\"); }, 5000);\n    }\n});",
+    "var _tcpRetries = 0;\nvar TCP_MAX_RETRIES = 10;\ntcpServer.on(\"error\", function (err) {\n    if (err.code === \"EADDRINUSE\") {\n        _tcpRetries++;\n        if (_tcpRetries > TCP_MAX_RETRIES) {\n            console.error(\"[TCP] Port \" + TCP_PORT + \" still in use after \" + TCP_MAX_RETRIES + \" retries \u2014 exiting so PM2 can restart cleanly\");\n            process.exit(1);\n        }\n        console.error(\"[TCP] Port \" + TCP_PORT + \" already in use, retry \" + _tcpRetries + \"/\" + TCP_MAX_RETRIES + \" in 5s\");\n        setTimeout(function () {\n            tcpServer.close(function () {\n                tcpServer.listen(TCP_PORT, \"0.0.0.0\");\n            });\n        }, 5000);\n    }\n});"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
