@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تست ارسال داده به RMTO</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Tahoma', 'Segoe UI', sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+            direction: rtl;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1e3a8a;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #334155;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .btn {
+            padding: 12px 24px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #2563eb;
+        }
+        .btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+        }
+        .result.success {
+            background: #f0fdf4;
+            border-color: #22c55e;
+        }
+        .result.error {
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
+        .result h3 {
+            margin-bottom: 10px;
+        }
+        .result pre {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            direction: ltr;
+            text-align: left;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .info-box {
+            background: #eff6ff;
+            padding: 15px;
+            border-radius: 6px;
+            border-right: 4px solid #3b82f6;
+            margin-bottom: 20px;
+        }
+        .logs-section {
+            margin-top: 40px;
+            padding-top: 40px;
+            border-top: 2px solid #e2e8f0;
+        }
+        .log-item {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            border-right: 3px solid #64748b;
+        }
+        .log-item.success {
+            border-right-color: #22c55e;
+        }
+        .log-item.error {
+            border-right-color: #ef4444;
+        }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .log-time {
+            color: #64748b;
+            direction: ltr;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 تست ارسال داده به RMTO</h1>
+        <p class="subtitle">آزمایش متد AddData5 برای ارسال داده‌های 5 کلاسه به سازمان راهداری</p>
+
+        <div class="info-box">
+            <strong>توجه:</strong> این صفحه برای تست اتصال به API سازمان راهداری و آزمایش ارسال داده است. 
+            در صورت موفقیت، داده‌ها به صورت خودکار هر 15 دقیقه ارسال می‌شوند.
+        </div>
+
+        <form id="testForm">
+            <div class="form-group">
+                <label>کد ایستگاه (4 رقمی):</label>
+                <input type="text" id="deviceCode" value="1001" required pattern="[0-9]{4}">
+            </div>
+
+            <div class="form-group">
+                <label>تاریخ و زمان (فرمت: YYYY/MM/DD HH:mm):</label>
+                <input type="text" id="dateTime" required>
+            </div>
+
+            <h3 style="margin: 25px 0 15px 0; color: #1e3a8a;">تعداد وسایل نقلیه به تفکیک کلاس:</h3>
+            <div class="row">
+                <div class="form-group">
+                    <label>کلاس 1 (سواری):</label>
+                    <input type="number" id="class1Count" value="10" min="0">
+                </div>
+                <div class="form-group">
+                    <label>کلاس 2 (وانت):</label>
+                    <input type="number" id="class2Count" value="20" min="0">
+                </div>
+                <div class="form-group">
+                    <label>کلاس 3 (مینی‌بوس):</label>
+                    <input type="number" id="class3Count" value="15" min="0">
+                </div>
+                <div class="form-group">
+                    <label>کلاس 4 (اتوبوس):</label>
+                    <input type="number" id="class4Count" value="5" min="0">
+                </div>
+                <div class="form-group">
+                    <label>کلاس 5 (کامیون):</label>
+                    <input type="number" id="class5Count" value="3" min="0">
+                </div>
+            </div>
+
+            <h3 style="margin: 25px 0 15px 0; color: #1e3a8a;">تعداد خودرو به تفکیک سرعت:</h3>
+            <div class="row">
+                <div class="form-group">
+                    <label>S1 (زیر 60):</label>
+                    <input type="number" id="speed1Count" value="12" min="0">
+                </div>
+                <div class="form-group">
+                    <label>S2 (60-80):</label>
+                    <input type="number" id="speed2Count" value="18" min="0">
+                </div>
+                <div class="form-group">
+                    <label>S3 (80-100):</label>
+                    <input type="number" id="speed3Count" value="15" min="0">
+                </div>
+                <div class="form-group">
+                    <label>S4 (100-120):</label>
+                    <input type="number" id="speed4Count" value="8" min="0">
+                </div>
+                <div class="form-group">
+                    <label>S5 (بالای 120):</label>
+                    <input type="number" id="speed5Count" value="0" min="0">
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label>تعداد تخلفات:</label>
+                    <input type="number" id="violations" value="2" min="0">
+                </div>
+                <div class="form-group">
+                    <label>میانگین سرعت (km/h):</label>
+                    <input type="number" id="avgSpeed" value="85" min="0">
+                </div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">
+                ارسال داده به RMTO
+            </button>
+        </form>
+
+        <div id="result" style="display: none;"></div>
+
+        <div class="logs-section">
+            <h2 style="margin-bottom: 20px;">آخرین لاگ‌های ارسال</h2>
+            <button type="button" class="btn" onclick="loadLogs()" style="margin-bottom: 15px;">
+                بارگذاری مجدد لاگ‌ها
+            </button>
+            <div id="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        // Set current time on load
+        window.onload = function() {
+            var now = new Date();
+            var dateStr = now.getFullYear() + '/' + 
+                          String(now.getMonth() + 1).padStart(2, '0') + '/' + 
+                          String(now.getDate()).padStart(2, '0') + ' ' + 
+                          String(now.getHours()).padStart(2, '0') + ':' + 
+                          String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('dateTime').value = dateStr;
+            loadLogs();
+        };
+
+        document.getElementById('testForm').onsubmit = function(e) {
+            e.preventDefault();
+            
+            var submitBtn = document.getElementById('submitBtn');
+            var resultDiv = document.getElementById('result');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'در حال ارسال...';
+            
+            var data = {
+                deviceCode: document.getElementById('deviceCode').value,
+                dateTime: document.getElementById('dateTime').value,
+                class1Count: parseInt(document.getElementById('class1Count').value) || 0,
+                class2Count: parseInt(document.getElementById('class2Count').value) || 0,
+                class3Count: parseInt(document.getElementById('class3Count').value) || 0,
+                class4Count: parseInt(document.getElementById('class4Count').value) || 0,
+                class5Count: parseInt(document.getElementById('class5Count').value) || 0,
+                speed1Count: parseInt(document.getElementById('speed1Count').value) || 0,
+                speed2Count: parseInt(document.getElementById('speed2Count').value) || 0,
+                speed3Count: parseInt(document.getElementById('speed3Count').value) || 0,
+                speed4Count: parseInt(document.getElementById('speed4Count').value) || 0,
+                speed5Count: parseInt(document.getElementById('speed5Count').value) || 0,
+                violations: parseInt(document.getElementById('violations').value) || 0,
+                avgSpeed: parseInt(document.getElementById('avgSpeed').value) || 0
+            };
+
+            fetch('/api/rmto/test-add5', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+                credentials: 'include'
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(result) {
+                resultDiv.style.display = 'block';
+                
+                if (result.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = '<h3>✅ ارسال موفق!</h3>' +
+                        '<p>داده‌ها با موفقیت به RMTO ارسال شد.</p>' +
+                        '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = '<h3>❌ خطا در ارسال</h3>' +
+                        '<p><strong>پیام خطا:</strong> ' + result.error + '</p>' +
+                        (result.errorCode ? '<p><strong>کد خطا:</strong> ' + result.errorCode + '</p>' : '') +
+                        '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+                }
+                
+                loadLogs();
+            })
+            .catch(function(error) {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '<h3>❌ خطا در اتصال</h3>' +
+                    '<p>' + error.message + '</p>';
+            })
+            .finally(function() {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ارسال داده به RMTO';
+            });
+        };
+
+        function loadLogs() {
+            fetch('/api/rmto/logs?limit=10', { credentials: 'include' })
+                .then(function(response) { return response.json(); })
+                .then(function(logs) {
+                    var logsDiv = document.getElementById('logs');
+                    if (logs.length === 0) {
+                        logsDiv.innerHTML = '<p style="color: #64748b;">هنوز لاگی ثبت نشده است.</p>';
+                        return;
+                    }
+                    
+                    logsDiv.innerHTML = logs.map(function(log) {
+                        var className = log.success ? 'success' : 'error';
+                        var statusIcon = log.success ? '✅' : '❌';
+                        return '<div class="log-item ' + className + '">' +
+                            '<div class="log-header">' +
+                                '<span>' + statusIcon + ' <strong>' + log.method + '</strong> - کد ایستگاه: ' + log.device_code + '</span>' +
+                                '<span class="log-time">' + log.created_at + '</span>' +
+                            '</div>' +
+                            (log.error_message ? '<p style="color: #dc2626; margin-top: 8px;">خطا: ' + log.error_message + '</p>' : '') +
+                            '<details style="margin-top: 8px;">' +
+                                '<summary style="cursor: pointer; color: #3b82f6;">نمایش جزئیات</summary>' +
+                                '<pre style="margin-top: 8px; font-size: 11px;">' + 
+                                    'Request: ' + (log.request_data || 'N/A') + '\n\n' +
+                                    'Response: ' + (log.response_data || 'N/A') +
+                                '</pre>' +
+                            '</details>' +
+                        '</div>';
+                    }).join('');
+                })
+                .catch(function(error) {
+                    document.getElementById('logs').innerHTML = 
+                        '<p style="color: #ef4444;">خطا در بارگذاری لاگ‌ها: ' + error.message + '</p>';
+                });
+        }
+    </script>
+</body>
+</html>

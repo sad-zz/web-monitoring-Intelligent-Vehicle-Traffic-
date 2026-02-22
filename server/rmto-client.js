@@ -22,14 +22,35 @@ var soapClient = null;
 function initClient(callback) {
     if (soapClient) return callback(null, soapClient);
 
-    soap.createClient(WSDL_URL, function (err, client) {
+    console.log("[RMTO] Initializing SOAP client...");
+    console.log("[RMTO] WSDL URL:", WSDL_URL);
+    console.log("[RMTO] Company Code:", COMPANY_CODE);
+    console.log("[RMTO] Username:", USERNAME);
+
+    soap.createClient(WSDL_URL, {
+        wsdl_options: {
+            timeout: 30000,
+            rejectUnauthorized: false
+        }
+    }, function (err, client) {
         if (err) {
-            console.error("[RMTO] Failed to create SOAP client:", err.message);
+            console.error("[RMTO] Failed to create SOAP client:");
+            console.error("[RMTO] Error message:", err.message);
+            console.error("[RMTO] Error code:", err.code);
+            if (err.stack) {
+                console.error("[RMTO] Stack trace:", err.stack);
+            }
             return callback(err);
         }
         soapClient = client;
-        console.log("[RMTO] SOAP client initialized");
-        console.log("[RMTO] Available methods:", Object.keys(client.describe().CompanySoap || {}));
+        console.log("[RMTO] SOAP client initialized successfully");
+        
+        var services = client.describe();
+        console.log("[RMTO] Available services:", Object.keys(services));
+        if (services.CompanySoap) {
+            console.log("[RMTO] Available methods:", Object.keys(services.CompanySoap || {}));
+        }
+        
         callback(null, client);
     });
 }
@@ -91,31 +112,56 @@ function sendAddData5(data, callback) {
             StationCode: data.deviceCode,
             DateTime: data.dateTime,
             // 5 volume classes
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
+            C1: parseInt(data.class1Count) || 0,
+            C2: parseInt(data.class2Count) || 0,
+            C3: parseInt(data.class3Count) || 0,
+            C4: parseInt(data.class4Count) || 0,
+            C5: parseInt(data.class5Count) || 0,
             // 5 speed classes
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
+            S1: parseInt(data.speed1Count) || 0,
+            S2: parseInt(data.speed2Count) || 0,
+            S3: parseInt(data.speed3Count) || 0,
+            S4: parseInt(data.speed4Count) || 0,
+            S5: parseInt(data.speed5Count) || 0,
             // Violation & speed
-            Violation: data.violations || 0,
+            Violation: parseInt(data.violations) || 0,
             Speed: Math.round(data.avgSpeed || 0)
         };
 
         console.log("[RMTO] AddData5 request:", JSON.stringify(args));
 
-        soapClient.AddData5(args, function (err, result) {
+        soapClient.AddData5(args, function (err, result, rawResponse, soapHeader, rawRequest) {
             if (err) {
                 console.error("[RMTO] AddData5 error:", err.message);
+                console.error("[RMTO] Error code:", err.code);
+                
+                // Log SOAP fault details
+                if (err.root && err.root.Envelope && err.root.Envelope.Body && err.root.Envelope.Body.Fault) {
+                    var fault = err.root.Envelope.Body.Fault;
+                    console.error("[RMTO] SOAP Fault:");
+                    console.error("  faultcode:", fault.faultcode);
+                    console.error("  faultstring:", fault.faultstring);
+                    if (fault.detail) {
+                        console.error("  detail:", JSON.stringify(fault.detail));
+                    }
+                }
+                
+                // Log HTTP response if available
+                if (err.response) {
+                    console.error("[RMTO] HTTP Status:", err.response.statusCode);
+                    console.error("[RMTO] Response Body:", err.response.body);
+                }
+                
+                // Log the request XML for debugging
+                if (rawRequest) {
+                    console.error("[RMTO] Request XML:", rawRequest);
+                }
+                
                 return callback(err, null);
             }
             var response = result && result.AddData5Result;
             console.log("[RMTO] AddData5 response:", response);
+            console.log("[RMTO] Raw response:", rawResponse);
             callback(null, response);
         });
     });

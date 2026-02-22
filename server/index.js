@@ -375,6 +375,95 @@ app.get("/api/backup/list", function (req, res) {
 });
 
 // ============================================================
+// RMTO Test Endpoints (Admin only)
+// ============================================================
+
+/**
+ * Test RMTO AddData5 API with sample data
+ * POST /api/rmto/test-add5
+ */
+app.post("/api/rmto/test-add5", requireAuth, function (req, res) {
+    var now = new Date();
+    var dateStr = now.getFullYear() + "/" + 
+                  String(now.getMonth() + 1).padStart(2, "0") + "/" + 
+                  String(now.getDate()).padStart(2, "0") + " " + 
+                  String(now.getHours()).padStart(2, "0") + ":" + 
+                  String(now.getMinutes()).padStart(2, "0");
+
+    var testData = {
+        deviceCode: req.body.deviceCode || "1001",
+        dateTime: req.body.dateTime || dateStr,
+        class1Count: req.body.class1Count || 10,
+        class2Count: req.body.class2Count || 20,
+        class3Count: req.body.class3Count || 15,
+        class4Count: req.body.class4Count || 5,
+        class5Count: req.body.class5Count || 3,
+        speed1Count: req.body.speed1Count || 12,
+        speed2Count: req.body.speed2Count || 18,
+        speed3Count: req.body.speed3Count || 15,
+        speed4Count: req.body.speed4Count || 8,
+        speed5Count: req.body.speed5Count || 0,
+        violations: req.body.violations || 2,
+        avgSpeed: req.body.avgSpeed || 85
+    };
+
+    console.log("[API] Testing AddData5 with:", testData);
+
+    rmto.sendAddData5(testData, function (err, response) {
+        if (err) {
+            console.error("[API] AddData5 test failed:", err);
+            return res.status(500).json({
+                success: false,
+                error: err.message,
+                errorCode: err.code,
+                testData: testData
+            });
+        }
+
+        console.log("[API] AddData5 test successful:", response);
+        res.json({
+            success: true,
+            response: response,
+            testData: testData
+        });
+    });
+});
+
+/**
+ * Get RMTO send log
+ * GET /api/rmto/logs?limit=50
+ */
+app.get("/api/rmto/logs", requireAuth, function (req, res) {
+    var limit = parseInt(req.query.limit) || 50;
+    var logs = db.prepare(
+        "SELECT * FROM send_log ORDER BY created_at DESC LIMIT ?"
+    ).all(limit);
+    res.json(logs);
+});
+
+/**
+ * Get unsent RMTO queue items
+ * GET /api/rmto/queue?type=5class
+ */
+app.get("/api/rmto/queue", requireAuth, function (req, res) {
+    var type = req.query.type || "5class";
+    var table = type === "5class" ? "rmto_queue_5class" : "rmto_queue";
+    var items = db.prepare(
+        "SELECT * FROM " + table + " WHERE sent = 0 ORDER BY period_start LIMIT 100"
+    ).all();
+    res.json(items);
+});
+
+/**
+ * Manually retry sending unsent data
+ * POST /api/rmto/retry
+ */
+app.post("/api/rmto/retry", requireAuth, function (req, res) {
+    scheduler.sendUnsentData();
+    res.json({ success: true, message: "Retry initiated - check logs for results" });
+});
+
+// ============================================================
 // Start Server
 // ============================================================
 app.listen(PORT, HOST, function () {
