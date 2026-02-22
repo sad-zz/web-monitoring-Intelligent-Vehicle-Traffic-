@@ -241,6 +241,7 @@ function formatTime(iso) {
 - **Fix 4:** No UI for mehvar management → added «محورها» nav + view + CRUD to index.html and app.js
 - **Fix 5:** TCP connected devices not shown → added «اتصالات TCP فعال» panel to dashboard with sync/poll buttons
 - **Fix 6:** `users` table defined in `initAdmin()` → moved to db.js schema
+- **Fix 7:** `formatDeviceDatetime()` sent `YYYY.MM.DD-HH:MM:SS.0` (device output format) instead of `yyMMddHHmmss` (firmware input format) → device clocks never updated after TIME_SYNC; corrected to match C# original and `DS1305_Lib.h rtc_write` expectation
 
 ---
 
@@ -268,7 +269,7 @@ function formatTime(iso) {
 | Function | Line | Purpose |
 |----------|------|---------|
 | `formatPollTimestamp(date)` | ~808 | Format date as `YYMMDDHHMI` for 0197 command |
-| `formatDeviceDatetime(date)` | ~817 | Format as `YYYY.MM.DD-HH:MM:SS.0` for 0012 |
+| `formatDeviceDatetime(date)` | ~817 | Format as `yyMMddHHmmss` (12 chars) for 0012 TIME_SYNC |
 | `sendToDevice(code, socket, cmd, label)` | ~830 | Send TCP command with logging |
 | `syncDeviceTime(code, socket)` | ~849 | Send 0012 TIME_SYNC with retry |
 | `startDevicePoll(code, socket)` | ~886 | Full poll sequence (sync→data→periodic) |
