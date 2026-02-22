@@ -1429,6 +1429,16 @@ tcpServer.on("error", function (err) {
 });
 
 // ============================================================
+// Global Error Handlers — prevent process crash on unexpected errors
+// ============================================================
+process.on("uncaughtException", function (err) {
+    console.error("[FATAL] Uncaught exception (server kept running):", err.message, err.stack || "");
+});
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled promise rejection (server kept running):", reason);
+});
+
+// ============================================================
 // Start HTTP Server
 // ============================================================
 app.listen(PORT, HOST, function () {

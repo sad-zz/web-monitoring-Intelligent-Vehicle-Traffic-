@@ -319,6 +319,18 @@ patchRegex(
 );
 
 // ============================================================
+// FIX 13 — server/index.js: اضافه کردن process.on('uncaughtException')
+// بدون این handler، هر خطای ناخواسته سرور را crash می‌کند و PM2 restart می‌شود.
+// علت restart count بالا (131→191) همین بود: SyntaxError از Fix11a.
+// ============================================================
+patch(
+    "Fix13: add uncaughtException handler to prevent crash-restarts",
+    "server/index.js",
+    "// ============================================================\n// Start HTTP Server\n// ============================================================\napp.listen(PORT, HOST, function () {",
+    "// ============================================================\n// Global Error Handlers \u2014 prevent process crash on unexpected errors\n// ============================================================\nprocess.on(\"uncaughtException\", function (err) {\n    console.error(\"[FATAL] Uncaught exception (server kept running):\", err.message, err.stack || \"\");\n});\nprocess.on(\"unhandledRejection\", function (reason) {\n    console.error(\"[FATAL] Unhandled promise rejection (server kept running):\", reason);\n});\n\n// ============================================================\n// Start HTTP Server\n// ============================================================\napp.listen(PORT, HOST, function () {"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
