@@ -822,18 +822,25 @@ function formatPollTimestamp(date) {
 }
 
 /**
- * Format date for time sync command "0012" (verbose: YYYY.MM.DD-HH:MM:SS.0).
- * RATCX1 firmware (SW:JA11) expects this verbose format - NOT compact yyMMddHHmmss.
- * The original C# server used compact format for an older firmware version.
+ * Format date for time sync command "0012".
+ * Firmware (DS1305_Lib.h rtc_write) reads uart2_data[4..15] as yyMMddHHmmss:
+ *   [4-5]  = year  (2 digits, e.g. "26" for 2026)
+ *   [6-7]  = month (2 digits)
+ *   [8-9]  = day   (2 digits)
+ *   [10-11]= hour  (2 digits)
+ *   [12-13]= minute(2 digits)
+ *   [14-15]= second(2 digits)
+ * C# original: DateTime.Now.ToString("yyMMddHHmmss")
+ * NOT the verbose "YYYY.MM.DD-HH:MM:SS.0" format (that is what the device sends OUT).
  */
 function formatDeviceDatetime(date) {
-    var y = date.getFullYear();
+    var yy = String(date.getFullYear()).substring(2); // last 2 digits of year
     var mo = String(date.getMonth() + 1).padStart(2, "0");
     var dy = String(date.getDate()).padStart(2, "0");
-    var h = String(date.getHours()).padStart(2, "0");
-    var m = String(date.getMinutes()).padStart(2, "0");
-    var s = String(date.getSeconds()).padStart(2, "0");
-    return y + "." + mo + "." + dy + "-" + h + ":" + m + ":" + s + ".0";
+    var h  = String(date.getHours()).padStart(2, "0");
+    var m  = String(date.getMinutes()).padStart(2, "0");
+    var s  = String(date.getSeconds()).padStart(2, "0");
+    return yy + mo + dy + h + m + s;  // 12 chars: yyMMddHHmmss
 }
 
 /**
@@ -856,7 +863,8 @@ function sendToDevice(deviceCode, socket, cmd, label) {
 
 /**
  * Send time sync "0012" command to device.
- * Format: "0012YYYY.MM.DD-HH:MM:SS.0" (4+21 = 25 bytes) - matches RATCX1 JA11 firmware
+ * Format: "0012yyMMddHHmmss" (4+12 = 16 bytes before CRLF)
+ * Firmware reads uart2_data[4..15] as: year(2),month(2),day(2),hour(2),min(2),sec(2)
  */
 function syncDeviceTime(deviceCode, socket) {
     var now = new Date();

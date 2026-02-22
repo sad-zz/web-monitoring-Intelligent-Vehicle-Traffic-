@@ -250,6 +250,22 @@ patch(
 );
 
 // ============================================================
+// FIX 10 — server/index.js: فرمت دستور 0012 اشتباه بود
+// فریم‌ور (DS1305_Lib.h rtc_write) فرمت yyMMddHHmmss انتظار دارد
+// ولی کد قبلی YYYY.MM.DD-HH:MM:SS.0 می‌فرستاد (فرمت خروجی دستگاه، نه ورودی!)
+// ============================================================
+patchRegex(
+    "Fix10: 0012 TIME_SYNC format yyMMddHHmmss",
+    "server/index.js",
+    // match the old verbose format function (any whitespace variant)
+    /function formatDeviceDatetime\(date\) \{[\s\S]*?return [^;]*\+ "\." \+[^;]*\+ "\." \+[^;]*\+ "-" \+[^;]*\+ ":" \+[^;]*\+ ":" \+[^;]*\+ "\.0";\s*\}/,
+    // skip marker: if new format already present, skip
+    "return yy + mo + dy + h + m + s;  // 12 chars: yyMMddHHmmss",
+    // replacement: correct yyMMddHHmmss format
+    "function formatDeviceDatetime(date) {\n    var yy = String(date.getFullYear()).substring(2);\n    var mo = String(date.getMonth() + 1).padStart(2, \"0\");\n    var dy = String(date.getDate()).padStart(2, \"0\");\n    var h  = String(date.getHours()).padStart(2, \"0\");\n    var m  = String(date.getMinutes()).padStart(2, \"0\");\n    var s  = String(date.getSeconds()).padStart(2, \"0\");\n    return yy + mo + dy + h + m + s;  // 12 chars: yyMMddHHmmss\n}"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
