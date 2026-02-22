@@ -1,6 +1,7 @@
 # TC Manager – بررسی ایرادات و مشکلات
 > **تاریخ بررسی:** ۱۴۰۴/۱۲/۰۴  
-> **توجه:** فایل‌های اصلی پروژه دست‌نخورده باقی مانده‌اند. تمام اصلاحات در همین پوشه `improvements/` ذخیره شده‌اند.
+> **آخرین به‌روزرسانی:** ۱۴۰۴/۱۲/۰۳ — تمام ایرادات اصلاح و migration پایگاه‌داده انجام شد  
+> **توجه:** تمام ۶ ایراد اصلی در فایل‌های اصلی پروژه اصلاح شده‌اند.
 
 ---
 
@@ -8,12 +9,12 @@
 
 | شماره | درجه اهمیت | مشکل | فایل | وضعیت |
 |-------|-----------|------|------|--------|
-| ۱ | 🔴 بحرانی | محاسبه تردد امروز با زمان اشتباه (UTC vs Local) | `server/index.js` خط ۳۵۶ | اصلاح در `improvements/` |
-| ۲ | 🔴 بحرانی | دستگاه‌های HTTP هرگز آفلاین نمی‌شوند | `server/scheduler.js` | اصلاح در `improvements/server/scheduler.js` |
-| ۳ | 🟠 مهم | داده‌های تکراری در جدول irawdata انباشته می‌شوند | `server/db.js` | اصلاح در `improvements/server/db.js` |
-| ۴ | 🟠 مهم | مدیریت محورها (mehvar) در رابط کاربری وجود ندارد | `js/app.js`, `index.html` | اصلاح در `improvements/` |
-| ۵ | 🟡 متوسط | کاربران TCP متصل در رابط کاربری نمایش داده نمی‌شوند | `js/app.js`, `index.html` | مستندسازی شده |
-| ۶ | 🟡 متوسط | جدول `users` در `db.js` تعریف نشده | `server/index.js`, `server/db.js` | مستندسازی شده |
+| ۱ | 🔴 بحرانی | محاسبه تردد امروز با زمان اشتباه (UTC vs Local) | `server/index.js` خط ۳۴۰ | ✅ اصلاح شد |
+| ۲ | 🔴 بحرانی | دستگاه‌های HTTP هرگز آفلاین نمی‌شوند | `server/scheduler.js` | ✅ اصلاح شد |
+| ۳ | 🟠 مهم | داده‌های تکراری در جدول irawdata انباشته می‌شوند | `server/db.js` | ✅ اصلاح شد + migration انجام شد |
+| ۴ | 🟠 مهم | مدیریت محورها (mehvar) در رابط کاربری وجود ندارد | `js/app.js`, `index.html` | ✅ اصلاح شد |
+| ۵ | 🟡 متوسط | کاربران TCP متصل در رابط کاربری نمایش داده نمی‌شوند | `js/app.js`, `index.html` | ✅ اصلاح شد |
+| ۶ | 🟡 متوسط | جدول `users` در `db.js` تعریف نشده | `server/index.js`, `server/db.js` | ✅ اصلاح شد |
 | ۷ | 🟢 کم | فایل‌های `patch.js` و `patch2.js` اعمال‌شده‌اند ولی هنوز در ریشه هستند | `/patch.js`, `/patch2.js` | مستندسازی شده |
 
 ---
@@ -173,20 +174,16 @@ var todayStartStr = y + "-" + mo + "-" + dy + "T00:00:00";
 // سپس: .get(todayStartStr) به جای .get(todayStart.toISOString())
 ```
 
-### اصلاح ایراد ۲ (آفلاین شدن دستگاه‌ها)
-فایل `improvements/server/scheduler.js` را جایگزین `server/scheduler.js` کنید:
-```bash
-cp /opt/tc-manager/improvements/server/scheduler.js /opt/tc-manager/server/scheduler.js
-pm2 restart tc-manager
-```
+### وضعیت اصلاحات (۱۴۰۴/۱۲/۰۳)
 
-### اصلاح ایراد ۳ (داده‌های تکراری)  
-۱. دستور migration (بالا) را روی سرور اجرا کنید  
-۲. فایل `improvements/server/db.js` را جایگزین `server/db.js` کنید  
-۳. در `server/index.js`، تابع `storeIrawdata()` را اصلاح کنید (INSERT OR IGNORE)
-
-### اصلاح ایراد ۴ (UI محورها)
-فایل‌های `improvements/index.html` و `improvements/js/app.js` را جایگزین نسخه‌های اصلی کنید.
+| ایراد | وضعیت |
+|-------|--------|
+| ایراد ۱: آمار UTC | ✅ اصلاح شد در `server/index.js` |
+| ایراد ۲: آفلاین HTTP | ✅ اصلاح شد در `server/scheduler.js` |
+| ایراد ۳: داده تکراری | ✅ UNIQUE INDEX در `server/db.js` + INSERT OR IGNORE در `server/index.js` + **migration پایگاه‌داده انجام شد** |
+| ایراد ۴: UI محورها | ✅ اصلاح شد در `index.html` و `js/app.js` |
+| ایراد ۵: TCP panel | ✅ اصلاح شد در `index.html` و `js/app.js` |
+| ایراد ۶: users table | ✅ اصلاح شد در `server/db.js` و `server/index.js` |
 
 ---
 
