@@ -214,12 +214,15 @@ patch(
 
 // ============================================================
 // FIX 7 — server/index.js: startDataRequests از بازه in-progress می‌خواست
+// (اگر Fix11c از قبل اعمال شده باشد، این پچ skip می‌شود — Fix11c کل تابع را عوض کرده)
 // ============================================================
-patch(
+patchRegex(
     "Fix7: startDataRequests only requests completed intervals",
     "server/index.js",
-    "    for (var i = 0; i < 3; i++) {\n        var t = new Date(now.getTime() - i * 5 * 60 * 1000);\n        t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);\n        requests.push(formatPollTimestamp(t));\n    }",
-    "    for (var i = 1; i <= 3; i++) {\n        var t = new Date(now.getTime() - i * 5 * 60 * 1000);\n        t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);\n        requests.push(formatPollTimestamp(t));\n    }"
+    /for \(var i = 0; i < 3; i\+\+\) \{\s*\n\s*var t = new Date\(now\.getTime\(\) - i \* 5 \* 60 \* 1000\);/,
+    // skip marker: if Fix11c already replaced the function, the loop won't exist
+    "Fix11c: startDataRequests sends ONE 0197 only",
+    "    for (var i = 1; i <= 3; i++) {\n        var t = new Date(now.getTime() - i * 5 * 60 * 1000);"
 );
 
 // ============================================================
@@ -263,6 +266,40 @@ patchRegex(
     "return yy + mo + dy + h + m + s;  // 12 chars: yyMMddHHmmss",
     // replacement: correct yyMMddHHmmss format
     "function formatDeviceDatetime(date) {\n    var yy = String(date.getFullYear()).substring(2);\n    var mo = String(date.getMonth() + 1).padStart(2, \"0\");\n    var dy = String(date.getDate()).padStart(2, \"0\");\n    var h  = String(date.getHours()).padStart(2, \"0\");\n    var m  = String(date.getMinutes()).padStart(2, \"0\");\n    var s  = String(date.getSeconds()).padStart(2, \"0\");\n    return yy + mo + dy + h + m + s;  // 12 chars: yyMMddHHmmss\n}"
+);
+
+// ============================================================
+// FIX 11 — server/index.js: پروتکل یک-دستور-در-هر-اتصال
+// فریم‌ور RATCX1 فقط ONE دستور per TCP connection پردازش می‌کند:
+// - buffer UART2 فقط 47 بایت است
+// - وقتی سرور 0012 + 0197 با هم می‌فرستد، دستگاه در CIPSEND گیر می‌کند
+// ============================================================
+
+// 11a: حذف Step 2 (ارسال دوم syncDeviceTime) و تبدیل Step 3 به one-command
+patchRegex(
+    "Fix11a-1: remove second syncDeviceTime redundancy send",
+    "server/index.js",
+    /\/\/ Step 2: Second time sync \(3 seconds later, for redundancy\)\s*\n\s*setTimeout\(function \(\) \{[\s\S]*?\}, 3000\);/,
+    "Step 2 removed: firmware processes ONE command per connection",
+    "        // Step 2 removed: firmware processes ONE command per connection.\n        // If drift small, send ONE 0197. If large, next connection handles data.\n        if (!largeDrift) {\n            startDataRequests(deviceCode, socket);\n        }"
+);
+
+// 11b: دستگاه بلافاصله بعد از 8012 CIPSHUT می‌کند — 0197 نفرست
+patchRegex(
+    "Fix11b: after 8012 ACK clear drift only, no startDataRequests",
+    "server/index.js",
+    /\/\/ Clear drift tracking after successful sync[\s\S]*?\/\/ Start data requests \+ periodic polling if it was deferred due to large clock drift\s*\n\s*if \(shouldStartPoll && deferredSocket && !deferredSocket\.destroyed\) \{\s*\n\s*startDataRequests\(sid, deferredSocket\);\s*\n\s*\}/,
+    "Do NOT call startDataRequests here: the device is about to CIPSHUT",
+    "        // Clear drift so next 8000 connection takes the normal data poll path.\n        // Do NOT call startDataRequests here: the device is about to CIPSHUT after\n        // sending 8012. Writing 0197 to the socket now overflows the device's 47-byte\n        // UART2 buffer and it gets stuck waiting for modem SEND OK that never comes.\n        delete deviceClockDrift[sid];"
+);
+
+// 11c: فقط ONE 0197 ارسال کن (نه loop با delay)
+patchRegex(
+    "Fix11c: startDataRequests sends ONE 0197 only",
+    "server/index.js",
+    /var idx = 0;\s*\n\s*function sendNextRequest\(\) \{[\s\S]*?sendNextRequest\(\);/,
+    "Sending more than one 0197 in one connection would overflow",
+    "    // Send only the first (most recent completed) interval.\n    // Sending more than one 0197 in one connection would overflow the device's 47-byte\n    // UART2 buffer while it is replying, causing it to get stuck on modem SEND OK.\n    if (!socket.destroyed) {\n        sendToDevice(deviceCode, socket, \"0197\" + requests[requests.length - 1], \"DATA_REQ\");\n    }"
 );
 
 // ============================================================
