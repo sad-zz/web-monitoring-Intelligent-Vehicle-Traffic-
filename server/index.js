@@ -4,6 +4,13 @@
  * - Backup / Restore
  * - Receives data from 100+ devices
  * - Aggregates and sends to RMTO via SOAP
+ *
+ * @version 2026-02-22-v2
+ * @fixes Fix1(stats-localtime) Fix2(offline-detect) Fix3(irawdata-dedup)
+ *        Fix4(mehvar-ui) Fix5(tcp-panel) Fix6(users-table)
+ *        Fix8(stop=create+5min) Fix9(tcp-connected-api)
+ *        Fix10(0012-yyMMddHHmmss) Fix11(one-cmd-per-conn)
+ *        Fix12(syntax-braces) Fix13(uncaughtException)
  */
 require("dotenv").config();
 
