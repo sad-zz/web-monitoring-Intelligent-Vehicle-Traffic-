@@ -1,6 +1,6 @@
 # TC Manager - Server Software Analysis & Reference
 
-> **Last Updated:** 2026-02-21
+> **Last Updated:** 2026-02-22
 > **Purpose:** This document saves comprehensive analysis of the TC Manager server so AI assistants don't need to re-analyze the codebase each session. Read this file first before making changes.
 
 ---
@@ -10,13 +10,13 @@
 | Component | File | Lines | Purpose |
 |-----------|------|-------|---------|
 | HTTP Server + TCP | `server/index.js` | ~1450 | Main app: REST API, TCP device protocol, auth |
-| Database Schema | `server/db.js` | ~207 | SQLite tables, indexes, defaults |
-| Scheduler | `server/scheduler.js` | ~180 | Aggregate irawdata, send to RMTO |
+| Database Schema | `server/db.js` | ~220 | SQLite tables, indexes, defaults (incl. users table) |
+| Scheduler | `server/scheduler.js` | ~255 | Aggregate irawdata, send to RMTO, offline detection |
 | RMTO Client | `server/rmto-client.js` | ~150 | SOAP client for RMTO web service |
-| Frontend | `js/app.js` | ~600 | Dashboard, device mgmt, reports |
+| Frontend | `js/app.js` | ~800 | Dashboard, device mgmt, mehvar mgmt, TCP panel |
 | Deploy Script | `server/deploy-part1-server.sh` | ~350 | Server deployment (has embedded code) |
-| Patch 1 | `patch.js` | ~116 | TCP terminator, poll timing fixes |
-| Patch 2 | `patch2.js` | ~184 | NaN dates, clock drift, deferred polling |
+| Patch 1 (applied) | `patch.js` | ~116 | TCP terminator, poll timing fixes — already in index.js |
+| Patch 2 (applied) | `patch2.js` | ~184 | NaN dates, clock drift, deferred polling — already in index.js |
 
 ---
 
@@ -212,14 +212,14 @@ function formatTime(iso) {
 
 ## Applied Patches History
 
-### patch.js (v1)
+### patch.js (v1) — ✅ Applied to server/index.js
 - Fix 0: Added `\r\n` terminator to TCP commands
 - Fix 1: Call `startDataRequests` (not `startPeriodicPoll`) after TIME_SYNC ACK
 - Fix 2: Request COMPLETED interval (now-5min), not current
 - Fix 3a: Added `toLocalISOString()` to scheduler
 - Fix 3b: Scheduler uses local time in DB queries
 
-### patch2.js (v2)
+### patch2.js (v2) — ✅ Applied to server/index.js
 - Fix A: Added `deviceClockDrift` tracking variable
 - Fix B: Added `deferDataRequest` field to `pendingSyncs`
 - Fix C: Detect invalid dates (month=26) in handshake
@@ -230,9 +230,17 @@ function formatTime(iso) {
 - Fix H: TIME_SYNC ACK triggers deferred polling
 - Fix I: Log shows `(timestamp corrected)` flag
 
-### Inline Fix (2026-02-21)
+### Inline Fix (2026-02-21) — ✅ Applied
 - Changed ALL `datetime('now')` to `datetime('now','localtime')` across all files
 - Added NaN date pre-check in 8821 handler (was missing from patch2 Fix G)
+
+### Bug Fixes (2026-02-22) — ✅ Applied & Production DB Migrated
+- **Fix 1:** `/api/stats` used `toISOString()` (UTC) for irawdata query → replaced with local time string
+- **Fix 2:** HTTP devices never went offline → `checkOfflineDevices()` added to scheduler (runs every 1 min)
+- **Fix 3:** Duplicate irawdata records on TCP reconnect → `UNIQUE INDEX idx_irawdata_unique` added to db.js; all `INSERT INTO irawdata` changed to `INSERT OR IGNORE`; **production DB migration (delete duplicates) completed ✅**
+- **Fix 4:** No UI for mehvar management → added «محورها» nav + view + CRUD to index.html and app.js
+- **Fix 5:** TCP connected devices not shown → added «اتصالات TCP فعال» panel to dashboard with sync/poll buttons
+- **Fix 6:** `users` table defined in `initAdmin()` → moved to db.js schema
 
 ---
 
@@ -279,6 +287,13 @@ function formatTime(iso) {
 | `formatTime(iso)` | 17 | Format ISO date to `YYYY/MM/DD HH:mm` |
 | `escapeHtml(str)` | 10 | XSS prevention for dynamic content |
 | `api(method, url, body, cb)` | 29 | XHR wrapper for API calls |
+| `loadDashboard()` | ~175 | Load stats + device table + TCP panel |
+| `loadTcpConnected()` | ~205 | Load active TCP connections from `/api/tcp/connected` |
+| `loadDevices()` | ~293 | Device management table with CRUD |
+| `loadReception()` | ~470 | irawdata table with pagination |
+| `loadRMTO()` | ~526 | RMTO queue and send log |
+| `loadMehvar()` | ~618 | Mehvar (routes) table with add/delete |
+| `loadSettings()` | ~740 | Settings form (general + RMTO + password + backup) |
 
 ---
 

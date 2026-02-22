@@ -1,6 +1,15 @@
 /**
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
+ *
+ * FIXES in this version (improvements/server/db.js):
+ *   - Fix 3: Added UNIQUE INDEX on irawdata(device_code, create_at, stop, lane)
+ *             to prevent duplicate interval records when devices reconnect and
+ *             re-send the same data.
+ *   - users table moved here from initAdmin() in index.js for consistency.
+ *
+ * NOTE: For existing databases, run the migration script in improvements/ISSUES.md
+ *       before deploying this file.
  */
 var Database = require("better-sqlite3");
 var path = require("path");
@@ -27,7 +36,7 @@ db.exec([
     "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
-    // Users for authentication (admin login)
+    // Users for authentication (FIX: moved here from initAdmin in index.js)
     "CREATE TABLE IF NOT EXISTS users (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
     "  username TEXT NOT NULL UNIQUE,",
@@ -183,7 +192,10 @@ db.exec([
     "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
     "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
     "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
-    // Prevent duplicate interval records when a TCP device reconnects and re-sends the same interval
+
+    // FIX 3: UNIQUE INDEX to prevent duplicate interval records
+    // When a TCP device reconnects it may re-send the same intervals.
+    // With this index, INSERT OR IGNORE will skip duplicates instead of creating them.
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_irawdata_unique ON irawdata(device_code, create_at, stop, lane);",
 
     // Settings (key-value store)

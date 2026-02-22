@@ -4,6 +4,13 @@
  * - Backup / Restore
  * - Receives data from 100+ devices
  * - Aggregates and sends to RMTO via SOAP
+ *
+ * @version 2026-02-22-v2
+ * @fixes Fix1(stats-localtime) Fix2(offline-detect) Fix3(irawdata-dedup)
+ *        Fix4(mehvar-ui) Fix5(tcp-panel) Fix6(users-table)
+ *        Fix8(stop=create+5min) Fix9(tcp-connected-api)
+ *        Fix10(0012-yyMMddHHmmss) Fix11(one-cmd-per-conn)
+ *        Fix12(syntax-braces) Fix13(uncaughtException)
  */
 require("dotenv").config();
 
@@ -30,17 +37,6 @@ var ADMIN_PASS_HASH = null;
 
 // Initialize admin password
 (function initAdmin() {
-    // Check if users table exists
-    db.exec([
-        "CREATE TABLE IF NOT EXISTS users (",
-        "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-        "  username TEXT NOT NULL UNIQUE,",
-        "  password_hash TEXT NOT NULL,",
-        "  role TEXT DEFAULT 'admin',",
-        "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-        ");"
-    ].join("\n"));
-
     var admin = db.prepare("SELECT * FROM users WHERE username = ?").get(ADMIN_USER);
     if (!admin) {
         var defaultPass = process.env.ADMIN_PASS || "admin123";
@@ -196,7 +192,7 @@ app.post("/api/irawdata", function (req, res) {
     autoRegisterDevice(code);
 
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertTraffic = db.prepare(
@@ -349,8 +345,12 @@ app.get("/api/stats", function (req, res) {
     var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
     var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
     var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    // Use local time format (irawdata.create_at is stored as local time, not UTC)
+    var todayStartStr = todayStart.getFullYear() + "-" +
+        String(todayStart.getMonth() + 1).padStart(2, "0") + "-" +
+        String(todayStart.getDate()).padStart(2, "0") + "T00:00:00";
     // Count today's vehicles from irawdata (where TCP/HTTP device data is stored)
-    var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e+x), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStart.toISOString());
+    var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e+x), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStartStr);
     var todayVehicles = (todayIraw && todayIraw.c) || 0;
     var unsentCount = db.prepare("SELECT COUNT(*) as c FROM rmto_queue WHERE sent = 0").get().c;
     var unsent5Count = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0").get().c;
@@ -464,7 +464,7 @@ function importPostgresDump(filePath) {
 
     var insertDevice = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'offline')");
     var insertIraw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertMehvar = db.prepare("INSERT OR IGNORE INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)");
@@ -694,6 +694,20 @@ function parseRATCX1Interval(intervalStr) {
 
 /** Convert RATCX1 parsed interval to irawdata rows (one per lane) */
 function ratcx1ToIrawdata(parsed) {
+    // Calculate stop time = create_at + 5 minutes (each interval is a 5-min window)
+    var createDate = new Date(parsed.create_at);
+    var stopDate = new Date(createDate.getTime() + 5 * 60 * 1000);
+    var stopStr;
+    if (isNaN(stopDate.getTime())) {
+        stopStr = parsed.create_at; // fallback: same as create_at
+    } else {
+        stopStr = stopDate.getFullYear() + "-" +
+            String(stopDate.getMonth() + 1).padStart(2, "0") + "-" +
+            String(stopDate.getDate()).padStart(2, "0") + "T" +
+            String(stopDate.getHours()).padStart(2, "0") + ":" +
+            String(stopDate.getMinutes()).padStart(2, "0") + ":00";
+    }
+
     var rows = [];
     [{ lane: 1, data: parsed.lane1 }, { lane: 2, data: parsed.lane2 }].forEach(function (l) {
         var d = l.data;
@@ -702,7 +716,7 @@ function ratcx1ToIrawdata(parsed) {
         rows.push({
             device_code: parsed.device_code,
             create_at: parsed.create_at,
-            stop: parsed.create_at,
+            stop: stopStr,
             lane: l.lane,
             a: d.a.count, b: d.b.count, c: d.c.count, d: d.d.count, e: d.e.count, x: d.x.count,
             sa: d.a.avgSpeed * d.a.count, sb: d.b.avgSpeed * d.b.count,
@@ -815,18 +829,25 @@ function formatPollTimestamp(date) {
 }
 
 /**
- * Format date for time sync command "0012" (verbose: YYYY.MM.DD-HH:MM:SS.0).
- * RATCX1 firmware (SW:JA11) expects this verbose format - NOT compact yyMMddHHmmss.
- * The original C# server used compact format for an older firmware version.
+ * Format date for time sync command "0012".
+ * Firmware (DS1305_Lib.h rtc_write) reads uart2_data[4..15] as yyMMddHHmmss:
+ *   [4-5]  = year  (2 digits, e.g. "26" for 2026)
+ *   [6-7]  = month (2 digits)
+ *   [8-9]  = day   (2 digits)
+ *   [10-11]= hour  (2 digits)
+ *   [12-13]= minute(2 digits)
+ *   [14-15]= second(2 digits)
+ * C# original: DateTime.Now.ToString("yyMMddHHmmss")
+ * NOT the verbose "YYYY.MM.DD-HH:MM:SS.0" format (that is what the device sends OUT).
  */
 function formatDeviceDatetime(date) {
-    var y = date.getFullYear();
+    var yy = String(date.getFullYear()).substring(2); // last 2 digits of year
     var mo = String(date.getMonth() + 1).padStart(2, "0");
     var dy = String(date.getDate()).padStart(2, "0");
-    var h = String(date.getHours()).padStart(2, "0");
-    var m = String(date.getMinutes()).padStart(2, "0");
-    var s = String(date.getSeconds()).padStart(2, "0");
-    return y + "." + mo + "." + dy + "-" + h + ":" + m + ":" + s + ".0";
+    var h  = String(date.getHours()).padStart(2, "0");
+    var m  = String(date.getMinutes()).padStart(2, "0");
+    var s  = String(date.getSeconds()).padStart(2, "0");
+    return yy + mo + dy + h + m + s;  // 12 chars: yyMMddHHmmss
 }
 
 /**
@@ -849,7 +870,8 @@ function sendToDevice(deviceCode, socket, cmd, label) {
 
 /**
  * Send time sync "0012" command to device.
- * Format: "0012YYYY.MM.DD-HH:MM:SS.0" (4+21 = 25 bytes) - matches RATCX1 JA11 firmware
+ * Format: "0012yyMMddHHmmss" (4+12 = 16 bytes before CRLF)
+ * Firmware reads uart2_data[4..15] as: year(2),month(2),day(2),hour(2),min(2),sec(2)
  */
 function syncDeviceTime(deviceCode, socket) {
     var now = new Date();
@@ -871,15 +893,10 @@ function syncDeviceTime(deviceCode, socket) {
             console.log("[TCP] TIME_SYNC ACK not received for " + deviceCode + ", retry " + pendingSyncs[deviceCode].retries + "/3");
             syncDeviceTime(deviceCode, socket);
         } else {
-            console.log("[TCP] TIME_SYNC failed for " + deviceCode + " after 3 retries");
-            // Fallback: if data polling was deferred due to large drift, start it anyway
-            // so the device doesn't stay stuck without polling
-            var failedSync = pendingSyncs[deviceCode];
-            if (failedSync && failedSync.deferDataRequest && failedSync.socket && !failedSync.socket.destroyed) {
-                console.log("[TCP] Starting deferred polling for " + deviceCode + " despite TIME_SYNC failure (fallback)");
-                addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: "", device: deviceCode, detail: "تنظیم ساعت ناموفق - شروع پولینگ بدون تنظیم ساعت" });
-                startDataRequests(deviceCode, failedSync.socket);
-            }
+            console.log("[TCP] TIME_SYNC failed for " + deviceCode + " after 3 retries — next connection will retry");
+            // Do NOT call startDataRequests here: the socket is likely destroyed
+            // (device CIPSHUTs after each command).  The next 8000 connection will
+            // call startDevicePoll which will retry 0012 if drift is still large.
             delete pendingSyncs[deviceCode];
         }
     }, 10000); // Wait 10 seconds for ACK
@@ -889,85 +906,64 @@ function syncDeviceTime(deviceCode, socket) {
 
 /**
  * Start polling device for interval data after handshake.
- * Sequence:
- *   1. Send time sync (1s after handshake)
- *   2. Send time sync again (4s after first - redundancy)
- *   3a. If clock drift <= 5 min: request last 15min of data (normal)
- *   3b. If clock drift > 5 min: defer data request until TIME_SYNC ACK
- *   4. Start periodic polling every 5 minutes
+ *
+ * PROTOCOL NOTE: The RATCX1 firmware (UART2 47-byte buffer) processes
+ * exactly ONE command per TCP connection. After receiving a command and
+ * sending its ACK (8012 or 8821), the device immediately does CIPSHUT.
+ * Any second command sent in the same connection will overflow the UART2
+ * buffer during the modem's CIPSEND and the device gets stuck waiting for
+ * "SEND OK" that never comes.  Therefore:
+ *   - Send ONLY ONE command per connection.
+ *   - If drift > 5 min: send 0012 only. The NEXT 8000 connection will
+ *     naturally send 0197 (since drift will then be small).
+ *   - If drift small: send ONE 0197 for the last completed interval.
  */
 function startDevicePoll(deviceCode, socket) {
     var drift = deviceClockDrift[deviceCode] || 0;
     var largeDrift = drift > 5; // more than 5 minutes drift
-    console.log("[TCP] ====== Starting poll sequence for device " + deviceCode + " (drift=" + drift + "min, largeDrift=" + largeDrift + ") ======");
+    console.log("[TCP] ====== Starting poll for device " + deviceCode + " (drift=" + drift + "min) ======");
 
-    // Step 1: First time sync (1 second after handshake)
+    // Send exactly ONE command 1 second after handshake
     setTimeout(function () {
         if (socket.destroyed) return;
-        syncDeviceTime(deviceCode, socket);
-
-        // If large drift, mark that we should defer data requests until ACK
-        if (largeDrift && pendingSyncs[deviceCode]) {
-            pendingSyncs[deviceCode].deferDataRequest = true;
-            pendingSyncs[deviceCode].socket = socket;
-            console.log("[TCP] Device " + deviceCode + ": اختلاف ساعت زیاد (" + drift + " دقیقه) - درخواست داده تا تایید سینک به تعویق افتاد");
-            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: "", device: deviceCode, detail: "اختلاف ساعت " + drift + " دقیقه - منتظر تنظیم ساعت قبل از درخواست داده" });
-        }
-
-        // Step 2: Second time sync (3 seconds later, for redundancy)
-        setTimeout(function () {
-            if (socket.destroyed) return;
+        if (largeDrift) {
+            // Clock badly wrong: send 0012 ONLY. Next connection handles data.
             syncDeviceTime(deviceCode, socket);
-
-            // Preserve deferDataRequest flag on the new pendingSync entry
-            if (largeDrift && pendingSyncs[deviceCode]) {
-                pendingSyncs[deviceCode].deferDataRequest = true;
+            if (pendingSyncs[deviceCode]) {
+                pendingSyncs[deviceCode].deferDataRequest = false; // no data request after 8012
                 pendingSyncs[deviceCode].socket = socket;
             }
-
-            // Step 3: Only request old data if clock drift was small
-            if (!largeDrift) {
-                setTimeout(function () {
-                    if (socket.destroyed) return;
-                    startDataRequests(deviceCode, socket);
-                }, 5000);
-            } else {
-                console.log("[TCP] Device " + deviceCode + ": skipping old data request (drift=" + drift + "min) - waiting for TIME_SYNC ACK to start polling");
-            }
-        }, 3000);
+            console.log("[TCP] Device " + deviceCode + ": drift=" + drift + "min \u2014 sent 0012 only; next connection will poll data");
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: "", device: deviceCode, detail: "\u0627\u062e\u062a\u0644\u0627\u0641 \u0633\u0627\u0639\u062a " + drift + " \u062f\u0642\u06cc\u0642\u0647 \u2014 \u0641\u0642\u0637 \u062f\u0633\u062a\u0648\u0631 \u062a\u0646\u0638\u06cc\u0645 \u0633\u0627\u0639\u062a \u0627\u0631\u0633\u0627\u0644 \u0634\u062f" });
+        } else {
+            // Clock OK (or small drift): send ONE 0197 for last completed interval
+            startDataRequests(deviceCode, socket);
+        }
     }, 1000);
 }
 
 /**
- * Request recent interval data from device using "0197" command.
- * Requests last 3 completed 5-minute intervals, then starts periodic polling.
+ * Send ONE 0197 data request for the last completed 5-minute interval.
+ *
+ * PROTOCOL NOTE: The RATCX1 firmware processes exactly ONE command per TCP
+ * connection (47-byte UART2 buffer; device CIPSHUTs after sending its ACK).
+ * Sending more than one command causes the device to get stuck waiting for
+ * "SEND OK" from the modem while extra bytes overflow the buffer.
+ * Therefore we send ONLY ONE 0197 per connection.  On the NEXT 8000
+ * connection, startDevicePoll calls us again to get the next interval.
  */
 function startDataRequests(deviceCode, socket) {
+    if (socket.destroyed) return;
+
+    // Request the last COMPLETED 5-minute interval (current - 5 min)
     var now = new Date();
-    var requests = [];
-    for (var i = 0; i < 3; i++) {
-        var t = new Date(now.getTime() - i * 5 * 60 * 1000);
-        t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
-        requests.push(formatPollTimestamp(t));
-    }
-    requests.reverse(); // oldest first
+    var t = new Date(now.getTime() - 5 * 60 * 1000);
+    t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
+    var ts = formatPollTimestamp(t);
 
-    console.log("[TCP] Requesting " + requests.length + " intervals from device " + deviceCode + ": " + requests.join(", "));
-
-    var idx = 0;
-    function sendNextRequest() {
-        if (socket.destroyed || idx >= requests.length) {
-            // Done catching up, start periodic polling
-            startPeriodicPoll(deviceCode, socket);
-            return;
-        }
-        var cmd = "0197" + requests[idx];
-        sendToDevice(deviceCode, socket, cmd, "DATA_REQ[" + (idx + 1) + "/" + requests.length + "]");
-        idx++;
-        setTimeout(sendNextRequest, 5000); // 5 seconds between requests (device needs time)
-    }
-
-    sendNextRequest();
+    var cmd = "0197" + ts;
+    sendToDevice(deviceCode, socket, cmd, "DATA_REQ");
+    console.log("[TCP] Sent single 0197 for device " + deviceCode + " interval " + ts);
 }
 
 /**
@@ -1026,6 +1022,7 @@ var tcpServer = net.createServer(function (socket) {
                 deviceId = newId;
                 pollStarted = true;
                 connectedDevices[deviceId] = socket;
+                socket._connectedAt = new Date().toISOString();
                 console.log("[TCP] Device " + deviceId + " registered for commands");
                 startDevicePoll(deviceId, socket);
             }
@@ -1137,7 +1134,7 @@ var tcpServer = net.createServer(function (socket) {
 
 function storeIrawdata(parsed) {
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     insertRaw.run(
@@ -1316,33 +1313,27 @@ function processRawData(raw, ip) {
             }
         }
 
-        // Check if we need to start deferred data polling after large drift
-        var shouldStartPoll = false;
-        var deferredSocket = null;
+        // Clean up pending sync and clear drift.
+        // Do NOT call startDataRequests here: the device is about to CIPSHUT
+        // (it sends 8012 ACK immediately before disconnecting).  Any 0197
+        // written now would overflow the device's 47-byte UART2 buffer while
+        // it is in the middle of the CIPSEND handshake, causing it to get
+        // stuck.  The NEXT 8000 connection will call startDevicePoll which
+        // will now see drift≈0 and send a single 0197.
         if (pendingSyncs[sid]) {
-            if (pendingSyncs[sid].deferDataRequest) {
-                shouldStartPoll = true;
-                deferredSocket = pendingSyncs[sid].socket;
-                if (syncVerified) {
-                    console.log("[TCP]   TIME_SYNC confirmed for " + sid + " - starting deferred periodic polling (clock was out of sync)");
-                    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد - شروع دریافت داده‌های جدید" });
-                } else {
-                    console.log("[TCP]   TIME_SYNC ACK received for " + sid + " but clock not verified - starting polling anyway (data timestamps from server)");
-                    addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم نشد ولی پولینگ شروع می‌شود (تاریخ از سرور)" });
-                }
-            } else {
-                console.log("[TCP]   TIME_SYNC confirmed for " + sid + (syncVerified ? "" : " (clock not verified)"));
-            }
             clearTimeout(pendingSyncs[sid].timer);
             delete pendingSyncs[sid];
         }
 
-        // Clear drift tracking after successful sync (even if not verified - data timestamps come from server)
+        // Clear drift so next 8000 connection takes the "normal data poll" path
         delete deviceClockDrift[sid];
 
-        // Start data requests + periodic polling if it was deferred due to large clock drift
-        if (shouldStartPoll && deferredSocket && !deferredSocket.destroyed) {
-            startDataRequests(sid, deferredSocket);
+        if (syncVerified) {
+            console.log("[TCP]   TIME_SYNC verified for " + sid + " - next connection will poll data");
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "ساعت تنظیم شد ✓ — اتصال بعدی داده دریافت می‌کند" });
+        } else {
+            console.log("[TCP]   TIME_SYNC ACK received for " + sid + " (clock not verified) - next connection will poll data");
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "پاسخ تنظیم ساعت دریافت شد — اتصال بعدی داده دریافت می‌کند" });
         }
 
         addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: sid, detail: "پاسخ تنظیم ساعت: " + dt + (syncVerified ? " ✓" : " (تنظیم نشد)") });
@@ -1388,11 +1379,14 @@ function processRawData(raw, ip) {
 
 // API: Connected devices list & send command
 app.get("/api/tcp/connected", requireAuth, function (req, res) {
-    var devices = Object.keys(connectedDevices).map(function (id) {
+    var result = {};
+    Object.keys(connectedDevices).forEach(function (id) {
         var s = connectedDevices[id];
-        return { device_code: id, ip: s.remoteAddress || "", connected: !s.destroyed };
-    }).filter(function (d) { return d.connected; });
-    res.json(devices);
+        if (!s.destroyed) {
+            result[id] = { ip: s.remoteAddress || "", connectedAt: s._connectedAt || null };
+        }
+    });
+    res.json(result);
 });
 
 // API: Manually trigger time sync for a connected device
@@ -1434,17 +1428,42 @@ tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
 });
 
+var _tcpRetries = 0;
+var TCP_MAX_RETRIES = 10;
 tcpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
-        console.error("[TCP] Port " + TCP_PORT + " already in use, will retry in 5s");
-        setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
+        _tcpRetries++;
+        if (_tcpRetries > TCP_MAX_RETRIES) {
+            console.error("[TCP] Port " + TCP_PORT + " still in use after " + TCP_MAX_RETRIES + " retries — exiting so PM2 can restart cleanly");
+            process.exit(1);
+        }
+        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + _tcpRetries + "/" + TCP_MAX_RETRIES + " in 5s");
+        setTimeout(function () {
+            tcpServer.close(function () {
+                tcpServer.listen(TCP_PORT, "0.0.0.0");
+            });
+        }, 5000);
     }
+});
+
+// ============================================================
+// Global Error Handlers — prevent process crash on unexpected errors
+// ============================================================
+process.on("uncaughtException", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[FATAL] Port already in use (" + (err.port || "unknown") + ") — exiting for clean PM2 restart");
+        process.exit(1);
+    }
+    console.error("[FATAL] Uncaught exception (server kept running):", err.message, err.stack || "");
+});
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled promise rejection (server kept running):", reason);
 });
 
 // ============================================================
 // Start HTTP Server
 // ============================================================
-app.listen(PORT, HOST, function () {
+var httpServer = app.listen(PORT, HOST, function () {
     console.log("============================================");
     console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
     console.log("  HTTP: http://" + HOST + ":" + PORT);
@@ -1457,4 +1476,11 @@ app.listen(PORT, HOST, function () {
     });
 
     scheduler.start();
+});
+httpServer.on("error", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[HTTP] Port " + PORT + " already in use — exiting for clean PM2 restart");
+        process.exit(1);
+    }
+    throw err;
 });
