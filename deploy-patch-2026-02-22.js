@@ -46,6 +46,32 @@ function patch(label, filePath, findStr, replaceStr) {
     ok++;
 }
 
+// Regex-based patch: matches even if whitespace/comments differ slightly
+function patchRegex(label, filePath, findRe, skipStr, replaceStr) {
+    var abs = path.join(ROOT, filePath);
+    if (!fs.existsSync(abs)) {
+        console.log("[SKIP] " + label + " — file not found: " + abs);
+        skip++;
+        return;
+    }
+    var src = fs.readFileSync(abs, "utf8");
+    if (skipStr && src.indexOf(skipStr) !== -1) {
+        console.log("[SKIP] " + label + " — already applied");
+        skip++;
+        return;
+    }
+    if (!findRe.test(src)) {
+        console.log("[SKIP] " + label + " — pattern not present (already removed or different version)");
+        skip++;
+        return;
+    }
+    fs.writeFileSync(abs + ".patch22.bak", src);
+    var result = src.replace(findRe, replaceStr);
+    fs.writeFileSync(abs, result);
+    console.log("[OK]   " + label);
+    ok++;
+}
+
 // ============================================================
 // FIX 1 — server/index.js: آمار تردد امروز با زمان UTC اشتباه
 // ============================================================
@@ -70,12 +96,17 @@ patch(
 
 // ============================================================
 // FIX 6a — server/index.js: حذف CREATE TABLE users از initAdmin
+// Uses regex to handle slight formatting differences between server versions
 // ============================================================
-patch(
+patchRegex(
     "Fix6a: remove CREATE TABLE users from initAdmin",
     "server/index.js",
-    "(function initAdmin() {\n    // Check if users table exists\n    db.exec([\n        \"CREATE TABLE IF NOT EXISTS users (\",\n        \"  id INTEGER PRIMARY KEY AUTOINCREMENT,\",\n        \"  username TEXT NOT NULL UNIQUE,\",\n        \"  password_hash TEXT NOT NULL,\",\n        \"  role TEXT DEFAULT 'admin',\",\n        \"  created_at TEXT DEFAULT (datetime('now','localtime'))\",\n        \");\"\n    ].join(\"\\n\"));\n\n    var admin = db.prepare(\"SELECT * FROM users WHERE username = ?\").get(ADMIN_USER);",
-    "(function initAdmin() {\n    var admin = db.prepare(\"SELECT * FROM users WHERE username = ?\").get(ADMIN_USER);"
+    // Matches the CREATE TABLE users block inside initAdmin, with any whitespace
+    /\/\/ Check if users table exists\s*\n\s*db\.exec\(\[[\s\S]*?"CREATE TABLE IF NOT EXISTS users \("[\s\S]*?\]\.join\("\\n"\)\);\s*\n/,
+    // skip marker — if this is already gone, skip
+    null,
+    // replace with nothing (removes the block entirely)
+    ""
 );
 
 // ============================================================
