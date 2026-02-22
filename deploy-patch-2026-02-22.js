@@ -213,6 +213,43 @@ patch(
 );
 
 // ============================================================
+// FIX 7 — server/index.js: startDataRequests از بازه in-progress می‌خواست
+// ============================================================
+patch(
+    "Fix7: startDataRequests only requests completed intervals",
+    "server/index.js",
+    "    for (var i = 0; i < 3; i++) {\n        var t = new Date(now.getTime() - i * 5 * 60 * 1000);\n        t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);\n        requests.push(formatPollTimestamp(t));\n    }",
+    "    for (var i = 1; i <= 3; i++) {\n        var t = new Date(now.getTime() - i * 5 * 60 * 1000);\n        t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);\n        requests.push(formatPollTimestamp(t));\n    }"
+);
+
+// ============================================================
+// FIX 8 — server/index.js: ratcx1ToIrawdata مقدار stop اشتباه بود
+// ============================================================
+patch(
+    "Fix8: ratcx1ToIrawdata set stop = create_at + 5min",
+    "server/index.js",
+    "/** Convert RATCX1 parsed interval to irawdata rows (one per lane) */\nfunction ratcx1ToIrawdata(parsed) {\n    var rows = [];\n    [{ lane: 1, data: parsed.lane1 }, { lane: 2, data: parsed.lane2 }].forEach(function (l) {\n        var d = l.data;\n        var totalCount = d.a.count + d.b.count + d.c.count + d.d.count + d.e.count + d.x.count;\n        if (totalCount === 0) return; // skip empty lane\n        rows.push({\n            device_code: parsed.device_code,\n            create_at: parsed.create_at,\n            stop: parsed.create_at,\n            lane: l.lane,",
+    "/** Convert RATCX1 parsed interval to irawdata rows (one per lane) */\nfunction ratcx1ToIrawdata(parsed) {\n    // Calculate stop time = create_at + 5 minutes (each interval is a 5-min window)\n    var createDate = new Date(parsed.create_at);\n    var stopDate = new Date(createDate.getTime() + 5 * 60 * 1000);\n    var stopStr;\n    if (isNaN(stopDate.getTime())) {\n        stopStr = parsed.create_at; // fallback: same as create_at\n    } else {\n        stopStr = stopDate.getFullYear() + \"-\" +\n            String(stopDate.getMonth() + 1).padStart(2, \"0\") + \"-\" +\n            String(stopDate.getDate()).padStart(2, \"0\") + \"T\" +\n            String(stopDate.getHours()).padStart(2, \"0\") + \":\" +\n            String(stopDate.getMinutes()).padStart(2, \"0\") + \":00\";\n    }\n\n    var rows = [];\n    [{ lane: 1, data: parsed.lane1 }, { lane: 2, data: parsed.lane2 }].forEach(function (l) {\n        var d = l.data;\n        var totalCount = d.a.count + d.b.count + d.c.count + d.d.count + d.e.count + d.x.count;\n        if (totalCount === 0) return; // skip empty lane\n        rows.push({\n            device_code: parsed.device_code,\n            create_at: parsed.create_at,\n            stop: stopStr,\n            lane: l.lane,"
+);
+
+// ============================================================
+// FIX 9 — server/index.js: TCP connected API + connectedAt tracking
+// ============================================================
+patch(
+    "Fix9: store connectedAt on socket",
+    "server/index.js",
+    "                connectedDevices[deviceId] = socket;\n                console.log(\"[TCP] Device \" + deviceId + \" registered for commands\");",
+    "                connectedDevices[deviceId] = socket;\n                socket._connectedAt = new Date().toISOString();\n                console.log(\"[TCP] Device \" + deviceId + \" registered for commands\");"
+);
+
+patch(
+    "Fix9: /api/tcp/connected returns object keyed by device code",
+    "server/index.js",
+    "// API: Connected devices list & send command\napp.get(\"/api/tcp/connected\", requireAuth, function (req, res) {\n    var devices = Object.keys(connectedDevices).map(function (id) {\n        var s = connectedDevices[id];\n        return { device_code: id, ip: s.remoteAddress || \"\", connected: !s.destroyed };\n    }).filter(function (d) { return d.connected; });\n    res.json(devices);\n});",
+    "// API: Connected devices list & send command\napp.get(\"/api/tcp/connected\", requireAuth, function (req, res) {\n    var result = {};\n    Object.keys(connectedDevices).forEach(function (id) {\n        var s = connectedDevices[id];\n        if (!s.destroyed) {\n            result[id] = { ip: s.remoteAddress || \"\", connectedAt: s._connectedAt || null };\n        }\n    });\n    res.json(result);\n});"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

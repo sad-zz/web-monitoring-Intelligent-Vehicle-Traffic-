@@ -687,6 +687,20 @@ function parseRATCX1Interval(intervalStr) {
 
 /** Convert RATCX1 parsed interval to irawdata rows (one per lane) */
 function ratcx1ToIrawdata(parsed) {
+    // Calculate stop time = create_at + 5 minutes (each interval is a 5-min window)
+    var createDate = new Date(parsed.create_at);
+    var stopDate = new Date(createDate.getTime() + 5 * 60 * 1000);
+    var stopStr;
+    if (isNaN(stopDate.getTime())) {
+        stopStr = parsed.create_at; // fallback: same as create_at
+    } else {
+        stopStr = stopDate.getFullYear() + "-" +
+            String(stopDate.getMonth() + 1).padStart(2, "0") + "-" +
+            String(stopDate.getDate()).padStart(2, "0") + "T" +
+            String(stopDate.getHours()).padStart(2, "0") + ":" +
+            String(stopDate.getMinutes()).padStart(2, "0") + ":00";
+    }
+
     var rows = [];
     [{ lane: 1, data: parsed.lane1 }, { lane: 2, data: parsed.lane2 }].forEach(function (l) {
         var d = l.data;
@@ -695,7 +709,7 @@ function ratcx1ToIrawdata(parsed) {
         rows.push({
             device_code: parsed.device_code,
             create_at: parsed.create_at,
-            stop: parsed.create_at,
+            stop: stopStr,
             lane: l.lane,
             a: d.a.count, b: d.b.count, c: d.c.count, d: d.d.count, e: d.e.count, x: d.x.count,
             sa: d.a.avgSpeed * d.a.count, sb: d.b.avgSpeed * d.b.count,
@@ -933,12 +947,14 @@ function startDevicePoll(deviceCode, socket) {
 
 /**
  * Request recent interval data from device using "0197" command.
- * Requests last 3 completed 5-minute intervals, then starts periodic polling.
+ * Requests last 3 COMPLETED 5-minute intervals, then starts periodic polling.
+ * Note: starts from i=1 (NOT i=0) so we never request the current in-progress
+ * interval — partial data would block the complete record via UNIQUE INDEX.
  */
 function startDataRequests(deviceCode, socket) {
     var now = new Date();
     var requests = [];
-    for (var i = 0; i < 3; i++) {
+    for (var i = 1; i <= 3; i++) {
         var t = new Date(now.getTime() - i * 5 * 60 * 1000);
         t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
         requests.push(formatPollTimestamp(t));
@@ -1019,6 +1035,7 @@ var tcpServer = net.createServer(function (socket) {
                 deviceId = newId;
                 pollStarted = true;
                 connectedDevices[deviceId] = socket;
+                socket._connectedAt = new Date().toISOString();
                 console.log("[TCP] Device " + deviceId + " registered for commands");
                 startDevicePoll(deviceId, socket);
             }
@@ -1381,11 +1398,14 @@ function processRawData(raw, ip) {
 
 // API: Connected devices list & send command
 app.get("/api/tcp/connected", requireAuth, function (req, res) {
-    var devices = Object.keys(connectedDevices).map(function (id) {
+    var result = {};
+    Object.keys(connectedDevices).forEach(function (id) {
         var s = connectedDevices[id];
-        return { device_code: id, ip: s.remoteAddress || "", connected: !s.destroyed };
-    }).filter(function (d) { return d.connected; });
-    res.json(devices);
+        if (!s.destroyed) {
+            result[id] = { ip: s.remoteAddress || "", connectedAt: s._connectedAt || null };
+        }
+    });
+    res.json(result);
 });
 
 // API: Manually trigger time sync for a connected device
