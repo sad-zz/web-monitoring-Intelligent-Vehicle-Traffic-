@@ -1,5 +1,34 @@
 # 🚀 خلاصه تغییرات برای رفع مشکل ارسال به RMTO
 
+## ⚠️ **توجه بسیار مهم - لطفاً ابتدا بخوانید!**
+
+همه دستورات باید در **دایرکتوری پروژه** اجرا شوند، نه در `/root/` یا دایرکتوری خانه!
+
+```bash
+# ❌ اشتباه - نباید از دایرکتوری خانه اجرا کنید
+root@server:~# node test-rmto.js
+Error: Cannot find module '/root/test-rmto.js'
+
+# ✅ صحیح - ابتدا به دایرکتوری پروژه بروید
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+./test-rmto-quick.sh
+```
+
+### 🎯 راه حل سریع
+
+```bash
+# 1. پیدا کردن دایرکتوری پروژه
+find / -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null | head -1
+
+# 2. رفتن به آن دایرکتوری
+cd /path/found/above
+
+# 3. اجرای تست
+./test-rmto-quick.sh
+```
+
+---
+
 ## ❓ مشکل اولیه
 
 کاربر گزارش داد که هنگام ارسال داده به API سازمان راهداری در آدرس:
@@ -165,11 +194,64 @@ POST /api/rmto/retry
 
 ## 🛠️ نحوه استفاده برای رفع مشکل
 
-### گام ۱: تنظیم اطلاعات احراز هویت
+### ⚡ روش ۱: اسکریپت تست سریع (آسان‌ترین روش)
 
 ```bash
+# گام 1: به دایرکتوری پروژه بروید
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# مثال: cd /home/user/projects/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# گام 2: اجرای اسکریپت تست سریع
+./test-rmto-quick.sh
+```
+
+این اسکریپت همه چیز را خودکار انجام می‌دهد:
+- ✅ فایل `.env` را می‌سازد
+- ✅ وابستگی‌ها را نصب می‌کند
+- ✅ تست را اجرا می‌کند
+- ✅ پیام‌های واضح برای خطاها
+
+---
+
+### 🔧 روش ۲: دستی (مرحله به مرحله)
+
+**⚠️ توجه مهم:** همه دستورات باید در دایرکتوری پروژه اجرا شوند!
+
+### گام ۱: رفتن به دایرکتوری پروژه
+
+```bash
+# به جای /root/ یا دایرکتوری خانه، به دایرکتوری پروژه بروید
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# مثال‌های واقعی:
+# cd /home/user/projects/web-monitoring-Intelligent-Vehicle-Traffic-
+# cd /var/www/web-monitoring-Intelligent-Vehicle-Traffic-
+# cd ~/projects/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# مطمئن شوید در دایرکتوری درست هستید
+pwd
+# خروجی باید چیزی شبیه به این باشد:
+# /home/user/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# بررسی کنید که پوشه server/ وجود دارد
+ls -la | grep server
+# باید ببینید: drwxr-xr-x ... server
+```
+
+### گام ۲: تنظیم اطلاعات احراز هویت
+
+```bash
+# حالا به پوشه server بروید
 cd server
+
+# مطمئن شوید در server/ هستید
+pwd
+# باید بگوید: .../web-monitoring-Intelligent-Vehicle-Traffic-/server
+
+# کپی کردن فایل نمونه
 cp .env.example .env
+
+# ویرایش فایل
 nano .env
 ```
 
@@ -180,9 +262,25 @@ RMTO_USERNAME=NOGSH
 RMTO_PASSWORD=your_actual_password_here
 ```
 
-### گام ۲: تست با اسکریپت
+**ذخیره و خروج:** `Ctrl+X` → `Y` → `Enter`
+
+### گام ۳: نصب وابستگی‌ها (اولین بار)
 
 ```bash
+# مطمئن شوید در server/ هستید
+pwd  # باید: .../server
+
+# نصب
+npm install
+```
+
+### گام ۴: تست با اسکریپت
+
+```bash
+# مطمئن شوید در server/ هستید
+pwd  # باید: .../server
+
+# اجرای تست
 node test-rmto.js
 ```
 

@@ -4,6 +4,36 @@
 
 ## 🚀 Quick Start
 
+### ⚠️ Important: Working Directory
+
+**All commands must be run from the project directory, not from `/root/` or your home directory!**
+
+```bash
+# ❌ Wrong - running from home directory
+cd ~
+./test-rmto-quick.sh   # Error: file not found
+
+# ✅ Correct - navigate to project directory first
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+./test-rmto-quick.sh   # Works!
+```
+
+### 🔧 RMTO Integration Quick Test
+
+```bash
+# Navigate to project directory
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# Run quick test script (handles everything automatically)
+./test-rmto-quick.sh
+```
+
+This script will:
+- Create `.env` file if needed
+- Install dependencies
+- Run connection test
+- Show clear error messages
+
 ### Login Credentials
 
 For static deployments (Vercel, Netlify, etc.):
