@@ -24,6 +24,14 @@ curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehi
 # curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
 ```
 
+## 🎯 مرحله بعد چیه؟ / What's Next?
+
+**بعد از دانلود موفق فایل:**
+**After successfully downloading the file:**
+
+👉 **بخوانید: `NEXT_STEPS.md`** ← راهنمای کامل گام به گام
+👉 **Read: `NEXT_STEPS.md`** ← Complete step-by-step guide
+
 ---
 
 ## ✅ گام 1: مطمئن شوید در دایرکتوری درست هستید
