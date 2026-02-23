@@ -2,6 +2,28 @@
 
 > Traffic Control Manager - Intelligent Vehicle Traffic Monitoring Dashboard
 
+## 🔐 Login Credentials / اطلاعات ورود
+
+### For Vercel Deployment (Static):
+
+**برای استقرار Vercel (استاتیک):**
+
+```
+نام کاربری / Username: admin
+رمز عبور / Password: admin1234
+```
+
+**URL:** https://web-monitoring-intelligent-vehicle-lime.vercel.app/
+
+**📖 راهنمای کامل / Complete Guide:** See `VERCEL_LOGIN_GUIDE.md`
+
+**⚠️ نکته مهم / Important Note:**
+- حروف کوچک (lowercase) استفاده کنید
+- فاصله اضافی نگذارید
+- اگر کار نکرد، cache browser را پاک کنید
+
+---
+
 ## 🚀 Quick Start
 
 ### ⚠️ Important: Working Directory
