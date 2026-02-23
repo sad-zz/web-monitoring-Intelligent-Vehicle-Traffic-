@@ -10,82 +10,121 @@ root@srv4702423536:~# node test-rmto.js
 Error: Cannot find module '/root/test-rmto.js'
 ```
 
+---
+
+## 🎯 اول: پروژه را پیدا کنید!
+
+### روش 1: جستجو با نام دایرکتوری
+
+```bash
+# جستجو در home directory
+find ~ -type d -name "*web-monitoring*" 2>/dev/null
+
+# جستجو در /opt (مکان رایج برای پروژه‌ها)
+find /opt -type d -name "*web-monitoring*" 2>/dev/null
+
+# جستجو در /var/www
+find /var/www -type d -name "*web-monitoring*" 2>/dev/null
+```
+
+### روش 2: جستجو با نام فایل مشخص
+
+```bash
+# جستجو برای index.html خاص این پروژه
+find / -name "index.html" -path "*/web-monitoring-Intelligent-Vehicle-Traffic-/*" 2>/dev/null | head -5
+
+# جستجو برای فایل server
+find / -type d -name "server" -path "*/web-monitoring-Intelligent-Vehicle-Traffic-/*" 2>/dev/null
+```
+
+### روش 3: بررسی مکان‌های رایج
+
+```bash
+# مکان‌های رایج در سرورهای لینوکس
+ls -la /opt/tc-manager/web-monitoring-Intelligent-Vehicle-Traffic-/
+ls -la /opt/web-monitoring-Intelligent-Vehicle-Traffic-/
+ls -la ~/web-monitoring-Intelligent-Vehicle-Traffic-/
+ls -la /var/www/web-monitoring-Intelligent-Vehicle-Traffic-/
+```
+
+**مثال خروجی موفق:**
+```bash
+root@srv:/opt# ls -la /opt/tc-manager/web-monitoring-Intelligent-Vehicle-Traffic-/
+drwxr-xr-x ... server/
+-rw-r--r-- ... index.html
+drwxr-xr-x ... css/
+drwxr-xr-x ... js/
+```
+
+**✅ پیدا شد! مسیر شما:** `/opt/tc-manager/web-monitoring-Intelligent-Vehicle-Traffic-/`
+
+---
+
 ## ✅ راه حل در 3 گام ساده
 
-### گام 1️⃣: پیدا کردن دایرکتوری پروژه
+### گام 1️⃣: رفتن به دایرکتوری پروژه
 
-**⚠️ مهم: مسیر واقعی پروژه را پیدا کنید، نه placeholder!**
-
-```bash
-# دستور 1: جستجوی پروژه در home directory شما
-find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
-
-# دستور 2: اگر نتیجه نداد، جستجو در کل سیستم (ممکن است طولانی باشد)
-find / -name "test-rmto-quick.sh" -type f 2>/dev/null | head -1
-
-# دستور 3: یا اگر یادتان هست پروژه را در کجا clone کردید:
-ls -d ~/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
-ls -d ~/projects/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
-ls -d /var/www/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
-```
-
-**خروجی مثال:**
-```
-/home/username/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
-```
-
-**مسیر دایرکتوری بدون نام فایل:**
-```
-/home/username/web-monitoring-Intelligent-Vehicle-Traffic-
-```
-
-### گام 2️⃣: رفتن به دایرکتوری پروژه
-
-**استفاده از مسیر واقعی که در گام 1 پیدا کردید:**
+**استفاده از مسیر واقعی که پیدا کردید:**
 
 ```bash
-# ❌ اشتباه - این placeholder است، کار نمی‌کند!
-cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# مثال: اگر پروژه در /opt/tc-manager است
+cd /opt/tc-manager/web-monitoring-Intelligent-Vehicle-Traffic-
 
-# ✅ صحیح - از مسیر واقعی استفاده کنید
-# مثال: اگر در گام 1 این را پیدا کردید:
-# /home/username/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
-# پس این دستور را بزنید:
-
-cd /home/username/web-monitoring-Intelligent-Vehicle-Traffic-
-
-# یا اگر در home directory خودتان است:
-cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
-```
-
-**بررسی که در دایرکتوری درست هستید:**
-
-```bash
-# این دستور را بزنید
+# بررسی که در جای درست هستید
 pwd
-
-# خروجی باید مسیر کامل پروژه باشد، مثلاً:
-# /home/username/web-monitoring-Intelligent-Vehicle-Traffic-
-
-# لیست فایل‌ها
 ls -la
 
-# باید این‌ها را ببینید:
+# باید ببینید:
 # drwxr-xr-x ... server/
-# -rwxr-xr-x ... test-rmto-quick.sh
-# -rw-r--r-- ... test-rmto.html
+# -rw-r--r-- ... index.html
 ```
 
-### گام 3️⃣: اجرای اسکریپت تست
+### گام 2️⃣: بررسی اسکریپت quick وجود دارد؟
 
 ```bash
-# حالا که در دایرکتوری درست هستید:
+# بررسی وجود اسکریپت
+ls -la test-rmto-quick.sh
+```
+
+**اگر وجود دارد:**
+```bash
 ./test-rmto-quick.sh
+# همین! اسکریپت همه کار را انجام می‌دهد
+```
 
-# اسکریپت سؤال می‌کند: Do you want to create .env file now? (y/n)
-# جواب دهید: y
+**اگر وجود ندارد (نسخه قدیمی):**
+به گام 3 بروید ⬇️
 
-# اگر درخواست رمز عبور کرد، رمز عبور RMTO را وارد کنید
+### گام 3️⃣: روش دستی (برای نسخه‌های بدون اسکریپت)
+
+```bash
+# A. رفتن به دایرکتوری server
+cd server
+
+# B. بررسی Node.js نصب است
+node --version
+# باید نسخه‌ای مثل v20.x.x ببینید
+
+# C. نصب وابستگی‌ها (اگر node_modules ندارید)
+npm install
+
+# D. تنظیم .env
+ls -la .env
+
+# اگر .env ندارید:
+cp .env.example .env
+nano .env
+# رمز عبور RMTO را در خط RMTO_PASSWORD وارد کنید
+# Ctrl+X → Y → Enter برای ذخیره
+
+# E. تست اتصال
+# اگر test-rmto.js دارید:
+node test-rmto.js
+
+# اگر test-rmto.js ندارید:
+# مستقیماً سرور را راه‌اندازی کنید:
+npm start
+# بروید به: http://YOUR_SERVER_IP:3000/test-rmto.html
 ```
 
 ---
