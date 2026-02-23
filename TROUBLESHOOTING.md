@@ -17,24 +17,32 @@ Error: Cannot find module '/root/test-rmto.js'
 #### گام 1: پیدا کردن دایرکتوری پروژه
 
 ```bash
-# روش 1: جستجو در کل سیستم
-find / -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null | head -1
+# روش 1: جستجو با نام فایل اسکریپت
+find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
 
-# روش 2: جستجو در home directory
-find ~ -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d
+# روش 2: جستجو با نام دایرکتوری
+find ~ -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null
 
-# روش 3: جستجو در /var/www
-find /var/www -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d
+# روش 3: جستجو در مسیرهای رایج
+ls -d ~/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
+ls -d ~/projects/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
+ls -d /var/www/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
 
-# روش 4: اگر با git clone کرده‌اید
+# روش 4: اگر با git clone کرده‌اید، معمولاً در home است
 cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
 ```
 
 #### گام 2: رفتن به دایرکتوری پروژه
 
 ```bash
-# مثال: اگر پروژه در /home/user/projects/ است
-cd /home/user/projects/web-monitoring-Intelligent-Vehicle-Traffic-
+# فرض کنید در گام 1 این مسیر را پیدا کردید:
+# /home/username/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
+
+# دایرکتوری بدون نام فایل:
+cd /home/username/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# یا اگر در home directory است:
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
 
 # بررسی کنید که در دایرکتوری درست هستید
 pwd
@@ -74,8 +82,13 @@ cp: cannot stat '.env.example': No such file or directory
 ### راه حل
 
 ```bash
-# گام 1: به دایرکتوری پروژه بروید
-cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# گام 1: پیدا کردن و رفتن به دایرکتوری پروژه
+# روش 1:
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# یا روش 2: پیدا کردن با find
+find ~ -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null
+# سپس cd به مسیر پیدا شده
 
 # گام 2: به دایرکتوری server بروید
 cd server
@@ -88,7 +101,7 @@ ls -la .env.example
 cp .env.example .env
 
 # یا استفاده از اسکریپت quick که همه چیز را خودکار انجام می‌دهد:
-cd ..
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
 ./test-rmto-quick.sh
 ```
 

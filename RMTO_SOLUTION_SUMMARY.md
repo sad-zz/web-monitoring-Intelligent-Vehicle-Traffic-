@@ -5,25 +5,43 @@
 همه دستورات باید در **دایرکتوری پروژه** اجرا شوند، نه در `/root/` یا دایرکتوری خانه!
 
 ```bash
-# ❌ اشتباه - نباید از دایرکتوری خانه اجرا کنید
-root@server:~# node test-rmto.js
-Error: Cannot find module '/root/test-rmto.js'
+# ❌ اشتباه - استفاده از placeholder
+root@server:~# cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+-bash: cd: No such file or directory
 
-# ✅ صحیح - ابتدا به دایرکتوری پروژه بروید
-cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# ⚠️ توجه: /path/to/ یک مثال است! شما باید مسیر واقعی را پیدا کنید
+
+# ✅ صحیح - پیدا کردن مسیر واقعی
+find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
+# خروجی مثال: /home/user/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
+
+# ✅ صحیح - استفاده از مسیر واقعی
+cd /home/user/web-monitoring-Intelligent-Vehicle-Traffic-
 ./test-rmto-quick.sh
 ```
 
-### 🎯 راه حل سریع
+### 🎯 راه حل سریع - بدون نیاز به دانستن مسیر
 
 ```bash
-# 1. پیدا کردن دایرکتوری پروژه
-find / -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null | head -1
+# گام 1: پیدا کردن پروژه
+find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
 
-# 2. رفتن به آن دایرکتوری
-cd /path/found/above
+# گام 2: اگر پیدا کردید، به دایرکتوری آن بروید
+# فرض کنید خروجی این بود:
+# /home/myuser/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
 
-# 3. اجرای تست
+cd /home/myuser/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# گام 3: اجرا
+./test-rmto-quick.sh
+```
+
+### 🔄 یا Clone مجدد در مسیر مشخص
+
+```bash
+cd ~
+git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+cd web-monitoring-Intelligent-Vehicle-Traffic-
 ./test-rmto-quick.sh
 ```
 
@@ -197,11 +215,22 @@ POST /api/rmto/retry
 ### ⚡ روش ۱: اسکریپت تست سریع (آسان‌ترین روش)
 
 ```bash
-# گام 1: به دایرکتوری پروژه بروید
-cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
-# مثال: cd /home/user/projects/web-monitoring-Intelligent-Vehicle-Traffic-
+# گام 1: پیدا کردن پروژه (یکی از این دستورات را امتحان کنید)
+find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
+# یا
+ls ~/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
 
-# گام 2: اجرای اسکریپت تست سریع
+# گام 2: اگر پروژه را پیدا کردید، به دایرکتوری آن بروید
+# مثال: اگر خروجی گام 1 این بود:
+# /home/user/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
+# این دستور را بزنید:
+
+cd /home/user/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# یا ساده‌تر، اگر در home directory شما است:
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# گام 3: اجرای اسکریپت تست سریع
 ./test-rmto-quick.sh
 ```
 
@@ -220,18 +249,19 @@ cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
 ### گام ۱: رفتن به دایرکتوری پروژه
 
 ```bash
-# به جای /root/ یا دایرکتوری خانه، به دایرکتوری پروژه بروید
-cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# اگر در home directory است:
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
 
-# مثال‌های واقعی:
-# cd /home/user/projects/web-monitoring-Intelligent-Vehicle-Traffic-
-# cd /var/www/web-monitoring-Intelligent-Vehicle-Traffic-
-# cd ~/projects/web-monitoring-Intelligent-Vehicle-Traffic-
+# یا اگر نمی‌دانید کجاست:
+find ~ -type d -name "web-monitoring-Intelligent-Vehicle-Traffic-" 2>/dev/null
+
+# وقتی پیدا کردید (مثلاً /home/myuser/web-monitoring-Intelligent-Vehicle-Traffic-)
+cd /home/myuser/web-monitoring-Intelligent-Vehicle-Traffic-
 
 # مطمئن شوید در دایرکتوری درست هستید
 pwd
 # خروجی باید چیزی شبیه به این باشد:
-# /home/user/web-monitoring-Intelligent-Vehicle-Traffic-
+# /home/myuser/web-monitoring-Intelligent-Vehicle-Traffic-
 
 # بررسی کنید که پوشه server/ وجود دارد
 ls -la | grep server

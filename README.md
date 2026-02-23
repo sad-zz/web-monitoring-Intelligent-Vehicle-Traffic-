@@ -9,22 +9,35 @@
 **All commands must be run from the project directory, not from `/root/` or your home directory!**
 
 ```bash
-# ❌ Wrong - running from home directory
-cd ~
-./test-rmto-quick.sh   # Error: file not found
+# ❌ Wrong - using placeholder path
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-   # This will NOT work!
+# Error: No such file or directory
 
-# ✅ Correct - navigate to project directory first
-cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# ⚠️ Note: /path/to/ is just an example! You need to find the actual path.
+
+# ✅ Correct - find the actual path first
+find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
+# Example output: /home/user/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
+
+# ✅ Correct - use the actual path
+cd /home/user/web-monitoring-Intelligent-Vehicle-Traffic-
 ./test-rmto-quick.sh   # Works!
+
+# Or if it's in your home directory:
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+./test-rmto-quick.sh
 ```
 
 ### 🔧 RMTO Integration Quick Test
 
 ```bash
-# Navigate to project directory
-cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# Step 1: Find the project directory
+find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
 
-# Run quick test script (handles everything automatically)
+# Step 2: Navigate to project directory (use the path found above)
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# Step 3: Run quick test script (handles everything automatically)
 ./test-rmto-quick.sh
 ```
 
@@ -33,6 +46,22 @@ This script will:
 - Install dependencies
 - Run connection test
 - Show clear error messages
+
+### 🔄 Alternative: Fresh Clone
+
+```bash
+# Go to home directory
+cd ~
+
+# Clone the repository
+git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+
+# Navigate to project
+cd web-monitoring-Intelligent-Vehicle-Traffic-
+
+# Run test
+./test-rmto-quick.sh
+```
 
 ### Login Credentials
 

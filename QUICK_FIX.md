@@ -14,46 +14,72 @@ Error: Cannot find module '/root/test-rmto.js'
 
 ### گام 1️⃣: پیدا کردن دایرکتوری پروژه
 
+**⚠️ مهم: مسیر واقعی پروژه را پیدا کنید، نه placeholder!**
+
 ```bash
-# اگر با git clone کرده‌اید:
-cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+# دستور 1: جستجوی پروژه در home directory شما
+find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
 
-# یا اگر نمی‌دانید کجاست، جستجو کنید:
-find ~ -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null
-# یا
-find /var/www -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null
-# یا
-find /home -name "web-monitoring-Intelligent-Vehicle-Traffic-" -type d 2>/dev/null
+# دستور 2: اگر نتیجه نداد، جستجو در کل سیستم (ممکن است طولانی باشد)
+find / -name "test-rmto-quick.sh" -type f 2>/dev/null | head -1
 
-# مسیری که پیدا می‌کند را کپی کنید و cd کنید
-cd /مسیر/پیدا/شده/web-monitoring-Intelligent-Vehicle-Traffic-
+# دستور 3: یا اگر یادتان هست پروژه را در کجا clone کردید:
+ls -d ~/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
+ls -d ~/projects/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
+ls -d /var/www/web-monitoring-Intelligent-Vehicle-Traffic- 2>/dev/null
 ```
 
-### گام 2️⃣: بررسی که در دایرکتوری درست هستید
+**خروجی مثال:**
+```
+/home/username/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
+```
+
+**مسیر دایرکتوری بدون نام فایل:**
+```
+/home/username/web-monitoring-Intelligent-Vehicle-Traffic-
+```
+
+### گام 2️⃣: رفتن به دایرکتوری پروژه
+
+**استفاده از مسیر واقعی که در گام 1 پیدا کردید:**
+
+```bash
+# ❌ اشتباه - این placeholder است، کار نمی‌کند!
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# ✅ صحیح - از مسیر واقعی استفاده کنید
+# مثال: اگر در گام 1 این را پیدا کردید:
+# /home/username/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
+# پس این دستور را بزنید:
+
+cd /home/username/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# یا اگر در home directory خودتان است:
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+```
+
+**بررسی که در دایرکتوری درست هستید:**
 
 ```bash
 # این دستور را بزنید
 pwd
 
-# خروجی باید چیزی شبیه به این باشد:
-# /home/user/web-monitoring-Intelligent-Vehicle-Traffic-
-# یا
-# /var/www/web-monitoring-Intelligent-Vehicle-Traffic-
+# خروجی باید مسیر کامل پروژه باشد، مثلاً:
+# /home/username/web-monitoring-Intelligent-Vehicle-Traffic-
 
-# حالا لیست فایل‌ها را ببینید
+# لیست فایل‌ها
 ls -la
 
 # باید این‌ها را ببینید:
 # drwxr-xr-x ... server/
 # -rwxr-xr-x ... test-rmto-quick.sh
 # -rw-r--r-- ... test-rmto.html
-# -rw-r--r-- ... README.md
 ```
 
 ### گام 3️⃣: اجرای اسکریپت تست
 
 ```bash
-# حالا این دستور را بزنید (در همان دایرکتوری پروژه)
+# حالا که در دایرکتوری درست هستید:
 ./test-rmto-quick.sh
 
 # اسکریپت سؤال می‌کند: Do you want to create .env file now? (y/n)
@@ -62,7 +88,98 @@ ls -la
 # اگر درخواست رمز عبور کرد، رمز عبور RMTO را وارد کنید
 ```
 
-اسکریپت باقی کارها را خودکار انجام می‌دهد!
+---
+
+## 🎯 روش جایگزین: Clone مجدد در مسیر مشخص
+
+اگر نمی‌توانید پروژه را پیدا کنید، دوباره clone کنید:
+
+```bash
+# گام 1: رفتن به home directory
+cd ~
+
+# گام 2: Clone پروژه
+git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+
+# گام 3: رفتن به پروژه
+cd web-monitoring-Intelligent-Vehicle-Traffic-
+
+# گام 4: بررسی که در جای درست هستید
+pwd
+# خروجی: /home/username/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# گام 5: اجرای تست
+./test-rmto-quick.sh
+```
+
+---
+
+## 🚨 خطاهای رایج
+
+### خطا 1: استفاده از placeholder
+
+```bash
+# ❌ اشتباه
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+# خطا: No such file or directory
+
+# توضیح: /path/to/ یک placeholder است!
+# شما باید آن را با مسیر واقعی جایگزین کنید
+```
+
+### خطا 2: فراموش کردن مسیر
+
+```bash
+# ❌ اشتباه - فرض نکنید پروژه در مسیر فعلی است
+./test-rmto-quick.sh
+# خطا: No such file or directory
+
+# ✅ صحیح - ابتدا به دایرکتوری پروژه بروید
+cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+./test-rmto-quick.sh
+```
+
+---
+
+## 📋 Checklist برای اجرای موفق
+
+- [ ] با `find` مسیر واقعی پروژه را پیدا کردم
+- [ ] با `cd` به دایرکتوری پروژه رفتم (نه placeholder!)
+- [ ] با `pwd` مطمئن شدم در جای درست هستم
+- [ ] با `ls -la` فایل `test-rmto-quick.sh` را دیدم
+- [ ] اسکریپت را اجرا کردم: `./test-rmto-quick.sh`
+
+---
+
+## 🆘 هنوز مشکل دارید؟
+
+### اگر پروژه را پیدا نکردید:
+
+```bash
+# این دستور تمام دایرکتوری‌هایی که نام آن‌ها شامل "monitoring" است را پیدا می‌کند
+find ~ -type d -iname "*monitoring*" 2>/dev/null
+
+# یا جستجوی گسترده‌تر
+find / -type d -iname "*web-monitoring*" 2>/dev/null | head -10
+```
+
+### اگر Git ندارید:
+
+```bash
+# نصب Git
+apt-get update && apt-get install -y git     # Ubuntu/Debian
+yum install -y git                           # CentOS/RHEL
+```
+
+---
+
+## 📞 کمک بیشتر
+
+اگر هنوز مشکل دارید، این فایل‌ها را بخوانید:
+- `TROUBLESHOOTING.md` - راهنمای کامل عیب‌یابی
+- `RMTO_SOLUTION_SUMMARY.md` - خلاصه راه‌حل
+
+**موفق باشید! 🎉**
 
 ---
 
