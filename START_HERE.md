@@ -7,6 +7,22 @@ If you're reading this, you found the project! 🎉
 
 ---
 
+## ⚠️ فایل test-rmto.js ندارید؟ / Missing test-rmto.js?
+
+**اگر فایل `test-rmto.js` روی سرور شما نیست:**
+**If `test-rmto.js` file doesn't exist on your server:**
+
+👉 **بخوانید: `MANUAL_COPY_INSTRUCTIONS.md`**
+👉 **Read: `MANUAL_COPY_INSTRUCTIONS.md`**
+
+```bash
+# دانلود سریع فایل / Quick download:
+cd server
+curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
+```
+
+---
+
 ## ✅ گام 1: مطمئن شوید در دایرکتوری درست هستید
 
 ```bash
@@ -189,14 +205,15 @@ nano server/.env
 
 ---
 
-## 📚 مستندات بیشتر
+## 📚 مستندات بیشتر / More Documentation
 
 اگر هنوز مشکل دارید:
 
-1. `QUICK_FIX.md` - راه حل سریع
-2. `TROUBLESHOOTING.md` - عیب‌یابی کامل
-3. `server/RMTO_GUIDE.md` - راهنمای فنی RMTO
-4. `PLACEHOLDER_ERROR.txt` - درباره placeholder ها
+1. **`MANUAL_COPY_INSTRUCTIONS.md`** ← کپی دستی فایل test-rmto.js
+2. **`QUICK_FIX.md`** ← راه حل سریع
+3. **`TROUBLESHOOTING.md`** ← عیب‌یابی کامل
+4. **`server/RMTO_GUIDE.md`** ← راهنمای فنی RMTO
+5. **`PLACEHOLDER_ERROR.txt`** ← درباره placeholder ها
 
 ---
 
