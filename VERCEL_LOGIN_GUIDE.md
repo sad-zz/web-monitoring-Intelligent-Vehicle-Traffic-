@@ -1,5 +1,43 @@
 # راهنمای لاگین در Vercel / Vercel Login Guide
 
+## ⚠️ هشدار امنیتی مهم / CRITICAL SECURITY WARNING
+
+**این راهنما فقط برای محیط DEMO و TEST است!**
+**This guide is for DEMO and TEST environment ONLY!**
+
+### ❌ برای Production واقعی استفاده نکنید / DO NOT use for real production:
+
+**مشکلات امنیتی این روش:**
+1. رمز عبور ساده و عمومی است
+2. در localStorage ذخیره می‌شود (آسیب‌پذیر به XSS)
+3. بدون session timeout
+4. بدون rate limiting
+5. قابل دسترسی توسط هر کسی
+
+**برای Production واقعی باید:**
+- ✅ Backend authentication واقعی
+- ✅ رمز عبور hash شده
+- ✅ Session tokens امن
+- ✅ HTTPS اجباری
+- ✅ Rate limiting
+- ✅ Two-factor authentication (2FA)
+- ✅ مدیریت session ها
+- ✅ لاگ تلاش‌های ناموفق
+
+**این محیط فقط برای:**
+- ✅ تست اولیه
+- ✅ دمو برای مشتری
+- ✅ بررسی رابط کاربری
+- ✅ توسعه و آزمایش
+
+**❌ این محیط نباید برای:**
+- ❌ داده واقعی
+- ❌ اطلاعات محرمانه
+- ❌ استفاده تولیدی
+- ❌ دسترسی عمومی طولانی مدت
+
+---
+
 ## 🎯 مشکل شما / Your Issue
 
 **سوال:** "برای تست در Vercel اضافه کردم ولی برای لاگین یوزر و پسورد قبول نمیکنه"

@@ -4,9 +4,17 @@
 
 ## 🔐 Login Credentials / اطلاعات ورود
 
-### For Vercel Deployment (Static):
+### For Vercel Deployment (Static - DEMO/TESTING ONLY):
 
-**برای استقرار Vercel (استاتیک):**
+**⚠️ هشدار امنیتی / SECURITY WARNING:**
+
+**این اطلاعات فقط برای محیط DEMO/TEST است!**
+**These credentials are for DEMO/TEST environment ONLY!**
+
+❌ **برای production واقعی استفاده نکنید**
+❌ **DO NOT use for real production**
+
+**برای استقرار Vercel (فقط آزمایشی):**
 
 ```
 نام کاربری / Username: admin
@@ -16,6 +24,12 @@
 **URL:** https://web-monitoring-intelligent-vehicle-lime.vercel.app/
 
 **📖 راهنمای کامل / Complete Guide:** See `VERCEL_LOGIN_GUIDE.md`
+
+**🔒 برای Production واقعی:**
+- باید از backend authentication واقعی استفاده کنید
+- باید رمز عبور قوی و یکتا داشته باشید
+- باید از HTTPS استفاده کنید
+- باید session management امن داشته باشید
 
 **⚠️ نکته مهم / Important Note:**
 - حروف کوچک (lowercase) استفاده کنید
