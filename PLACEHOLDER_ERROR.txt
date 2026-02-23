@@ -1,0 +1,122 @@
+╔══════════════════════════════════════════════════════════════╗
+║                     ⚠️  STOP! READ THIS! ⚠️                  ║
+║                 توقف! این را بخوانید!                       ║
+╚══════════════════════════════════════════════════════════════╝
+
+شما این خطا را می‌گیرید؟
+Are you getting this error?
+
+    cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+    -bash: cd: No such file or directory
+
+╔══════════════════════════════════════════════════════════════╗
+║  ❌ مشکل چیست؟ / What's Wrong?                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+"/path/to/" یک PLACEHOLDER است - یک مثال!
+"/path/to/" is a PLACEHOLDER - an example!
+
+این یک مسیر واقعی نیست!
+This is NOT a real path!
+
+شما نباید آن را به صورت تحت‌اللفظی کپی کنید!
+You should NOT copy it literally!
+
+╔══════════════════════════════════════════════════════════════╗
+║  ✅ راه حل صحیح / Correct Solution                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────┐
+│ گام 1 / Step 1: پیدا کردن پروژه / Find Project             │
+└──────────────────────────────────────────────────────────────┘
+
+این دستور را بزنید / Run this command:
+
+    find ~ -name "test-rmto-quick.sh" -type f 2>/dev/null
+
+خروجی نمونه / Example output:
+    /home/myuser/web-monitoring-Intelligent-Vehicle-Traffic-/test-rmto-quick.sh
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    این مسیر واقعی شماست / This is YOUR real path
+
+┌──────────────────────────────────────────────────────────────┐
+│ گام 2 / Step 2: به آن دایرکتوری بروید / Go to that dir    │
+└──────────────────────────────────────────────────────────────┘
+
+از مسیری که پیدا کردید استفاده کنید (بدون نام فایل):
+Use the path you found (without filename):
+
+    cd /home/myuser/web-monitoring-Intelligent-Vehicle-Traffic-
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+       مسیر واقعی که در گام 1 پیدا کردید
+       Real path you found in step 1
+
+یا اگر در home directory شماست:
+Or if it's in your home directory:
+
+    cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+
+┌──────────────────────────────────────────────────────────────┐
+│ گام 3 / Step 3: اجرا / Run                                  │
+└──────────────────────────────────────────────────────────────┘
+
+    ./test-rmto-quick.sh
+
+╔══════════════════════════════════════════════════════════════╗
+║  🔄 یا Clone مجدد / Or Clone Again                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+اگر پروژه را پیدا نکردید، دوباره clone کنید:
+If you can't find the project, clone it again:
+
+    cd ~
+    git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+    cd web-monitoring-Intelligent-Vehicle-Traffic-
+    ./test-rmto-quick.sh
+
+╔══════════════════════════════════════════════════════════════╗
+║  📝 یادآوری / Remember                                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+❌ اشتباه / WRONG:
+    cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+       ^^^^^^^^
+       این placeholder است!
+       This is a placeholder!
+
+✅ صحیح / CORRECT:
+    cd ~/web-monitoring-Intelligent-Vehicle-Traffic-
+    یا / or
+    cd /home/username/web-monitoring-Intelligent-Vehicle-Traffic-
+       ^^^^^^^^^^^^^^
+       مسیر واقعی شما
+       Your real path
+
+╔══════════════════════════════════════════════════════════════╗
+║  🆘 کمک بیشتر / More Help                                   ║
+╚══════════════════════════════════════════════════════════════╝
+
+این فایل‌ها را بخوانید / Read these files:
+
+    1. QUICK_FIX.md         ← راه حل سریع / Quick solution
+    2. TROUBLESHOOTING.md   ← عیب‌یابی کامل / Full troubleshooting
+    3. README.md            ← راهنمای اصلی / Main guide
+
+╔══════════════════════════════════════════════════════════════╗
+║  💡 نکته کلیدی / Key Point                                  ║
+╚══════════════════════════════════════════════════════════════╝
+
+وقتی در مستندات می‌بینید:
+When you see in documentation:
+    /path/to/something
+    /path/to/your/project
+    /path/found/above
+
+این یعنی: "مسیری که شما پیدا کردید را اینجا بگذارید"
+This means: "Put the path YOU found here"
+
+این یک مسیر واقعی نیست!
+This is NOT a real path!
+
+موفق باشید! 🎉
+Good Luck! 🚀
