@@ -18,7 +18,10 @@ If you're reading this, you found the project! 🎉
 ```bash
 # دانلود سریع فایل / Quick download:
 cd server
-curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
+curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/create-suggestions-folder/server/test-rmto.js
+
+# بعد از merge شدن PR از این استفاده کنید:
+# curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
 ```
 
 ---

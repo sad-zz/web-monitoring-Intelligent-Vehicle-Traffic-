@@ -15,8 +15,11 @@ The `test-rmto.js` file doesn't exist on your server.
 # رفتن به دایرکتوری server
 cd /opt/tc-manager/web-monitoring-Intelligent-Vehicle-Traffic-/server
 
-# دانلود فایل
-curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
+# دانلود فایل (از برنچ PR - بعد از merge از main استفاده کنید)
+curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/create-suggestions-folder/server/test-rmto.js
+
+# یا اگر PR merge شده بود:
+# curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
 
 # بررسی فایل دانلود شد
 ls -lh test-rmto.js
@@ -31,8 +34,11 @@ node test-rmto.js
 # رفتن به دایرکتوری server
 cd /opt/tc-manager/web-monitoring-Intelligent-Vehicle-Traffic-/server
 
-# دانلود فایل
-wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
+# دانلود فایل (از برنچ PR - بعد از merge از main استفاده کنید)
+wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/create-suggestions-folder/server/test-rmto.js
+
+# یا اگر PR merge شده بود:
+# wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
 
 # بررسی فایل دانلود شد
 ls -lh test-rmto.js
@@ -325,9 +331,13 @@ curl -I http://otf.rmto.ir/Companies/Companies.asmx?WSDL
 ## 📋 خلاصه دستورات (کپی-پیست کامل)
 
 ```bash
-# روش آسان - دانلود با curl
+# روش آسان - دانلود با curl (از برنچ PR)
 cd /opt/tc-manager/web-monitoring-Intelligent-Vehicle-Traffic-/server
-curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
+curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/create-suggestions-folder/server/test-rmto.js
+
+# یا بعد از merge شدن PR:
+# curl -O https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/main/server/test-rmto.js
+
 npm install
 node test-rmto.js
 
