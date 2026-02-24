@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تست ارسال داده به سامانه تردد شماری</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Tahoma', 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            direction: rtl;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        h1 {
+            color: #1e3a8a;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 10px;
+        }
+        .company-name {
+            color: #7c3aed;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 968px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .panel {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .panel-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #334155;
+            font-size: 14px;
+        }
+        .label-desc {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: normal;
+            margin-right: 8px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.4);
+        }
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #475569;
+        }
+        .btn-secondary:hover {
+            background: #cbd5e1;
+        }
+        
+        /* Output Section */
+        .output-section {
+            margin-top: 20px;
+        }
+        .output-box {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            direction: ltr;
+            text-align: left;
+        }
+        
+        .output-box:empty:before {
+            content: "خروجی در اینجا نمایش داده می‌شود...";
+            color: #64748b;
+            direction: rtl;
+            text-align: right;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .status-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .status-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .log-entry {
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            background: #0f172a;
+            border-right: 3px solid #64748b;
+        }
+        
+        .log-entry.success {
+            border-right-color: #22c55e;
+        }
+        .log-entry.error {
+            border-right-color: #ef4444;
+        }
+        .log-entry.info {
+            border-right-color: #3b82f6;
+        }
+        
+        .log-timestamp {
+            color: #64748b;
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+        
+        .log-message {
+            color: #e2e8f0;
+        }
+        
+        .clear-btn {
+            background: #475569;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        .clear-btn:hover {
+            background: #334155;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 2px solid #7c3aed;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .info-box {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #075985;
+        }
+        
+        .json-viewer {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            direction: ltr;
+            text-align: left;
+        }
+        
+        .section-divider {
+            height: 2px;
+            background: linear-gradient(to left, transparent, #e2e8f0, transparent);
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 تست ارسال داده به سامانه تردد شماری</h1>
+            <div class="subtitle">آزمایش ارسال داده‌های ترافیکی به سرور مرکزی</div>
+            <div class="company-name">نوآوران جنوب شرق - سیستم مدیریت ترافیک هوشمند</div>
+        </div>
+
+        <div class="info-box">
+            <strong>📌 توجه:</strong> این صفحه برای تست ارسال داده به سامانه تردد شماری طراحی شده است. 
+            پس از ارسال، خروجی کامل شامل درخواست، پاسخ و خطاها نمایش داده می‌شود.
+        </div>
+
+        <div class="two-column">
+            <!-- Form Section -->
+            <div class="panel">
+                <div class="panel-title">📝 فرم ارسال داده</div>
+                
+                <form id="testForm">
+                    <div class="form-group">
+                        <label>کد ایستگاه <span class="label-desc">(4 رقمی)</span></label>
+                        <input type="text" id="deviceCode" value="1001" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>تاریخ و زمان <span class="label-desc">(YYYY/MM/DD HH:mm)</span></label>
+                        <input type="text" id="dateTime" required>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>کلاس 1</label>
+                            <input type="number" id="class1" value="10" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>کلاس 2</label>
+                            <input type="number" id="class2" value="20" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>کلاس 3</label>
+                            <input type="number" id="class3" value="15" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>کلاس 4</label>
+                            <input type="number" id="class4" value="5" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>کلاس 5</label>
+                            <input type="number" id="class5" value="3" min="0">
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>سرعت 1</label>
+                            <input type="number" id="speed1" value="12" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>سرعت 2</label>
+                            <input type="number" id="speed2" value="18" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>سرعت 3</label>
+                            <input type="number" id="speed3" value="15" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>سرعت 4</label>
+                            <input type="number" id="speed4" value="8" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>سرعت 5</label>
+                            <input type="number" id="speed5" value="0" min="0">
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>تخلفات</label>
+                            <input type="number" id="violations" value="2" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>سرعت متوسط</label>
+                            <input type="number" id="avgSpeed" value="85" min="0">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        ارسال داده به سرور
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">
+                        بازنشانی فرم
+                    </button>
+                </form>
+            </div>
+
+            <!-- Output Section -->
+            <div class="panel">
+                <div class="panel-title">📊 خروجی و نتایج ارسال</div>
+                
+                <div class="output-section">
+                    <button class="clear-btn" onclick="clearOutput()">پاک کردن خروجی</button>
+                    <div id="outputBox" class="output-box"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize date-time
+        function getCurrentDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            return `${year}/${month}/${day} ${hours}:${minutes}`;
+        }
+
+        document.getElementById('dateTime').value = getCurrentDateTime();
+
+        // Output functions
+        function addOutput(message, type = 'info') {
+            const outputBox = document.getElementById('outputBox');
+            const timestamp = new Date().toLocaleTimeString('fa-IR');
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `
+                <div class="log-timestamp">${timestamp}</div>
+                <div class="log-message">${message}</div>
+            `;
+            
+            outputBox.appendChild(logEntry);
+            outputBox.scrollTop = outputBox.scrollHeight;
+        }
+
+        function clearOutput() {
+            document.getElementById('outputBox').innerHTML = '';
+        }
+
+        function resetForm() {
+            document.getElementById('testForm').reset();
+            document.getElementById('dateTime').value = getCurrentDateTime();
+            addOutput('فرم بازنشانی شد', 'info');
+        }
+
+        function formatJSON(obj) {
+            return JSON.stringify(obj, null, 2);
+        }
+
+        // Form submission
+        document.getElementById('testForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = 'در حال ارسال... <span class="loading"></span>';
+            submitBtn.disabled = true;
+
+            // Prepare data
+            const data = {
+                deviceCode: document.getElementById('deviceCode').value,
+                dateTime: document.getElementById('dateTime').value,
+                class1Count: parseInt(document.getElementById('class1').value) || 0,
+                class2Count: parseInt(document.getElementById('class2').value) || 0,
+                class3Count: parseInt(document.getElementById('class3').value) || 0,
+                class4Count: parseInt(document.getElementById('class4').value) || 0,
+                class5Count: parseInt(document.getElementById('class5').value) || 0,
+                speed1Count: parseInt(document.getElementById('speed1').value) || 0,
+                speed2Count: parseInt(document.getElementById('speed2').value) || 0,
+                speed3Count: parseInt(document.getElementById('speed3').value) || 0,
+                speed4Count: parseInt(document.getElementById('speed4').value) || 0,
+                speed5Count: parseInt(document.getElementById('speed5').value) || 0,
+                violations: parseInt(document.getElementById('violations').value) || 0,
+                avgSpeed: parseInt(document.getElementById('avgSpeed').value) || 0
+            };
+
+            addOutput('═══════════════════════════════════════', 'info');
+            addOutput('🚀 شروع ارسال داده به سامانه تردد شماری', 'info');
+            addOutput('═══════════════════════════════════════', 'info');
+            addOutput('');
+            addOutput('📤 داده‌های ارسالی:', 'info');
+            addOutput(formatJSON(data), 'info');
+            addOutput('');
+
+            try {
+                // Send request
+                const response = await fetch('/api/traffic-system/test-add5', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                addOutput('📥 پاسخ دریافت شد از سرور', 'info');
+                addOutput(`وضعیت HTTP: ${response.status} ${response.statusText}`, 'info');
+                addOutput('');
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    addOutput('✅ ارسال موفق!', 'success');
+                    addOutput('');
+                    addOutput('📊 پاسخ سرور:', 'success');
+                    addOutput(formatJSON(result), 'success');
+                    addOutput('');
+                    
+                    if (result.result) {
+                        addOutput(`✅ نتیجه: ${JSON.stringify(result.result)}`, 'success');
+                    }
+                    
+                    if (result.soapRequest) {
+                        addOutput('');
+                        addOutput('📄 درخواست SOAP ارسال شده:', 'info');
+                        addOutput(result.soapRequest, 'info');
+                    }
+                    
+                    if (result.soapResponse) {
+                        addOutput('');
+                        addOutput('📄 پاسخ SOAP دریافت شده:', 'info');
+                        addOutput(result.soapResponse, 'info');
+                    }
+                } else {
+                    addOutput('❌ خطا در ارسال!', 'error');
+                    addOutput('');
+                    addOutput('⚠️ جزئیات خطا:', 'error');
+                    addOutput(formatJSON(result), 'error');
+                    
+                    if (result.error) {
+                        addOutput('');
+                        addOutput(`❌ پیام خطا: ${result.error}`, 'error');
+                    }
+                    
+                    if (result.details) {
+                        addOutput(`📋 جزئیات: ${result.details}`, 'error');
+                    }
+                }
+
+            } catch (error) {
+                addOutput('❌ خطای شبکه یا ارتباط!', 'error');
+                addOutput('');
+                addOutput('⚠️ جزئیات خطا:', 'error');
+                addOutput(`نوع خطا: ${error.name}`, 'error');
+                addOutput(`پیام: ${error.message}`, 'error');
+                addOutput('');
+                addOutput('💡 راهنمایی:', 'warning');
+                addOutput('- مطمئن شوید سرور در حال اجراست', 'warning');
+                addOutput('- اتصال اینترنت خود را بررسی کنید', 'warning');
+                addOutput('- تنظیمات فایروال را چک کنید', 'warning');
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+                
+                addOutput('');
+                addOutput('═══════════════════════════════════════', 'info');
+                addOutput('⏹️ پایان عملیات ارسال', 'info');
+                addOutput('═══════════════════════════════════════', 'info');
+            }
+        });
+
+        // Initial message
+        addOutput('👋 سیستم آماده است. فرم را پر کرده و داده را ارسال کنید.', 'success');
+        addOutput('📡 سرور: http://otf.rmto.ir/Companies/Companies.asmx?op=Add5', 'info');
+    </script>
+</body>
+</html>
