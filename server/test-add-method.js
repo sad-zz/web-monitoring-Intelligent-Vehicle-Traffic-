@@ -10,14 +10,18 @@ console.log('============================================================');
 console.log('Testing RMTO Add Method');
 console.log('============================================================');
 
+// استفاده از تاریخ فعلی سرور
+var currentDateTime = rmto.getCurrentDateTime();
+
 var testData = {
     deviceCode: '1001',
-    dateTime: '2024/02/23 14:30',
+    dateTime: currentDateTime,  // تاریخ واقعی سرور
     totalCount: 45,
     avgSpeed: 85
 };
 
-console.log('\nTest data:', JSON.stringify(testData, null, 2));
+console.log('\nCurrent Server DateTime:', currentDateTime);
+console.log('Test data:', JSON.stringify(testData, null, 2));
 
 rmto.sendAddData(testData, function(err, result) {
     console.log('\n============================================================');

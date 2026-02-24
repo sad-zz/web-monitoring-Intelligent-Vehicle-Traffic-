@@ -50,13 +50,17 @@ soap.createClient(WSDL_URL, {
     // Step 3: Test Add5 method
     console.log("[3] Testing AddData5 method...");
     
+    // استفاده از تاریخ فعلی سرور
+    var currentDateTime = rmtoClient.getCurrentDateTime();
+    console.log("[INFO] Current Server DateTime:", currentDateTime);
+    
     // Sample test data
     var testData = {
         CompanyCode: COMPANY_CODE,
         UserName: USERNAME,
         Password: PASSWORD,
         StationCode: "1001", // Test device code
-        DateTime: "2024/02/22 12:00", // Format: YYYY/MM/DD HH:mm
+        DateTime: currentDateTime, // تاریخ واقعی سرور
         C1: 10, // Class 1 count
         C2: 20, // Class 2 count
         C3: 15, // Class 3 count

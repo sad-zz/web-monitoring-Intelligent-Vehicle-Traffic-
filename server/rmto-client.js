@@ -17,6 +17,21 @@ var PASSWORD = process.env.RMTO_PASSWORD || "";
 var soapClient = null;
 
 /**
+ * دریافت تاریخ و زمان فعلی سرور به فرمت RMTO
+ * @returns {string} DateTime در فرمت "YYYY/MM/DD HH:mm"
+ */
+function getCurrentDateTime() {
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = String(now.getMonth() + 1).padStart(2, '0');
+    var day = String(now.getDate()).padStart(2, '0');
+    var hour = String(now.getHours()).padStart(2, '0');
+    var minute = String(now.getMinutes()).padStart(2, '0');
+    
+    return year + '/' + month + '/' + day + ' ' + hour + ':' + minute;
+}
+
+/**
  * تبدیل DateTime از فرمت string به Unix timestamp (Int32)
  * @param {string} dateTimeStr - Format: "YYYY/MM/DD HH:mm"
  * @returns {number} Unix timestamp (seconds since 1970-01-01)
@@ -273,5 +288,6 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    sendAddData8: sendAddData8
+    sendAddData8: sendAddData8,
+    getCurrentDateTime: getCurrentDateTime  // تابع جدید برای تاریخ فعلی
 };
