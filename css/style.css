@@ -402,6 +402,10 @@ body {
 .status-badge.warning { background: rgba(245,158,11,.1); color: var(--warning); }
 .status-badge.error { background: rgba(239,68,68,.1); color: var(--error); }
 
+.rmto-error-row { background: rgba(239,68,68,.04); }
+.rmto-error-row:hover { background: rgba(239,68,68,.08); }
+.rmto-log-row { cursor: default; }
+
 .type-badge {
     font-size: 11px;
     padding: 2px 8px;

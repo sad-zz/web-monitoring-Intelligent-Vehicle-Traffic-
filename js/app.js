@@ -523,8 +523,15 @@
     // ============================================================
     // RMTO Send
     // ============================================================
+    var rmtoLogFilter = "all";
+
     function loadRMTO() {
-        // Load queue
+        loadRMTOQueue();
+        loadRMTOMonitor();
+        loadRMTOLogs();
+    }
+
+    function loadRMTOQueue() {
         api("GET", "/api/rmto/queue", null, function (status, data) {
             if (status !== 200 || !data) return;
 
@@ -557,9 +564,50 @@
                 $("#rmto-sent-count").textContent = "0";
                 $("#rmto-last-send").textContent = "-";
             }
-        });
 
-        // Load logs
+            // Error count
+            var errEl = $("#rmto-error-count");
+            if (errEl) errEl.textContent = data.todayErrors || "0";
+        });
+    }
+
+    function loadRMTOMonitor() {
+        var filter = rmtoLogFilter;
+        api("GET", "/api/rmto/logs?limit=50&filter=" + filter, null, function (status, data) {
+            var mbody = $("#rmto-monitor-body");
+            if (status !== 200 || !data || !data.length) {
+                mbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                return;
+            }
+            mbody.innerHTML = data.map(function (r) {
+                var ok = r.success === 1;
+                var resp = r.response_data || "-";
+                var respShort = resp;
+                if (respShort.length > 80) respShort = respShort.substring(0, 80) + "...";
+                var errMsg = r.error_message || "-";
+                var errShort = errMsg;
+                if (errShort.length > 80) errShort = errShort.substring(0, 80) + "...";
+                return "<tr class='rmto-log-row " + (ok ? "" : "rmto-error-row") + "'>" +
+                    '<td dir="ltr" style="text-align:right;font-size:11px;white-space:nowrap">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
+                    '<td style="font-size:12px">' + escapeHtml(r.method) + "</td>" +
+                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
+                    '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
+                    '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(resp) + '">' + escapeHtml(respShort) + "</td>" +
+                    '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (ok ? '#94a3b8' : '#ef4444') + '" title="' + escapeHtml(errMsg) + '">' + escapeHtml(ok ? "-" : errShort) + "</td>" +
+                    '<td><button class="btn btn-sm btn-secondary btn-rmto-detail" data-id="' + r.id + '">مشاهده</button></td>' +
+                    "</tr>";
+            }).join("");
+
+            // Detail button click handlers
+            mbody.querySelectorAll(".btn-rmto-detail").forEach(function (btn) {
+                btn.addEventListener("click", function () {
+                    showRMTODetail(parseInt(btn.getAttribute("data-id"), 10));
+                });
+            });
+        });
+    }
+
+    function loadRMTOLogs() {
         api("GET", "/api/rmto/logs?limit=30", null, function (status, data) {
             var lbody = $("#rmto-log-body");
             if (status !== 200 || !data || !data.length) {
@@ -581,34 +629,120 @@
         });
     }
 
+    function showRMTODetail(logId) {
+        api("GET", "/api/rmto/log/" + logId, null, function (status, data) {
+            if (status !== 200 || !data) { alert("خطا در بارگذاری جزئیات"); return; }
+            var ok = data.success === 1;
+            var reqData = "-";
+            var respData = "-";
+            try { reqData = JSON.stringify(JSON.parse(data.request_data), null, 2); } catch (e) { reqData = data.request_data || "-"; }
+            try { respData = JSON.stringify(JSON.parse(data.response_data), null, 2); } catch (e) { respData = data.response_data || "-"; }
+
+            $("#modal-title").textContent = "جزئیات ارسال رهسام - " + data.method;
+            $("#modal-body").innerHTML =
+                '<div style="margin-bottom:16px">' +
+                    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">' +
+                        '<div><strong>متد:</strong> ' + escapeHtml(data.method) + '</div>' +
+                        '<div><strong>کد دستگاه:</strong> <span dir="ltr">' + escapeHtml(data.device_code) + '</span></div>' +
+                        '<div><strong>زمان:</strong> <span dir="ltr">' + escapeHtml(formatTime(data.created_at)) + '</span></div>' +
+                        '<div><strong>وضعیت:</strong> <span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + '</span></div>' +
+                    '</div>' +
+                '</div>' +
+                (data.error_message ?
+                    '<div style="margin-bottom:12px;padding:10px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px">' +
+                        '<strong style="color:#ef4444">پیام خطا:</strong>' +
+                        '<pre dir="ltr" style="margin:6px 0 0;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#dc2626;font-family:monospace">' + escapeHtml(data.error_message) + '</pre>' +
+                    '</div>'
+                : '') +
+                '<div style="margin-bottom:12px">' +
+                    '<strong>داده‌های ارسالی (Request):</strong>' +
+                    '<pre dir="ltr" style="margin:6px 0 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-all;font-size:12px;max-height:200px;overflow-y:auto;font-family:monospace">' + escapeHtml(reqData) + '</pre>' +
+                '</div>' +
+                '<div>' +
+                    '<strong>پاسخ RMTO (Response):</strong>' +
+                    '<pre dir="ltr" style="margin:6px 0 0;background:' + (ok ? '#f0fdf4' : '#fef2f2') + ';border:1px solid ' + (ok ? '#bbf7d0' : '#fecaca') + ';border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-all;font-size:12px;max-height:200px;overflow-y:auto;font-family:monospace">' + escapeHtml(respData) + '</pre>' +
+                '</div>';
+            $("#modal-overlay").classList.add("active");
+        });
+    }
+
+    function showSendResult(data) {
+        var resultEl = $("#rmto-send-result");
+        if (!resultEl) return;
+        resultEl.style.display = "inline-block";
+        if (data.total === 0) {
+            resultEl.innerHTML = '<span style="color:#94a3b8">صف ارسال خالی است</span>';
+        } else if (data.sent_failed === 0) {
+            resultEl.innerHTML = '<span style="color:#22c55e;font-weight:700">' + data.sent_success + ' رکورد با موفقیت ارسال شد</span>';
+        } else if (data.sent_success === 0) {
+            resultEl.innerHTML = '<span style="color:#ef4444;font-weight:700">خطا در ارسال ' + data.sent_failed + ' رکورد</span>';
+        } else {
+            resultEl.innerHTML = '<span style="color:#f59e0b;font-weight:700">' + data.sent_success + ' موفق، ' + data.sent_failed + ' خطا</span>';
+        }
+        // Show errors if any
+        if (data.errors && data.errors.length) {
+            var errList = data.errors.slice(0, 3).map(function (e) {
+                return escapeHtml(e.method + " [" + e.device_code + "]: " + e.error);
+            }).join("<br>");
+            if (data.errors.length > 3) errList += "<br>...و " + (data.errors.length - 3) + " خطای دیگر";
+            resultEl.innerHTML += '<div style="margin-top:6px;padding:8px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.15);border-radius:6px;font-size:11px;color:#dc2626;direction:ltr;text-align:left">' + errList + '</div>';
+        }
+        // Auto-hide after 30s
+        setTimeout(function () { resultEl.style.display = "none"; }, 30000);
+    }
+
     var rmtoSendBtn = $("#btn-rmto-send-now");
     if (rmtoSendBtn) rmtoSendBtn.addEventListener("click", function () {
         rmtoSendBtn.disabled = true;
         rmtoSendBtn.textContent = "در حال ارسال...";
-        api("POST", "/api/rmto/send-now", {}, function (status) {
+        var resultEl = $("#rmto-send-result");
+        if (resultEl) { resultEl.style.display = "inline-block"; resultEl.innerHTML = '<span style="color:#64748b">منتظر پاسخ RMTO...</span>'; }
+        api("POST", "/api/rmto/send-now", {}, function (status, data) {
             rmtoSendBtn.disabled = false;
             rmtoSendBtn.textContent = "ارسال الان";
-            if (status === 200) {
-                alert("ارسال انجام شد. نتیجه را در تاریخچه ببینید.");
+            if (status === 200 && data) {
+                showSendResult(data);
                 loadRMTO();
-            } else alert("خطا در ارسال");
+            } else {
+                if (resultEl) { resultEl.style.display = "inline-block"; resultEl.innerHTML = '<span style="color:#ef4444;font-weight:700">خطا در ارتباط با سرور</span>'; }
+            }
         });
     });
 
     var rmtoAggBtn = $("#btn-rmto-aggregate");
     if (rmtoAggBtn) rmtoAggBtn.addEventListener("click", function () {
         rmtoAggBtn.disabled = true;
-        api("POST", "/api/rmto/aggregate", {}, function (status) {
+        rmtoAggBtn.textContent = "در حال تجمیع...";
+        api("POST", "/api/rmto/aggregate", {}, function (status, data) {
             rmtoAggBtn.disabled = false;
+            rmtoAggBtn.textContent = "تجمیع و ارسال";
             if (status === 200) {
-                alert("تجمیع و ارسال انجام شد.");
-                loadRMTO();
-            } else alert("خطا");
+                var resultEl = $("#rmto-send-result");
+                if (resultEl) {
+                    resultEl.style.display = "inline-block";
+                    resultEl.innerHTML = '<span style="color:#22c55e">تجمیع انجام شد. ارسال در پس‌زمینه...</span>';
+                }
+                // Reload after a short delay to show send results
+                setTimeout(loadRMTO, 3000);
+            } else {
+                var resultEl2 = $("#rmto-send-result");
+                if (resultEl2) { resultEl2.style.display = "inline-block"; resultEl2.innerHTML = '<span style="color:#ef4444;font-weight:700">خطا در تجمیع</span>'; }
+            }
         });
     });
 
     var rmtoRefreshBtn = $("#btn-rmto-refresh");
     if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
+
+    // Monitor filter
+    var rmtoFilterEl = $("#rmto-log-filter");
+    if (rmtoFilterEl) rmtoFilterEl.addEventListener("change", function () {
+        rmtoLogFilter = this.value;
+        loadRMTOMonitor();
+    });
+
+    var rmtoRefreshLogsBtn = $("#btn-refresh-rmto-logs");
+    if (rmtoRefreshLogsBtn) rmtoRefreshLogsBtn.addEventListener("click", loadRMTOMonitor);
 
     // ============================================================
     // Settings

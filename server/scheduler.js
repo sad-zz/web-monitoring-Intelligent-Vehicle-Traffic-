@@ -113,10 +113,32 @@ function aggregateAndSend() {
 
 /**
  * Send all unsent aggregated data to RMTO.
+ * @param {function} [onComplete] - Optional callback(results) called when all sends finish.
+ *   results = { total, success, failed, errors: [{ method, device_code, error, response }] }
  */
-function sendUnsentData() {
+function sendUnsentData(onComplete) {
+    var results = { total: 0, success: 0, failed: 0, errors: [] };
+
     // --- Send simple AddData ---
     var unsent = db.prepare("SELECT * FROM rmto_queue WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+
+    // --- Send 5-class AddData5 ---
+    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+
+    var pending = unsent.length + unsent5.length;
+    results.total = pending;
+
+    if (pending === 0) {
+        if (onComplete) onComplete(results);
+        return;
+    }
+
+    function checkDone() {
+        pending--;
+        if (pending <= 0 && onComplete) {
+            onComplete(results);
+        }
+    }
 
     unsent.forEach(function (row) {
         var dt = formatDateTime(row.period_start);
@@ -128,20 +150,31 @@ function sendUnsentData() {
             avgSpeed: row.avg_speed
         }, function (err, response) {
             var success = !err && response;
+            var responseStr = JSON.stringify(response || (err && err.message));
             db.prepare(
                 "UPDATE rmto_queue SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-            ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
+            ).run(success ? 1 : 0, responseStr, row.id);
 
             db.prepare(
                 "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
                 "VALUES (?, ?, ?, ?, ?, ?)"
             ).run("AddData", row.device_code, JSON.stringify(row),
                 JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
+
+            if (success) {
+                results.success++;
+            } else {
+                results.failed++;
+                results.errors.push({
+                    method: "AddData",
+                    device_code: row.device_code,
+                    error: err ? err.message : "پاسخ خالی از RMTO",
+                    response: responseStr
+                });
+            }
+            checkDone();
         });
     });
-
-    // --- Send 5-class AddData5 ---
-    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
 
     unsent5.forEach(function (row) {
         var dt = formatDateTime(row.period_start);
@@ -163,15 +196,29 @@ function sendUnsentData() {
             avgSpeed: row.avg_speed
         }, function (err, response) {
             var success = !err && response;
+            var responseStr = JSON.stringify(response || (err && err.message));
             db.prepare(
                 "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-            ).run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
+            ).run(success ? 1 : 0, responseStr, row.id);
 
             db.prepare(
                 "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
                 "VALUES (?, ?, ?, ?, ?, ?)"
             ).run("AddData5", row.device_code, JSON.stringify(row),
                 JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
+
+            if (success) {
+                results.success++;
+            } else {
+                results.failed++;
+                results.errors.push({
+                    method: "AddData5",
+                    device_code: row.device_code,
+                    error: err ? err.message : "پاسخ خالی از RMTO",
+                    response: responseStr
+                });
+            }
+            checkDone();
         });
     });
 }

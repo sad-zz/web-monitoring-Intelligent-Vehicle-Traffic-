@@ -362,23 +362,62 @@ app.get("/api/stats", function (req, res) {
 // ============================================================
 app.get("/api/rmto/logs", function (req, res) {
     var limit = parseInt(req.query.limit, 10) || 50;
-    res.json(db.prepare("SELECT * FROM send_log ORDER BY created_at DESC LIMIT ?").all(limit));
+    var filter = req.query.filter || "all"; // all, error, success
+    var sql = "SELECT * FROM send_log";
+    if (filter === "error") sql += " WHERE success = 0";
+    else if (filter === "success") sql += " WHERE success = 1";
+    sql += " ORDER BY created_at DESC LIMIT ?";
+    res.json(db.prepare(sql).all(limit));
+});
+
+app.get("/api/rmto/log/:id", function (req, res) {
+    var row = db.prepare("SELECT * FROM send_log WHERE id = ?").get(parseInt(req.params.id, 10));
+    if (!row) return res.status(404).json({ error: "not found" });
+    res.json(row);
 });
 
 app.post("/api/rmto/send-now", function (req, res) {
-    scheduler.sendUnsentData();
-    res.json({ success: true });
+    var responded = false;
+    // Timeout: if SOAP takes too long, respond with partial info
+    var timer = setTimeout(function () {
+        if (!responded) {
+            responded = true;
+            res.json({ success: false, total: 0, sent_success: 0, sent_failed: 0, errors: [{ error: "زمان ارسال طولانی شد - نتیجه را در مانیتور ببینید" }], timeout: true });
+        }
+    }, 60000);
+
+    scheduler.sendUnsentData(function (results) {
+        clearTimeout(timer);
+        if (!responded) {
+            responded = true;
+            res.json({
+                success: results.failed === 0 && results.total > 0,
+                total: results.total,
+                sent_success: results.success,
+                sent_failed: results.failed,
+                errors: results.errors
+            });
+        }
+    });
 });
 
 app.post("/api/rmto/aggregate", function (req, res) {
     scheduler.aggregateAndSend();
-    res.json({ success: true });
+    // aggregateAndSend calls sendUnsentData internally, respond after aggregation
+    res.json({ success: true, message: "تجمیع انجام شد. ارسال در پس‌زمینه ادامه دارد." });
 });
 
 app.get("/api/rmto/queue", function (req, res) {
     var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
     var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();
-    res.json({ unsent: unsent, sent: sent });
+    // Error stats
+    var errorCount = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0").get().c;
+    var todayErrors = 0;
+    try {
+        var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        todayErrors = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?").get(todayStart.toISOString()).c;
+    } catch (e) { /* ok */ }
+    res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
 });
 
 // ============================================================
