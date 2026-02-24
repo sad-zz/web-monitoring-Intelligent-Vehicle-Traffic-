@@ -115,7 +115,7 @@ function sendAddData(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: convertDateTimeToInt32(data.dateTime),  // تبدیل به Int32
+            DateTime: data.dateTime,  // Keep as string "YYYY/MM/DD HH:mm"
             Count: data.totalCount,
             Speed: Math.round(data.avgSpeed)
         };
@@ -153,7 +153,7 @@ function sendAddData5(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: convertDateTimeToInt32(data.dateTime),  // تبدیل به Int32
+            DateTime: data.dateTime,  // Keep as string "YYYY/MM/DD HH:mm"
             // 5 volume classes
             C1: parseInt(data.class1Count) || 0,
             C2: parseInt(data.class2Count) || 0,
@@ -229,7 +229,7 @@ function sendAddData8(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: convertDateTimeToInt32(data.dateTime),  // تبدیل به Int32
+            DateTime: data.dateTime,  // Keep as string "YYYY/MM/DD HH:mm"
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
             C3: data.class3Count || 0,
