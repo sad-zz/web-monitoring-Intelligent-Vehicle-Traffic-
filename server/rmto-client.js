@@ -17,6 +17,49 @@ var PASSWORD = process.env.RMTO_PASSWORD || "";
 var soapClient = null;
 
 /**
+ * تبدیل DateTime از فرمت string به Unix timestamp (Int32)
+ * @param {string} dateTimeStr - Format: "YYYY/MM/DD HH:mm"
+ * @returns {number} Unix timestamp (seconds since 1970-01-01)
+ */
+function convertDateTimeToInt32(dateTimeStr) {
+    try {
+        // Parse "2024/02/23 14:30"
+        var parts = dateTimeStr.trim().split(' ');
+        if (parts.length !== 2) {
+            throw new Error('Invalid DateTime format. Expected "YYYY/MM/DD HH:mm"');
+        }
+        
+        var dateParts = parts[0].split('/');
+        var timeParts = parts[1].split(':');
+        
+        if (dateParts.length !== 3 || timeParts.length !== 2) {
+            throw new Error('Invalid DateTime format. Expected "YYYY/MM/DD HH:mm"');
+        }
+        
+        var year = parseInt(dateParts[0], 10);
+        var month = parseInt(dateParts[1], 10) - 1; // 0-indexed
+        var day = parseInt(dateParts[2], 10);
+        var hour = parseInt(timeParts[0], 10);
+        var minute = parseInt(timeParts[1], 10);
+        
+        // Create date object
+        var date = new Date(year, month, day, hour, minute, 0, 0);
+        
+        // Convert to Unix timestamp (seconds)
+        var timestamp = Math.floor(date.getTime() / 1000);
+        
+        console.log('[RMTO] DateTime conversion:', dateTimeStr, '->', timestamp);
+        
+        return timestamp;
+    } catch (e) {
+        console.error('[RMTO] DateTime conversion error:', e.message);
+        console.error('[RMTO] Input was:', dateTimeStr);
+        // Fallback: return current timestamp
+        return Math.floor(Date.now() / 1000);
+    }
+}
+
+/**
  * Initialize SOAP client (called once at startup).
  */
 function initClient(callback) {
@@ -72,7 +115,7 @@ function sendAddData(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            DateTime: convertDateTimeToInt32(data.dateTime),  // تبدیل به Int32
             Count: data.totalCount,
             Speed: Math.round(data.avgSpeed)
         };
@@ -110,7 +153,7 @@ function sendAddData5(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            DateTime: convertDateTimeToInt32(data.dateTime),  // تبدیل به Int32
             // 5 volume classes
             C1: parseInt(data.class1Count) || 0,
             C2: parseInt(data.class2Count) || 0,
@@ -186,7 +229,7 @@ function sendAddData8(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            DateTime: convertDateTimeToInt32(data.dateTime),  // تبدیل به Int32
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
             C3: data.class3Count || 0,
