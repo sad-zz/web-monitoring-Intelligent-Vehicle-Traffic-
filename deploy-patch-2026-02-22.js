@@ -522,6 +522,18 @@ patch(
 );
 
 // ============================================================
+// Fix27 — server/index.js: restore missing var deviceClockDrift = {}
+// Fix18's patch replacement accidentally turned the declaration into `undefined`,
+// causing ReferenceError: deviceClockDrift is not defined at runtime.
+// ============================================================
+patch(
+    "Fix27: restore var deviceClockDrift = {} (accidentally removed by Fix18)",
+    "server/index.js",
+    "var pendingSyncs = {};\n\nundefined\n\n// Track device's last known reported time",
+    "var pendingSyncs = {};\n\n// Track clock drift per device (device_code -> drift in minutes)\nvar deviceClockDrift = {};\n\n// Track device's last known reported time"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

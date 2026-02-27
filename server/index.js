@@ -811,7 +811,8 @@ var connectedDevices = {};
 // Track pending time syncs waiting for ACK (device_code -> { retries, timer, deferDataRequest, socket })
 var pendingSyncs = {};
 
-undefined
+// Track clock drift per device (device_code -> drift in minutes)
+var deviceClockDrift = {};
 
 // Track device's last known reported time (device_code -> { devTime: Date, serverTime: Date })
 // Used to send 0197 with device-adjusted timestamp when device RTC is out of sync
