@@ -791,6 +791,22 @@ patch("Fix30c: set TZ=Asia/Tehran in server/db.js (affects SQLite localtime)",
     }
 })();
 
+// Fix31a: remove over-aggressive timestamp correction in 8821 handler
+// (was correcting ALL >30min-old timestamps to "now" → UNIQUE collision → irawdata empty)
+patchRegex("Fix31a: only correct future/dead-clock timestamps in 8821 handler (main data-loss bug)",
+    "server/index.js",
+    /if \(!isNaN\(deviceTime\.getTime\(\)\)\) \{\s*var driftMs[\s\S]*?syncDeviceTime\([^)]+\);\s*\}\s*\}\s*\}/,
+    "Fix31 correcting timestamp",
+    'Fix31: Only correct FUTURE timestamps (device clock ahead) or dead-clock (year<2020).\n        // Past valid-year timestamps are backlogged intervals requested via 0197 and must be\n        // stored with their original time.  Correcting all >30min-old timestamps to "now"\n        // caused every interval to get the same bucket → INSERT OR IGNORE discarded all but\n        // the first → irawdata appeared empty.\n        if (!isNaN(deviceTime.getTime())) {\n            var isFuture = deviceTime.getTime() > serverNow.getTime() + 10 * 60 * 1000; // >10min ahead\n            var isDeadClock = deviceTime.getFullYear() < 2020;\n            if (isFuture || isDeadClock) {\n                var corrected = new Date(serverNow);\n                corrected.setMinutes(Math.floor(corrected.getMinutes() / 5) * 5, 0, 0);\n                var correctedStr = corrected.getFullYear() + "-" + String(corrected.getMonth() + 1).padStart(2, "0") + "-" + String(corrected.getDate()).padStart(2, "0") + "T" + String(corrected.getHours()).padStart(2, "0") + ":" + String(corrected.getMinutes()).padStart(2, "0") + ":00";\n                var reason = isFuture ? "ساعت دستگاه جلو است" : "ساعت دستگاه dead-clock (year<2020)";\n                console.log("[TCP] Fix31 correcting timestamp (" + reason + "): " + parsed.create_at + " -> " + correctedStr);\n                parsed.create_at = correctedStr;\n                timestampCorrected = true;\n                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: reason + " — زمان اصلاح شد به " + correctedStr });\n            } else {\n                var pastDriftMin = Math.round((serverNow.getTime() - deviceTime.getTime()) / 60000);\n                if (pastDriftMin > 5) {\n                    console.log("[TCP] Backlog interval: " + parsed.device_code + " create_at=" + parsed.create_at + " (" + pastDriftMin + "min ago) — stored as-is");\n                }\n            }\n        }'
+);
+
+// Fix32: add received_at migration to db.js (safety for old DBs)
+patch("Fix32: add received_at migration to irawdata in db.js",
+    "server/db.js",
+    '["rmto_id INTEGER", "rmto_cfl INTEGER", "rmto_srvdt TEXT", "rmto_bil INTEGER", "rmto_err TEXT"].forEach(function (col) {',
+    '["received_at TEXT DEFAULT (datetime(\'now\',\'localtime\'))", "rmto_id INTEGER", "rmto_cfl INTEGER", "rmto_srvdt TEXT", "rmto_bil INTEGER", "rmto_err TEXT"].forEach(function (col) {'
+);
+
 // ============================================================
 // نتیجه نهایی
 // ============================================================

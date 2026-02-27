@@ -1299,23 +1299,27 @@ function processRawData(raw, ip) {
             timestampCorrected = true;
             addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "تاریخ نامعتبر: " + parsed.create_at + " - اصلاح شد به " + corrStr });
         }
+        // Fix31: Only correct FUTURE timestamps (device clock ahead) or dead-clock (year<2020).
+        // Past valid-year timestamps are backlogged intervals requested via 0197 and must be
+        // stored with their original time.  Correcting all >30min-old timestamps to "now"
+        // caused every interval to get the same bucket → INSERT OR IGNORE discarded all but
+        // the first → irawdata appeared empty.
         if (!isNaN(deviceTime.getTime())) {
-            var driftMs = Math.abs(serverNow.getTime() - deviceTime.getTime());
-            var driftMinutes = Math.round(driftMs / 60000);
-            if (driftMinutes > 30) {
-                console.log("[TCP] WARNING: Device " + parsed.device_code + " clock drift = " + driftMinutes + " min (device=" + parsed.create_at + " server=" + serverNow.toISOString() + ")");
-                // Correct the timestamp to server time (round to nearest 5-min interval)
+            var isFuture = deviceTime.getTime() > serverNow.getTime() + 10 * 60 * 1000; // >10min ahead
+            var isDeadClock = deviceTime.getFullYear() < 2020;
+            if (isFuture || isDeadClock) {
                 var corrected = new Date(serverNow);
                 corrected.setMinutes(Math.floor(corrected.getMinutes() / 5) * 5, 0, 0);
                 var correctedStr = corrected.getFullYear() + "-" + String(corrected.getMonth() + 1).padStart(2, "0") + "-" + String(corrected.getDate()).padStart(2, "0") + "T" + String(corrected.getHours()).padStart(2, "0") + ":" + String(corrected.getMinutes()).padStart(2, "0") + ":00";
-                console.log("[TCP] Correcting timestamp: " + parsed.create_at + " -> " + correctedStr);
+                var reason = isFuture ? "ساعت دستگاه جلو است" : "ساعت دستگاه dead-clock (year<2020)";
+                console.log("[TCP] Fix31 correcting timestamp (" + reason + "): " + parsed.create_at + " -> " + correctedStr);
                 parsed.create_at = correctedStr;
                 timestampCorrected = true;
-                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "اختلاف ساعت " + driftMinutes + " دقیقه - زمان اصلاح شد به " + correctedStr });
-                // Force immediate re-sync
-                var sock = connectedDevices[parsed.device_code];
-                if (sock && !sock.destroyed) {
-                    syncDeviceTime(parsed.device_code, sock);
+                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: reason + " — زمان اصلاح شد به " + correctedStr });
+            } else {
+                var pastDriftMin = Math.round((serverNow.getTime() - deviceTime.getTime()) / 60000);
+                if (pastDriftMin > 5) {
+                    console.log("[TCP] Backlog interval: " + parsed.device_code + " create_at=" + parsed.create_at + " (" + pastDriftMin + "min ago) — stored as-is");
                 }
             }
         }
