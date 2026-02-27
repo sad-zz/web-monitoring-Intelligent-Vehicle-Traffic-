@@ -1007,6 +1007,19 @@ function startDataRequests(deviceCode, socket) {
         console.log("[TCP] 0197 no DB record for " + deviceCode + " — using server time - 5min: " + refTime.toISOString());
     }
 
+    // Fix34: If refTime is more than 4 hours behind server time, the DB record is stale
+    // (e.g., stored before Fix30/TZ change when server was UTC, now server is Iran time).
+    // Requesting a 4h-old interval wastes connection cycles (device will drain 48+ empty
+    // intervals via Fix26 before reaching current time).  Jump directly to now - 5min.
+    var staleLimitMs = 4 * 60 * 60 * 1000; // 4 hours
+    if (now.getTime() - refTime.getTime() > staleLimitMs) {
+        console.log("[TCP] Fix34: stale DB record for " + deviceCode +
+            " (refTime=" + refTime.toISOString() + " is " +
+            Math.round((now.getTime() - refTime.getTime()) / 60000) +
+            "min behind server) — jumping to server time - 5min");
+        refTime = new Date(now.getTime() - 5 * 60 * 1000);
+    }
+
     // If refTime is in the future, use server time - 5min instead
     if (refTime.getTime() > now.getTime()) {
         refTime = new Date(now.getTime() - 5 * 60 * 1000);

@@ -837,6 +837,16 @@ patch("Fix33b: HTTP EADDRINUSE add 8s delay before exit (prevents tight crash lo
     ok++;
 })();
 
+// Fix34: startDataRequests — skip stale DB records older than 4h (UTC-era records)
+// When Fix30 (TZ=Asia/Tehran) is applied, old records have UTC timestamps (e.g. 17:15).
+// These cause 0197 to request "2602271720" while device is at Iran 20:44 → device
+// drains 48+ empty intervals before Fix26 jumps to current time → reception shows total=0.
+patch("Fix34: skip stale DB record (>4h) in startDataRequests — prevents UTC-era empty intervals",
+    "server/index.js",
+    '    if (!refTime) {\n        // No DB record for this device: request last completed server-time interval\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n        console.log("[TCP] 0197 no DB record for " + deviceCode + " \u2014 using server time - 5min: " + refTime.toISOString());\n    }\n\n    // If refTime is in the future, use server time - 5min instead\n    if (refTime.getTime() > now.getTime()) {\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }',
+    '    if (!refTime) {\n        // No DB record for this device: request last completed server-time interval\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n        console.log("[TCP] 0197 no DB record for " + deviceCode + " \u2014 using server time - 5min: " + refTime.toISOString());\n    }\n\n    // Fix34: If refTime is more than 4 hours behind server time, the DB record is stale\n    // (e.g., stored before Fix30/TZ change when server was UTC, now server is Iran time).\n    // Requesting a 4h-old interval wastes connection cycles (device will drain 48+ empty\n    // intervals via Fix26 before reaching current time).  Jump directly to now - 5min.\n    var staleLimitMs = 4 * 60 * 60 * 1000; // 4 hours\n    if (now.getTime() - refTime.getTime() > staleLimitMs) {\n        console.log("[TCP] Fix34: stale DB record for " + deviceCode +\n            " (refTime=" + refTime.toISOString() + " is " +\n            Math.round((now.getTime() - refTime.getTime()) / 60000) +\n            "min behind server) \u2014 jumping to server time - 5min");\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }\n\n    // If refTime is in the future, use server time - 5min instead\n    if (refTime.getTime() > now.getTime()) {\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }'
+);
+
 // ============================================================
 // نتیجه نهایی
 // ============================================================
