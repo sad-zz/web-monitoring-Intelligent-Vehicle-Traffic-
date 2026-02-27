@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =======================================================================
-# deploy-full.sh — جایگزینی کامل server/index.js با نسخه تمیز از repo
+# deploy-full.sh — جایگزینی کامل server/index.js و server/scheduler.js
 # =======================================================================
 # استفاده روی سرور:
 #   cd /opt/tc-manager
@@ -13,38 +13,42 @@ REPO_RAW="https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Ve
 TS=$(date +%Y%m%d_%H%M%S)
 
 echo "========================================================"
-echo "  TC Manager — جایگزینی کامل server/index.js"
+echo "  TC Manager — جایگزینی کامل server/index.js + scheduler.js"
 echo "========================================================"
 
-# 1. پشتیبان‌گیری
-echo ""
-echo "📦  [1/4] پشتیبان‌گیری از فایل فعلی..."
-cp server/index.js "server/index.js.bak-${TS}"
-echo "      → server/index.js.bak-${TS}"
+replace_file() {
+    local LOCAL="$1"
+    local URL="$2"
+    local TMPFILE="/tmp/tc-check-${TS}-$(basename ${LOCAL}).js"
 
-# 2. دانلود نسخه صحیح
-echo ""
-echo "⬇️   [2/4] دانلود server/index.js از repo..."
-wget -q -O server/index.js.new "${REPO_RAW}/server/index.js"
-echo "      → دانلود شد ($(wc -c < server/index.js.new) بایت)"
+    echo ""
+    echo "📦  پشتیبان‌گیری از ${LOCAL}..."
+    cp "${LOCAL}" "${LOCAL}.bak-${TS}"
+    echo "      → ${LOCAL}.bak-${TS}"
 
-# 3. بررسی syntax (از /tmp استفاده می‌کنیم تا extension .new مشکل ESM ایجاد نکند)
-echo ""
-echo "🔍  [3/4] بررسی syntax..."
-cp server/index.js.new /tmp/tc-syntax-check.js
-if node --check /tmp/tc-syntax-check.js; then
-    echo "      ✅ syntax درست است"
-    mv server/index.js.new server/index.js
-else
-    echo "      ❌ خطای syntax! فایل جایگزین نشد."
-    rm -f server/index.js.new /tmp/tc-syntax-check.js
-    exit 1
-fi
-rm -f /tmp/tc-syntax-check.js
+    echo "⬇️   دانلود ${LOCAL} از repo..."
+    wget -q -O "${LOCAL}.new" "${URL}"
+    echo "      → دانلود شد ($(wc -c < "${LOCAL}.new") بایت)"
 
-# 4. راه‌اندازی مجدد
+    echo "🔍  بررسی syntax..."
+    cp "${LOCAL}.new" "${TMPFILE}"
+    if node --check "${TMPFILE}"; then
+        echo "      ✅ syntax درست است"
+        mv "${LOCAL}.new" "${LOCAL}"
+    else
+        echo "      ❌ خطای syntax! فایل جایگزین نشد."
+        rm -f "${LOCAL}.new" "${TMPFILE}"
+        exit 1
+    fi
+    rm -f "${TMPFILE}"
+}
+
+replace_file "server/index.js"     "${REPO_RAW}/server/index.js"
+replace_file "server/scheduler.js" "${REPO_RAW}/server/scheduler.js"
+
+# راه‌اندازی مجدد
 echo ""
-echo "🔄  [4/4] راه‌اندازی مجدد سرور..."
+echo "🔄  راه‌اندازی مجدد سرور..."
 # توقف کامل PM2 اول
 pm2 stop tc-manager 2>/dev/null || true
 sleep 1
@@ -62,7 +66,7 @@ pm2 list
 
 echo ""
 echo "========================================================"
-echo "  ✅ کامل شد — server/index.js جایگزین شد"
+echo "  ✅ کامل شد — server/index.js و server/scheduler.js جایگزین شدند"
 echo ""
 echo "  برای مشاهده لاگ:"
 echo "    pm2 logs tc-manager --lines 50"

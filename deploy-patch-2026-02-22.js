@@ -119,6 +119,19 @@ patch(
     "/**\n * Check for HTTP devices that have gone silent and mark them offline.\n * TCP devices are already marked offline on socket disconnect (in index.js).\n * HTTP devices have no connection to drop, so we check last_seen periodically.\n */\nvar stmtGetOfflineTimeout = db.prepare(\"SELECT value FROM settings WHERE key = 'offline_timeout'\");\nvar stmtMarkOffline = db.prepare(\n    \"UPDATE devices SET status = 'offline' \" +\n    \"WHERE status = 'online' \" +\n    \"AND last_seen IS NOT NULL \" +\n    \"AND datetime(last_seen) < datetime(?)\"\n);\n\nfunction checkOfflineDevices() {\n    try {\n        var timeoutRow = stmtGetOfflineTimeout.get();\n        var timeoutMin = parseInt((timeoutRow && timeoutRow.value) || \"5\", 10);\n        if (isNaN(timeoutMin) || timeoutMin < 1) timeoutMin = 5;\n\n        // Calculate threshold in JavaScript and pass as a bound parameter\n        var threshold = new Date(Date.now() - timeoutMin * 60 * 1000);\n        var thresholdStr = toLocalISOString(threshold);\n\n        var updated = stmtMarkOffline.run(thresholdStr).changes;\n\n        if (updated > 0) {\n            console.log(\"[Scheduler] checkOfflineDevices: marked \" + updated + \" device(s) offline (timeout=\" + timeoutMin + \" min)\");\n        }\n    } catch (e) {\n        console.error(\"[Scheduler] checkOfflineDevices error:\", e.message);\n    }\n}\n\n/**\n * Start the scheduler.\n */\nfunction start() {"
 );
 
+// ============================================================
+// Fix28 — server/scheduler.js: add missing toLocalISOString helper
+// Fix2 added checkOfflineDevices which calls toLocalISOString, but the
+// production scheduler.js (older version) never had this helper defined.
+// Result: [Scheduler] checkOfflineDevices error: toLocalISOString is not defined
+// ============================================================
+patch(
+    "Fix28: add toLocalISOString helper to scheduler.js (required by checkOfflineDevices)",
+    "server/scheduler.js",
+    "var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 15;",
+    "var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 15;\n\n/**\n * Format Date as local ISO string (matching how device data is stored).\n * Device data is stored as \"YYYY-MM-DDTHH:MM:SS\" in LOCAL time (no Z suffix).\n * So scheduler queries must also use local time format.\n */\nfunction toLocalISOString(d) {\n    var y = d.getFullYear();\n    var mo = String(d.getMonth() + 1).padStart(2, \"0\");\n    var dy = String(d.getDate()).padStart(2, \"0\");\n    var h = String(d.getHours()).padStart(2, \"0\");\n    var mi = String(d.getMinutes()).padStart(2, \"0\");\n    var s = String(d.getSeconds()).padStart(2, \"0\");\n    return y + \"-\" + mo + \"-\" + dy + \"T\" + h + \":\" + mi + \":\" + s;\n}"
+);
+
 patch(
     "Fix2: schedule checkOfflineDevices",
     "server/scheduler.js",
@@ -418,18 +431,27 @@ patchRegex(
     "Fix19a: add deviceLastSeen tracking variable",
     "server/index.js",
     /\/\/ Track clock drift per device \(device_code -> drift in minutes\)\nvar deviceClockDrift = \{\};/,
+    // skipStr: already applied marker
+    "var deviceLastSeen = {};",
+    // replaceStr (5th param — was missing before, causing undefined replacement bug!)
     "// Track clock drift per device (device_code -> drift in minutes)\nvar deviceClockDrift = {};\n\n// Track device's last known reported time (device_code -> { devTime: Date, serverTime: Date })\n// Used to send 0197 with device-matching timestamps even when RTC is dead\nvar deviceLastSeen = {};"
 );
 patchRegex(
     "Fix19b: save deviceLastSeen in 8000 processRawData handler",
     "server/index.js",
     /\/\/ Store drift so startDevicePoll can decide whether to request old data\n            deviceClockDrift\[sysId\] = driftM;/,
+    // skipStr
+    "deviceLastSeen[sysId] = { devTime: devDate, serverTime: new Date() };",
+    // replaceStr
     "// Store device's reported time for use in 0197 requests\n            // (so we can send 0197 with device-matching timestamps even when RTC is dead)\n            if (!isNaN(devDate.getTime())) {\n                deviceLastSeen[sysId] = { devTime: devDate, serverTime: new Date() };\n            }\n            // Store drift so startDevicePoll can decide whether to request old data\n            deviceClockDrift[sysId] = driftM;"
 );
 patchRegex(
     "Fix19c: update startDataRequests to use device-adjusted time for 0197",
     "server/index.js",
     /function startDataRequests\(deviceCode, socket\) \{\n    if \(socket\.destroyed\) return;\n\n    \/\/ Request the last COMPLETED 5-minute interval \(current - 5 min\)\n    var now = new Date\(\);\n    var t = new Date\(now\.getTime\(\) - 5 \* 60 \* 1000\);\n    t\.setMinutes\(Math\.floor\(t\.getMinutes\(\) \/ 5\) \* 5, 0, 0\);\n    var ts = formatPollTimestamp\(t\);\n\n    var cmd = "0197" \+ ts;\n    sendToDevice\(deviceCode, socket, cmd, "DATA_REQ"\);\n    console\.log\("\[TCP\] Sent single 0197 for device " \+ deviceCode \+ " interval " \+ ts\);\n\}/,
+    // skipStr
+    "Fix25: Use last stored DB record",
+    // replaceStr
     "function startDataRequests(deviceCode, socket) {\n    if (socket.destroyed) return;\n\n    var now = new Date();\n    var seen = deviceLastSeen[deviceCode];\n    var refTime;\n\n    if (seen && !isNaN(seen.devTime.getTime())) {\n        // Use device's reported time adjusted for elapsed time since handshake.\n        // This works even when the device RTC battery is dead (year=2000).\n        var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());\n        refTime = new Date(seen.devTime.getTime() + elapsedMs - 5 * 60 * 1000);\n        console.log(\"[TCP] 0197 using device-clock ref: devTime=\" + seen.devTime.toISOString() +\n            \" elapsed=\" + Math.round(elapsedMs / 1000) + \"s ref=\" + refTime.toISOString());\n    } else {\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }\n    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5, 0, 0);\n\n    var ts = formatPollTimestamp(refTime);\n    var cmd = \"0197\" + ts;\n    sendToDevice(deviceCode, socket, cmd, \"DATA_REQ\");\n    console.log(\"[TCP] Sent single 0197 for device \" + deviceCode + \" interval \" + ts);\n}"
 );
 
@@ -523,15 +545,47 @@ patch(
 
 // ============================================================
 // Fix27 — server/index.js: restore missing var deviceClockDrift = {}
-// Fix18's patch replacement accidentally turned the declaration into `undefined`,
-// causing ReferenceError: deviceClockDrift is not defined at runtime.
+// ROOT CAUSE: Fix19a had a bug — patchRegex was called with 4 args instead of 5.
+// The 4th arg was treated as skipStr; replaceStr was `undefined`.
+// So src.replace(regex, undefined) replaced the matched text with "undefined" string.
+// Fix27a: robust patchRegex that handles "undefined" where deviceClockDrift should be.
+// Fix27b: direct file write if deviceClockDrift is still absent after 27a.
 // ============================================================
-patch(
-    "Fix27: restore var deviceClockDrift = {} (accidentally removed by Fix18)",
+patchRegex(
+    "Fix27a: restore var deviceClockDrift = {} — replace 'undefined' left by Fix19a bug",
     "server/index.js",
-    "var pendingSyncs = {};\n\nundefined\n\n// Track device's last known reported time",
-    "var pendingSyncs = {};\n\n// Track clock drift per device (device_code -> drift in minutes)\nvar deviceClockDrift = {};\n\n// Track device's last known reported time"
+    // Match "undefined" sitting alone on a line between pendingSyncs and whatever follows
+    /var pendingSyncs = \{\};\s*\n+undefined\s*\n/,
+    // skipStr: if deviceClockDrift is already properly declared, skip
+    "var deviceClockDrift = {};",
+    // replaceStr
+    "var pendingSyncs = {};\n\n// Track clock drift per device (device_code -> drift in minutes)\nvar deviceClockDrift = {};\n\n"
 );
+// Fix27b: fallback — if deviceClockDrift is STILL missing after Fix27a,
+// inject the declaration before the TCP Time sync comment block.
+(function fix27b() {
+    var abs = path.join(ROOT, "server/index.js");
+    if (!fs.existsSync(abs)) return;
+    var src = fs.readFileSync(abs, "utf8");
+    if (src.indexOf("var deviceClockDrift") !== -1) {
+        console.log("[SKIP] Fix27b: var deviceClockDrift = {} — already present");
+        skip++;
+        return;
+    }
+    var marker = "// ============================================================\n// TCP: Time sync";
+    if (src.indexOf(marker) === -1) {
+        console.log("[WARN] Fix27b: TCP Time sync marker not found — cannot inject deviceClockDrift");
+        fail++;
+        return;
+    }
+    fs.writeFileSync(abs + ".patch22.bak", src);
+    var injection = "// Track clock drift per device (device_code -> drift in minutes)\nvar deviceClockDrift = {};\n\n" +
+        "// Track device's last known reported time (device_code -> { devTime: Date, serverTime: Date })\n" +
+        "// Used to send 0197 with device-matching timestamps even when RTC is dead\nvar deviceLastSeen = {};\n\n";
+    fs.writeFileSync(abs, src.replace(marker, injection + marker));
+    console.log("[OK]   Fix27b: injected var deviceClockDrift = {} and var deviceLastSeen = {} before TCP section");
+    ok++;
+}());
 
 // ============================================================
 // نتیجه نهایی
