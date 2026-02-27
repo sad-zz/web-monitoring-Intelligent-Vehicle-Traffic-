@@ -848,6 +848,32 @@ patch("Fix34: skip stale DB record (>4h) in startDataRequests — prevents UTC-e
 );
 
 // ============================================================
+// Fix35: UPSERT in storeIrawdata — update if new total > existing
+// (INSERT OR IGNORE was silently discarding real traffic data when
+//  a zero-vehicle row was already stored for the same interval key)
+// ============================================================
+patch("Fix35: storeIrawdata UPSERT (update zero-vehicle rows when real traffic arrives)",
+    "server/index.js",
+    'function storeIrawdata(parsed) {\n    var insertRaw = db.prepare(\n        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +\n        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"\n    );\n    insertRaw.run(\n        parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,\n        parsed.a, parsed.b, parsed.c, parsed.d, parsed.e, parsed.x,\n        parsed.sa, parsed.sb, parsed.sc, parsed.sd, parsed.se, parsed.sx,\n        parsed.sao, parsed.sbo, parsed.sco, parsed.sdo, parsed.seo, parsed.sxo,\n        parsed.overtaking, parsed.tooclose\n    );\n}',
+    'function storeIrawdata(parsed) {\n    // Fix35: UPSERT \u2014 if a zero-vehicle row was stored first (e.g. from a duplicate\n    // request or timestamp correction), update it when real traffic data arrives.\n    // Only update when new total > existing total so we never downgrade real data.\n    var insertRaw = db.prepare(\n        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +\n        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +\n        "ON CONFLICT(device_code, create_at, stop, lane) DO UPDATE SET " +\n        "a=excluded.a, b=excluded.b, c=excluded.c, d=excluded.d, e=excluded.e, x=excluded.x, " +\n        "sa=excluded.sa, sb=excluded.sb, sc=excluded.sc, sd=excluded.sd, se=excluded.se, sx=excluded.sx, " +\n        "sao=excluded.sao, sbo=excluded.sbo, sco=excluded.sco, sdo=excluded.sdo, seo=excluded.seo, sxo=excluded.sxo, " +\n        "overtaking=excluded.overtaking, tooclose=excluded.tooclose " +\n        "WHERE (excluded.a+excluded.b+excluded.c+excluded.d+excluded.e+excluded.x) > " +\n        "      (irawdata.a+irawdata.b+irawdata.c+irawdata.d+irawdata.e+irawdata.x)"\n    );\n    insertRaw.run(\n        parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,\n        parsed.a, parsed.b, parsed.c, parsed.d, parsed.e, parsed.x,\n        parsed.sa, parsed.sb, parsed.sc, parsed.sd, parsed.se, parsed.sx,\n        parsed.sao, parsed.sbo, parsed.sco, parsed.sdo, parsed.seo, parsed.sxo,\n        parsed.overtaking, parsed.tooclose\n    );\n}'
+);
+
+// ============================================================
+// Fix36: Don't request future/incomplete intervals in startDataRequests
+// ============================================================
+patch("Fix36a: startDataRequests — skip if next interval not yet completed",
+    "server/index.js",
+    '    // If refTime is in the future, use server time - 5min instead\n    if (refTime.getTime() > now.getTime()) {\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }\n\n    refTime.setSeconds(0, 0);\n    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5);\n\n    var ts = formatPollTimestamp(refTime);\n    var cmd = "0197" + ts;\n    if (!socket._lastDataReqTs) socket._lastDataReqTs = ts;\n    sendToDevice(deviceCode, socket, cmd, "DATA_REQ");\n    console.log("[TCP] Sent 0197 for device " + deviceCode + " interval " + ts);\n}',
+    '    refTime.setSeconds(0, 0);\n    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5);\n\n    // Fix36: The last COMPLETED 5-min interval ended at the last 5-min boundary before now.\n    // If refTime >= lastCompleted, the requested interval hasn\'t finished yet \u2192 device would\n    // respond with an incomplete (all-zero) 8821, and "\u0632\u0645\u0627\u0646 \u062c\u0644\u0648" appears in reception table.\n    // Solution: don\'t send 0197 for an interval that hasn\'t completed yet.\n    var lastCompleted = new Date(now.getTime() - 5 * 60 * 1000);\n    lastCompleted.setSeconds(0, 0);\n    lastCompleted.setMinutes(Math.floor(lastCompleted.getMinutes() / 5) * 5);\n    if (refTime.getTime() > lastCompleted.getTime()) {\n        console.log("[TCP] Fix36: No completed interval to request for " + deviceCode +\n            " (next=" + formatPollTimestamp(refTime) + " > lastCompleted=" + formatPollTimestamp(lastCompleted) + ") \u2014 skipping");\n        return;\n    }\n\n    var ts = formatPollTimestamp(refTime);\n    var cmd = "0197" + ts;\n    if (!socket._lastDataReqTs) socket._lastDataReqTs = ts;\n    sendToDevice(deviceCode, socket, cmd, "DATA_REQ");\n    console.log("[TCP] Sent 0197 for device " + deviceCode + " interval " + ts);\n}'
+);
+
+patch("Fix36b: 8821 drain loop — stop when next interval not yet completed",
+    "server/index.js",
+    '                nextStart.setSeconds(0, 0);\n                nextStart.setMinutes(Math.floor(nextStart.getMinutes() / 5) * 5);\n                var nextTs = formatPollTimestamp(nextStart);\n                sendToDevice(parsed.device_code, sock, "0197" + nextTs, "DATA_REQ_NEXT #" + sock._intervalCount);',
+    '                nextStart.setSeconds(0, 0);\n                nextStart.setMinutes(Math.floor(nextStart.getMinutes() / 5) * 5);\n                // Fix36b: Stop drain when next interval hasn\'t completed yet (avoid future/incomplete data)\n                var lastCompletedDrain = new Date(srvNowFix26.getTime() - 5 * 60 * 1000);\n                lastCompletedDrain.setSeconds(0, 0);\n                lastCompletedDrain.setMinutes(Math.floor(lastCompletedDrain.getMinutes() / 5) * 5);\n                if (nextStart.getTime() > lastCompletedDrain.getTime()) {\n                    console.log("[TCP] Fix36b: " + parsed.device_code + " buffer drained to current time \u2014 stopping");\n                    return;\n                }\n                var nextTs = formatPollTimestamp(nextStart);\n                sendToDevice(parsed.device_code, sock, "0197" + nextTs, "DATA_REQ_NEXT #" + sock._intervalCount);'
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

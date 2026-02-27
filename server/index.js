@@ -1020,13 +1020,21 @@ function startDataRequests(deviceCode, socket) {
         refTime = new Date(now.getTime() - 5 * 60 * 1000);
     }
 
-    // If refTime is in the future, use server time - 5min instead
-    if (refTime.getTime() > now.getTime()) {
-        refTime = new Date(now.getTime() - 5 * 60 * 1000);
-    }
-
     refTime.setSeconds(0, 0);
     refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5);
+
+    // Fix36: The last COMPLETED 5-min interval ended at the last 5-min boundary before now.
+    // If refTime >= lastCompleted, the requested interval hasn't finished yet → device would
+    // respond with an incomplete (all-zero) 8821, and "زمان جلو" appears in reception table.
+    // Solution: don't send 0197 for an interval that hasn't completed yet.
+    var lastCompleted = new Date(now.getTime() - 5 * 60 * 1000);
+    lastCompleted.setSeconds(0, 0);
+    lastCompleted.setMinutes(Math.floor(lastCompleted.getMinutes() / 5) * 5);
+    if (refTime.getTime() > lastCompleted.getTime()) {
+        console.log("[TCP] Fix36: No completed interval to request for " + deviceCode +
+            " (next=" + formatPollTimestamp(refTime) + " > lastCompleted=" + formatPollTimestamp(lastCompleted) + ") — skipping");
+        return;
+    }
 
     var ts = formatPollTimestamp(refTime);
     var cmd = "0197" + ts;
@@ -1210,9 +1218,19 @@ var tcpServer = net.createServer(function (socket) {
 });
 
 function storeIrawdata(parsed) {
+    // Fix35: UPSERT — if a zero-vehicle row was stored first (e.g. from a duplicate
+    // request or timestamp correction), update it when real traffic data arrives.
+    // Only update when new total > existing total so we never downgrade real data.
     var insertRaw = db.prepare(
-        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
-        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+        "ON CONFLICT(device_code, create_at, stop, lane) DO UPDATE SET " +
+        "a=excluded.a, b=excluded.b, c=excluded.c, d=excluded.d, e=excluded.e, x=excluded.x, " +
+        "sa=excluded.sa, sb=excluded.sb, sc=excluded.sc, sd=excluded.sd, se=excluded.se, sx=excluded.sx, " +
+        "sao=excluded.sao, sbo=excluded.sbo, sco=excluded.sco, sdo=excluded.sdo, seo=excluded.seo, sxo=excluded.sxo, " +
+        "overtaking=excluded.overtaking, tooclose=excluded.tooclose " +
+        "WHERE (excluded.a+excluded.b+excluded.c+excluded.d+excluded.e+excluded.x) > " +
+        "      (irawdata.a+irawdata.b+irawdata.c+irawdata.d+irawdata.e+irawdata.x)"
     );
     insertRaw.run(
         parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,
@@ -1390,6 +1408,14 @@ function processRawData(raw, ip) {
                 }
                 nextStart.setSeconds(0, 0);
                 nextStart.setMinutes(Math.floor(nextStart.getMinutes() / 5) * 5);
+                // Fix36b: Stop drain when next interval hasn't completed yet (avoid future/incomplete data)
+                var lastCompletedDrain = new Date(srvNowFix26.getTime() - 5 * 60 * 1000);
+                lastCompletedDrain.setSeconds(0, 0);
+                lastCompletedDrain.setMinutes(Math.floor(lastCompletedDrain.getMinutes() / 5) * 5);
+                if (nextStart.getTime() > lastCompletedDrain.getTime()) {
+                    console.log("[TCP] Fix36b: " + parsed.device_code + " buffer drained to current time — stopping");
+                    return;
+                }
                 var nextTs = formatPollTimestamp(nextStart);
                 sendToDevice(parsed.device_code, sock, "0197" + nextTs, "DATA_REQ_NEXT #" + sock._intervalCount);
             } else {
