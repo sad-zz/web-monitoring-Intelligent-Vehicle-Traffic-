@@ -193,6 +193,14 @@ db.exec([
     ");"
 ].join("\n"));
 
+// Add RMTO tracking columns to irawdata (safe migration for existing databases)
+["rmto_id INTEGER", "rmto_cfl INTEGER", "rmto_srvdt TEXT", "rmto_bil INTEGER", "rmto_err TEXT"].forEach(function (col) {
+    try { db.exec("ALTER TABLE irawdata ADD COLUMN " + col); } catch (e) { /* already exists */ }
+});
+
+// Reset any in-flight records (rmto_id = -1) left by a previous crash
+try { db.exec("UPDATE irawdata SET rmto_id = NULL WHERE rmto_id = -1"); } catch (e) {}
+
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",

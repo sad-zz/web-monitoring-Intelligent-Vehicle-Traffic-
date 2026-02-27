@@ -588,6 +588,149 @@ patchRegex(
 }());
 
 // ============================================================
+// Fix29: RMTO per-interval pipeline (Add5 + irawdata columns)
+// ============================================================
+
+// Fix29a: Add RMTO columns to irawdata in db.js
+patch("Fix29a: irawdata RMTO columns in db.js",
+    "server/db.js",
+    `    "CREATE TABLE IF NOT EXISTS settings (",
+    "  key TEXT PRIMARY KEY,",
+    "  value TEXT",
+    ");"
+].join("\\n"));`,
+    `    "CREATE TABLE IF NOT EXISTS settings (",
+    "  key TEXT PRIMARY KEY,",
+    "  value TEXT",
+    ");"
+].join("\\n"));
+
+// Add RMTO tracking columns to irawdata (safe migration for existing databases)
+["rmto_id INTEGER", "rmto_cfl INTEGER", "rmto_srvdt TEXT", "rmto_bil INTEGER", "rmto_err TEXT"].forEach(function (col) {
+    try { db.exec("ALTER TABLE irawdata ADD COLUMN " + col); } catch (e) { /* already exists */ }
+});
+
+// Reset any in-flight records (rmto_id = -1) left by a previous crash
+try { db.exec("UPDATE irawdata SET rmto_id = NULL WHERE rmto_id = -1"); } catch (e) {}`
+);
+
+// Fix29b: Add sendAdd5() to rmto-client.js
+patch("Fix29b: sendAdd5() in rmto-client.js",
+    "server/rmto-client.js",
+    "module.exports = {\n    initClient: initClient,\n    sendAddData: sendAddData,\n    sendAddData5: sendAddData5,\n    sendAddData8: sendAddData8\n};",
+    `
+/** Add5 SOAP method — matches Companies.asmx WSDL exactly */
+function sendAdd5(data, callback) {
+    ensureClient(function (err) {
+        if (err) return callback(err);
+        var isNull = (data.c1 == null);
+        var args = {
+            CID: parseInt(COMPANY_CODE, 10) || 58,
+            UID: USERNAME, PWD: PASSWORD,
+            FID: data.fid, RID: data.rid, ST: data.st, ET: data.et,
+            C1: isNull ? null : (data.c1 || 0), C2: isNull ? null : (data.c2 || 0),
+            C3: isNull ? null : (data.c3 || 0), C4: isNull ? null : (data.c4 || 0),
+            C5: isNull ? null : (data.c5 || 0), ASP: isNull ? null : (data.asp || 0),
+            S1: isNull ? null : (data.s1 || 0), S2: isNull ? null : (data.s2 || 0),
+            S3: isNull ? null : (data.s3 || 0), S4: isNull ? null : (data.s4 || 0),
+            S5: isNull ? null : (data.s5 || 0), SSO: isNull ? null : (data.sso || 0),
+            SO1: isNull ? null : (data.so1 || 0), SO2: isNull ? null : (data.so2 || 0),
+            SO3: isNull ? null : (data.so3 || 0), SO4: isNull ? null : (data.so4 || 0),
+            SO5: isNull ? null : (data.so5 || 0), OO: isNull ? null : (data.oo || 0),
+            ESD: isNull ? null : (data.esd || 0)
+        };
+        console.log("[RMTO] Add5 fid=" + data.fid + " rid=" + data.rid + " total=" + ((data.c1||0)+(data.c2||0)+(data.c3||0)+(data.c4||0)+(data.c5||0)));
+        soapClient.Add5(args, function (err, result) {
+            if (err) { console.error("[RMTO] Add5 error:", err.message); return callback(err, null); }
+            var response = result && result.Add5Result;
+            callback(null, response);
+        });
+    });
+}
+
+module.exports = {
+    initClient: initClient,
+    sendAddData: sendAddData,
+    sendAddData5: sendAddData5,
+    sendAddData8: sendAddData8,
+    sendAdd5: sendAdd5
+};`
+);
+
+// Fix29c: processAndSendIrawdata() in scheduler.js
+patch("Fix29c: processAndSendIrawdata() in scheduler.js",
+    "server/scheduler.js",
+    "module.exports = {\n    start: start,\n    aggregateAndSend: aggregateAndSend,\n    sendUnsentData: sendUnsentData,\n    checkOfflineDevices: checkOfflineDevices\n};",
+    `
+function processAndSendIrawdata() {
+    var companyCode = 58;
+    try { var r = db.prepare("SELECT value FROM settings WHERE key = 'rmto_company_code'").get(); companyCode = parseInt((r && r.value) || "58", 10) || 58; } catch (e) {}
+    var rows;
+    try { rows = db.prepare("SELECT * FROM irawdata WHERE rmto_id IS NULL ORDER BY create_at ASC LIMIT 100").all(); } catch (e) { return; }
+    if (!rows || rows.length === 0) return;
+    console.log("[Scheduler] processAndSendIrawdata: " + rows.length + " record(s) to send");
+    rows.forEach(function (row) {
+        try { db.prepare("UPDATE irawdata SET rmto_id = -1 WHERE id = ? AND rmto_id IS NULL").run(row.id); } catch (e) { return; }
+        var a = row.a||0, b = row.b||0, c = row.c||0, d = row.d||0, e5 = (row.e||0)+(row.x||0);
+        var total = a+b+c+d+e5;
+        var sa = row.sa||0, sb = row.sb||0, sc = row.sc||0, sd = row.sd||0, se = (row.se||0)+(row.sx||0);
+        var asp = total > 0 ? Math.round((sa+sb+sc+sd+se)/total) : 0;
+        var s1 = a>0 ? Math.round(sa/a) : 0, s2 = b>0 ? Math.round(sb/b) : 0;
+        var s3 = c>0 ? Math.round(sc/c) : 0, s4 = d>0 ? Math.round(sd/d) : 0;
+        var s5 = e5>0 ? Math.round(se/e5) : 0;
+        var so1=row.sao||0, so2=row.sbo||0, so3=row.sco||0, so4=row.sdo||0, so5=(row.seo||0)+(row.sxo||0);
+        var isNull = (total === 0);
+        rmto.sendAdd5({ cid: companyCode, fid: row.id, rid: parseInt(row.device_code,10)||0,
+            st: row.create_at, et: row.stop,
+            c1: isNull?null:a, c2: isNull?null:b, c3: isNull?null:c, c4: isNull?null:d, c5: isNull?null:e5,
+            asp: isNull?null:asp, s1: isNull?null:s1, s2: isNull?null:s2, s3: isNull?null:s3, s4: isNull?null:s4, s5: isNull?null:s5,
+            sso: isNull?null:(so1+so2+so3+so4+so5), so1: isNull?null:so1, so2: isNull?null:so2, so3: isNull?null:so3, so4: isNull?null:so4, so5: isNull?null:so5,
+            oo: row.overtaking||0, esd: row.tooclose||0
+        }, function (err, response) {
+            try {
+                var rmtoId = 0, cfl = null, srvdt = null, bil = null, errMsg = null;
+                if (isNull) { rmtoId = 1; cfl = 0; bil = 0; errMsg = "NULL SENT"; }
+                else if (response) { rmtoId = response.ID||0; cfl = response.CFL||0; srvdt = response.SRVDT?String(response.SRVDT):null; bil = response.BIL||0; errMsg = response.ERR||null; }
+                else { rmtoId = 0; errMsg = err ? err.message : "no response"; }
+                db.prepare("UPDATE irawdata SET rmto_id=?, rmto_cfl=?, rmto_srvdt=?, rmto_bil=?, rmto_err=? WHERE id=?").run(rmtoId, cfl, srvdt, bil, errMsg, row.id);
+                db.prepare("INSERT INTO send_log (method,device_code,request_data,response_data,success,error_message) VALUES (?,?,?,?,?,?)").run("Add5", row.device_code, JSON.stringify({fid:row.id,rid:row.device_code,st:row.create_at,et:row.stop,total:total}), JSON.stringify(response), (rmtoId&&rmtoId>0)?1:0, errMsg);
+            } catch (dbErr) { console.error("[Scheduler] RMTO update error:", dbErr.message); }
+        });
+    });
+}
+
+module.exports = {
+    start: start,
+    aggregateAndSend: processAndSendIrawdata,
+    processAndSendIrawdata: processAndSendIrawdata,
+    sendUnsentData: sendUnsentData,
+    checkOfflineDevices: checkOfflineDevices
+};`
+);
+
+// Fix29d: /api/rmto/queue in index.js
+patch("Fix29d: /api/rmto/queue shows irawdata records",
+    "server/index.js",
+    "app.post(\"/api/rmto/send-now\", function (req, res) {\n    scheduler.sendUnsentData();\n    res.json({ success: true });\n});\n\napp.post(\"/api/rmto/aggregate\", function (req, res) {\n    scheduler.aggregateAndSend();\n    res.json({ success: true });\n});\n\napp.get(\"/api/rmto/queue\", function (req, res) {\n    var unsent = db.prepare(\"SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100\").all();\n    var sent = db.prepare(\"SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50\").all();\n    res.json({ unsent: unsent, sent: sent });\n});",
+    `app.post("/api/rmto/send-now", function (req, res) {
+    scheduler.processAndSendIrawdata();
+    scheduler.sendUnsentData();
+    res.json({ success: true });
+});
+
+app.post("/api/rmto/aggregate", function (req, res) {
+    scheduler.processAndSendIrawdata();
+    res.json({ success: true });
+});
+
+app.get("/api/rmto/queue", function (req, res) {
+    var unsent = db.prepare("SELECT id, device_code, create_at, stop, (a+b+c+d+e+x) as total_vehicles, CASE WHEN (a+b+c+d+e+x)>0 THEN ROUND((sa+sb+sc+sd+se+sx)*1.0/(a+b+c+d+e+x)) ELSE 0 END as avg_speed, received_at as created_at FROM irawdata WHERE (rmto_id IS NULL OR rmto_id = 0) ORDER BY create_at DESC LIMIT 100").all();
+    var sent = db.prepare("SELECT id, device_code, create_at, stop, (a+b+c+d+e+x) as total_vehicles, CASE WHEN (a+b+c+d+e+x)>0 THEN ROUND((sa+sb+sc+sd+se+sx)*1.0/(a+b+c+d+e+x)) ELSE 0 END as avg_speed, rmto_id, rmto_cfl, rmto_srvdt, rmto_bil, rmto_err FROM irawdata WHERE rmto_id IS NOT NULL AND rmto_id > 0 ORDER BY create_at DESC LIMIT 50").all();
+    res.json({ unsent: unsent, sent: sent });
+});`
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

@@ -575,20 +575,20 @@
     // RMTO Send
     // ============================================================
     function loadRMTO() {
-        // Load queue
+        // Load queue from irawdata-based pipeline
         api("GET", "/api/rmto/queue", null, function (status, data) {
             if (status !== 200 || !data) return;
 
-            // Unsent
+            // Unsent queue
             var ubody = $("#rmto-unsent-body");
             if (data.unsent && data.unsent.length) {
                 ubody.innerHTML = data.unsent.map(function (r) {
                     return "<tr>" +
-                        '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
-                        '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(r.period_start)) + "</td>" +
-                        '<td dir="ltr" style="text-align:center">' + (r.total_vehicles||0) + "</td>" +
-                        '<td dir="ltr" style="text-align:center">' + (r.avg_speed||0) + "</td>" +
-                        '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
+                        '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code || "") + "</td>" +
+                        '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(r.create_at)) + "</td>" +
+                        '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(r.stop)) + "</td>" +
+                        '<td dir="ltr" style="text-align:center">' + (r.total_vehicles || 0) + "</td>" +
+                        '<td dir="ltr" style="text-align:center">' + (r.avg_speed || 0) + "</td>" +
                         "</tr>";
                 }).join("");
                 $("#rmto-unsent-count").textContent = data.unsent.length;
@@ -597,12 +597,12 @@
                 $("#rmto-unsent-count").textContent = "0";
             }
 
-            // Sent
+            // Sent history
             if (data.sent && data.sent.length) {
                 $("#rmto-sent-count").textContent = data.sent.length + "+";
                 var lastSent = data.sent[0];
-                if (lastSent && lastSent.sent_at) {
-                    $("#rmto-last-send").textContent = formatTime(lastSent.sent_at);
+                if (lastSent && lastSent.create_at) {
+                    $("#rmto-last-send").textContent = formatTime(lastSent.create_at);
                 }
             } else {
                 $("#rmto-sent-count").textContent = "0";

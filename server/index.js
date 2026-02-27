@@ -366,18 +366,32 @@ app.get("/api/rmto/logs", function (req, res) {
 });
 
 app.post("/api/rmto/send-now", function (req, res) {
+    scheduler.processAndSendIrawdata();
     scheduler.sendUnsentData();
     res.json({ success: true });
 });
 
 app.post("/api/rmto/aggregate", function (req, res) {
-    scheduler.aggregateAndSend();
+    scheduler.processAndSendIrawdata();
     res.json({ success: true });
 });
 
 app.get("/api/rmto/queue", function (req, res) {
-    var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
-    var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();
+    // Show irawdata records with RMTO status (per-interval pipeline)
+    var unsent = db.prepare(
+        "SELECT id, device_code, create_at, stop, " +
+        "(a+b+c+d+e+x) as total_vehicles, " +
+        "CASE WHEN (a+b+c+d+e+x)>0 THEN ROUND((sa+sb+sc+sd+se+sx)*1.0/(a+b+c+d+e+x)) ELSE 0 END as avg_speed, " +
+        "received_at as created_at " +
+        "FROM irawdata WHERE (rmto_id IS NULL OR rmto_id = 0) ORDER BY create_at DESC LIMIT 100"
+    ).all();
+    var sent = db.prepare(
+        "SELECT id, device_code, create_at, stop, " +
+        "(a+b+c+d+e+x) as total_vehicles, " +
+        "CASE WHEN (a+b+c+d+e+x)>0 THEN ROUND((sa+sb+sc+sd+se+sx)*1.0/(a+b+c+d+e+x)) ELSE 0 END as avg_speed, " +
+        "rmto_id, rmto_cfl, rmto_srvdt, rmto_bil, rmto_err " +
+        "FROM irawdata WHERE rmto_id IS NOT NULL AND rmto_id > 0 ORDER BY create_at DESC LIMIT 50"
+    ).all();
     res.json({ unsent: unsent, sent: sent });
 });
 

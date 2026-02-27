@@ -157,14 +157,72 @@ function sendAddData5(data, callback) {
 }
 
 /**
- * AddData8 (v1.00) - 8-class traffic data
+ * Add5 (WSDL: Companies.asmx) - 5-class traffic data per interval
+ * Matches reference C# software exactly (CID/UID/PWD/FID/RID/ST/ET/C1-C5/ASP/S1-S5/SSO/SO1-SO5/OO/ESD)
  * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class8Count
- * @param {number} data.speed1Count .. data.speed8Count
- * @param {number} data.violations
- * @param {number} data.avgSpeed
+ * @param {number} data.cid         - Company ID
+ * @param {number} data.fid         - Internal record ID (irawdata.id)
+ * @param {number} data.rid         - Station/device code (mehvar RID)
+ * @param {string|Date} data.st     - Interval start
+ * @param {string|Date} data.et     - Interval end
+ * @param {number|null} data.c1-c5  - Vehicle class counts (null = inactive)
+ * @param {number|null} data.asp    - Weighted avg speed
+ * @param {number|null} data.s1-s5  - Per-class avg speeds
+ * @param {number|null} data.sso    - Sum of overspeed counts
+ * @param {number|null} data.so1-so5 - Per-class overspeed counts
+ * @param {number|null} data.oo     - Overtaking count
+ * @param {number|null} data.esd    - Headway (tooclose)
+ */
+function sendAdd5(data, callback) {
+    ensureClient(function (err) {
+        if (err) return callback(err);
+
+        var isNull = (data.c1 === null);
+        var args = {
+            CID: parseInt(COMPANY_CODE, 10) || 58,
+            UID: USERNAME,
+            PWD: PASSWORD,
+            FID: data.fid,
+            RID: data.rid,
+            ST: data.st,
+            ET: data.et,
+            C1: isNull ? null : (data.c1 || 0),
+            C2: isNull ? null : (data.c2 || 0),
+            C3: isNull ? null : (data.c3 || 0),
+            C4: isNull ? null : (data.c4 || 0),
+            C5: isNull ? null : (data.c5 || 0),
+            ASP: isNull ? null : (data.asp || 0),
+            S1: isNull ? null : (data.s1 || 0),
+            S2: isNull ? null : (data.s2 || 0),
+            S3: isNull ? null : (data.s3 || 0),
+            S4: isNull ? null : (data.s4 || 0),
+            S5: isNull ? null : (data.s5 || 0),
+            SSO: isNull ? null : (data.sso || 0),
+            SO1: isNull ? null : (data.so1 || 0),
+            SO2: isNull ? null : (data.so2 || 0),
+            SO3: isNull ? null : (data.so3 || 0),
+            SO4: isNull ? null : (data.so4 || 0),
+            SO5: isNull ? null : (data.so5 || 0),
+            OO: isNull ? null : (data.oo || 0),
+            ESD: isNull ? null : (data.esd || 0)
+        };
+
+        console.log("[RMTO] Add5 fid=" + data.fid + " rid=" + data.rid + " total=" + ((data.c1||0)+(data.c2||0)+(data.c3||0)+(data.c4||0)+(data.c5||0)));
+
+        soapClient.Add5(args, function (err, result) {
+            if (err) {
+                console.error("[RMTO] Add5 error:", err.message);
+                return callback(err, null);
+            }
+            var response = result && result.Add5Result;
+            console.log("[RMTO] Add5 response: ID=" + (response && response.ID) + " ERR=" + (response && response.ERR));
+            callback(null, response);
+        });
+    });
+}
+
+/**
+ * AddData8 (v1.00) - 8-class traffic data
  */
 function sendAddData8(data, callback) {
     ensureClient(function (err) {
@@ -220,5 +278,6 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    sendAddData8: sendAddData8
+    sendAddData8: sendAddData8,
+    sendAdd5: sendAdd5
 };

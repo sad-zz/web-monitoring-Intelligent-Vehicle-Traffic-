@@ -23,8 +23,125 @@ function toLocalISOString(d) {
 }
 
 /**
+ * Process irawdata records directly (per-interval) and send via Add5.
+ * Matches C# reference software pipeline exactly:
+ *   irawdata → compute weighted avg + per-class speeds → Add5 → store RMTO response
+ */
+function processAndSendIrawdata() {
+    // Load current RMTO company code from settings
+    var companyCode = 58;
+    try {
+        var row = db.prepare("SELECT value FROM settings WHERE key = 'rmto_company_code'").get();
+        companyCode = parseInt((row && row.value) || "58", 10) || 58;
+    } catch (e) {}
+
+    // Get up to 100 unprocessed records (rmto_id IS NULL), oldest first
+    var rows;
+    try {
+        rows = db.prepare("SELECT * FROM irawdata WHERE rmto_id IS NULL ORDER BY create_at ASC LIMIT 100").all();
+    } catch (e) {
+        console.error("[Scheduler] processAndSendIrawdata query error:", e.message);
+        return;
+    }
+    if (!rows || rows.length === 0) return;
+
+    console.log("[Scheduler] processAndSendIrawdata: " + rows.length + " record(s) to send");
+
+    rows.forEach(function (row) {
+        // Mark as in-flight (rmto_id = -1) to prevent double-processing
+        try { db.prepare("UPDATE irawdata SET rmto_id = -1 WHERE id = ? AND rmto_id IS NULL").run(row.id); } catch (e) { return; }
+
+        // Compute RMTO fields
+        var a = row.a || 0, b = row.b || 0, c = row.c || 0, d = row.d || 0;
+        var e5 = (row.e || 0) + (row.x || 0);   // C5 = e + x (heavy)
+        var totalCount = a + b + c + d + e5;
+
+        var sa = row.sa || 0, sb = row.sb || 0, sc = row.sc || 0, sd = row.sd || 0;
+        var se = (row.se || 0) + (row.sx || 0);
+        var asp = totalCount > 0 ? Math.round((sa + sb + sc + sd + se) / totalCount) : 0;
+
+        // Per-class avg speeds
+        var s1 = a > 0 ? Math.round(sa / a) : 0;
+        var s2 = b > 0 ? Math.round(sb / b) : 0;
+        var s3 = c > 0 ? Math.round(sc / c) : 0;
+        var s4 = d > 0 ? Math.round(sd / d) : 0;
+        var s5 = e5 > 0 ? Math.round(se / e5) : 0;
+
+        // Per-class overspeed counts
+        var so1 = row.sao || 0, so2 = row.sbo || 0, so3 = row.sco || 0;
+        var so4 = row.sdo || 0, so5 = (row.seo || 0) + (row.sxo || 0);
+        var sso = so1 + so2 + so3 + so4 + so5;
+
+        // Null record: all counts zero (inactive device) — per C# reference isnull logic
+        var isNull = (totalCount === 0);
+
+        rmto.sendAdd5({
+            cid: companyCode,
+            fid: row.id,
+            rid: parseInt(row.device_code, 10) || 0,
+            st: row.create_at,
+            et: row.stop,
+            c1: isNull ? null : a,
+            c2: isNull ? null : b,
+            c3: isNull ? null : c,
+            c4: isNull ? null : d,
+            c5: isNull ? null : e5,
+            asp: isNull ? null : asp,
+            s1: isNull ? null : s1,
+            s2: isNull ? null : s2,
+            s3: isNull ? null : s3,
+            s4: isNull ? null : s4,
+            s5: isNull ? null : s5,
+            sso: isNull ? null : sso,
+            so1: isNull ? null : so1,
+            so2: isNull ? null : so2,
+            so3: isNull ? null : so3,
+            so4: isNull ? null : so4,
+            so5: isNull ? null : so5,
+            oo: row.overtaking || 0,
+            esd: row.tooclose || 0
+        }, function (err, response) {
+            try {
+                var rmtoId, cfl = null, srvdt = null, bil = null, errMsg = null;
+                if (isNull) {
+                    // Null record - mark as sent with RMTO_ID = 1 (per C# reference)
+                    rmtoId = 1; cfl = 0; bil = 0; errMsg = "NULL SENT";
+                } else if (response) {
+                    rmtoId = response.ID || 0;
+                    cfl = response.CFL || 0;
+                    srvdt = response.SRVDT ? String(response.SRVDT) : null;
+                    bil = response.BIL || 0;
+                    errMsg = response.ERR || null;
+                } else {
+                    rmtoId = 0;
+                    errMsg = err ? err.message : "no response";
+                }
+
+                db.prepare(
+                    "UPDATE irawdata SET rmto_id = ?, rmto_cfl = ?, rmto_srvdt = ?, rmto_bil = ?, rmto_err = ? WHERE id = ?"
+                ).run(rmtoId, cfl, srvdt, bil, errMsg, row.id);
+
+                // Log to send_log for history/audit
+                db.prepare(
+                    "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) VALUES (?, ?, ?, ?, ?, ?)"
+                ).run(
+                    "Add5", row.device_code,
+                    JSON.stringify({ fid: row.id, rid: row.device_code, st: row.create_at, et: row.stop, total: totalCount }),
+                    JSON.stringify(response),
+                    (rmtoId && rmtoId > 0) ? 1 : 0,
+                    errMsg
+                );
+            } catch (dbErr) {
+                console.error("[Scheduler] Failed to update RMTO status for irawdata id=" + row.id + ":", dbErr.message);
+            }
+        });
+    });
+}
+
+/**
  * Aggregate raw traffic_data into rmto_queue and rmto_queue_5class,
  * then send unsent records to RMTO.
+ * (Kept for HTTP devices that POST to /api/irawdata directly without TCP)
  */
 function aggregateAndSend() {
     console.log("[Scheduler] Starting aggregation cycle at", new Date().toISOString());
@@ -226,12 +343,16 @@ function checkOfflineDevices() {
  * Start the scheduler.
  */
 function start() {
-    // Run every INTERVAL minutes
+    // Process and send irawdata records every 5 minutes (per-interval pipeline)
+    cron.schedule("*/5 * * * *", function () {
+        processAndSendIrawdata();
+    });
+
+    // Retry failed rmto_queue records (for HTTP devices) every INTERVAL minutes
     var cronExpr = "*/" + INTERVAL + " * * * *";
     console.log("[Scheduler] Starting with cron:", cronExpr);
-
     cron.schedule(cronExpr, function () {
-        aggregateAndSend();
+        sendUnsentData();
     });
 
     // Check for offline devices every minute (covers HTTP devices that stop sending)
@@ -239,16 +360,18 @@ function start() {
         checkOfflineDevices();
     });
 
-    // Also allow manual retry of unsent data every hour
+    // Retry unsent irawdata and rmto_queue hourly
     cron.schedule("5 * * * *", function () {
         console.log("[Scheduler] Retry unsent data...");
+        processAndSendIrawdata();
         sendUnsentData();
     });
 }
 
 module.exports = {
     start: start,
-    aggregateAndSend: aggregateAndSend,
+    aggregateAndSend: processAndSendIrawdata,  // backward compat alias
+    processAndSendIrawdata: processAndSendIrawdata,
     sendUnsentData: sendUnsentData,
     checkOfflineDevices: checkOfflineDevices
 };
