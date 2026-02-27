@@ -61,6 +61,22 @@ replace_file "server/index.js"       "${REPO_RAW}/server/index.js"
 replace_file "server/scheduler.js"   "${REPO_RAW}/server/scheduler.js"
 replace_file "server/db.js"          "${REPO_RAW}/server/db.js"
 replace_file "server/rmto-client.js" "${REPO_RAW}/server/rmto-client.js"
+replace_file "js/app.js"             "${REPO_RAW}/js/app.js"
+
+# index.html has no JS syntax check — just download + size check
+echo ""
+echo "⬇️   دانلود index.html از repo..."
+if ! wget -q -O index.html.new "${REPO_RAW}/index.html" 2>/dev/null; then
+    wget -q --no-check-certificate -O index.html.new "${REPO_RAW}/index.html"
+fi
+HTML_SZ=$(wc -c < index.html.new)
+echo "      → دانلود شد (${HTML_SZ} بایت)"
+if [ "${HTML_SZ}" -lt 500 ]; then
+    echo "      ❌ index.html خیلی کوچک است — لغو"; rm -f index.html.new; exit 1
+fi
+cp index.html "index.html.bak-${TS}"
+mv index.html.new index.html
+echo "      ✅ index.html جایگزین شد"
 
 # دانلود ecosystem.config.js برای PM2 (تنظیم TZ=Asia/Tehran)
 echo ""
@@ -90,7 +106,7 @@ pm2 list
 
 echo ""
 echo "========================================================"
-echo "  ✅ همه ۴ فایل سرور جایگزین شدند + ecosystem.config.js"
+echo "  ✅ همه ۶ فایل جایگزین شدند (server×4 + js/app.js + index.html)"
 echo "  ✅ منطقه زمانی: Asia/Tehran (UTC+3:30)"
 echo ""
 echo "  برای مشاهده لاگ:"
