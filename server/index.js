@@ -5,12 +5,23 @@
  * - Receives data from 100+ devices
  * - Aggregates and sends to RMTO via SOAP
  *
- * @version 2026-02-22-v2
+ * @version 2026-02-27-v3
  * @fixes Fix1(stats-localtime) Fix2(offline-detect) Fix3(irawdata-dedup)
  *        Fix4(mehvar-ui) Fix5(tcp-panel) Fix6(users-table)
  *        Fix8(stop=create+5min) Fix9(tcp-connected-api)
  *        Fix10(0012-yyMMddHHmmss) Fix11(one-cmd-per-conn)
  *        Fix12(syntax-braces) Fix13(uncaughtException)
+ *        Fix14(EADDRINUSE-retry) Fix15/16(HTTP-EADDRINUSE-exit)
+ *        Fix17(deviceCode-strip) Fix18(clear-drift-on-disconnect)
+ *        Fix19(deviceLastSeen) Fix20(setNoDelay)
+ *        Fix21(dead-clock-0197) Fix22(8012-then-0197)
+ *        Fix23(8821-drain) Fix24(zero-vehicle-store)
+ *        Fix25(DB-last-for-0197) Fix26(skip-old-history)
+ *        Fix27(deviceClockDrift-restore) Fix29d(rmto-queue-api)
+ *        Fix30(TZ=Asia/Tehran) Fix31(8821-timestamp-fix)
+ *        Fix33(SIGTERM-graceful) Fix34(skip-stale-UTC-records)
+ *        Fix35(UPSERT-irawdata) Fix36(stop-future-intervals)
+ *        Fix37(rmto-detail-button) Fix38(auth-error-detection)
  */
 // Set Iran Standard Time (UTC+3:30) BEFORE any require() or Date operation.
 // Without this, a UTC-timezone VPS sends UTC time via 0012 → device clocks are
