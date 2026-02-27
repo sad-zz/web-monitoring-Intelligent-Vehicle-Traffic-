@@ -711,8 +711,6 @@ function ratcx1ToIrawdata(parsed) {
     var rows = [];
     [{ lane: 1, data: parsed.lane1 }, { lane: 2, data: parsed.lane2 }].forEach(function (l) {
         var d = l.data;
-        var totalCount = d.a.count + d.b.count + d.c.count + d.d.count + d.e.count + d.x.count;
-        if (totalCount === 0) return; // skip empty lane
         rows.push({
             device_code: parsed.device_code,
             create_at: parsed.create_at,
@@ -968,24 +966,35 @@ function startDataRequests(deviceCode, socket) {
     if (socket.destroyed) return;
 
     var now = new Date();
-    var seen = deviceLastSeen[deviceCode];
     var refTime;
 
-    if (seen && !isNaN(seen.devTime.getTime())) {
-        // Use device's reported time + elapsed wall time since it connected.
-        // This works even when the device RTC battery is dead (year=2000).
-        // NOTE: when device clock is dead (year<2020), do NOT subtract 5min because
-        // that would push refTime into 1999 and the device has no such intervals.
-        var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());
-        var deadClock = seen.devTime.getFullYear() < 2020;
-        refTime = new Date(seen.devTime.getTime() + elapsedMs - (deadClock ? 0 : 5 * 60 * 1000));
-        console.log("[TCP] 0197 using device-clock ref: devTime=" + seen.devTime.toISOString() +
-            " elapsed=" + Math.round(elapsedMs / 1000) + "s ref=" + refTime.toISOString() + (deadClock ? " [dead-clock]" : ""));
-    } else {
-        // Fallback: use server time
+    // Fix25: Use last stored DB record + 5min so we continue from where we left off.
+    // This matches original TC Manager behaviour and avoids requesting intervals from
+    // year-2000 dead-clock timestamps.
+    try {
+        var lastRec = db.prepare("SELECT create_at FROM irawdata WHERE device_code = ? ORDER BY create_at DESC LIMIT 1").get(deviceCode);
+        if (lastRec && lastRec.create_at) {
+            var lastDate = new Date(lastRec.create_at);
+            if (!isNaN(lastDate.getTime()) && lastDate.getFullYear() >= 2000) {
+                refTime = new Date(lastDate.getTime() + 5 * 60 * 1000);
+                console.log("[TCP] 0197 using DB last record: last=" + lastRec.create_at + " next=" + refTime.toISOString());
+            }
+        }
+    } catch (e) { /* DB not ready yet */ }
+
+    if (!refTime) {
+        // No DB record for this device: request last completed server-time interval
+        refTime = new Date(now.getTime() - 5 * 60 * 1000);
+        console.log("[TCP] 0197 no DB record for " + deviceCode + " — using server time - 5min: " + refTime.toISOString());
+    }
+
+    // If refTime is in the future, use server time - 5min instead
+    if (refTime.getTime() > now.getTime()) {
         refTime = new Date(now.getTime() - 5 * 60 * 1000);
     }
-    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5, 0, 0);
+
+    refTime.setSeconds(0, 0);
+    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5);
 
     var ts = formatPollTimestamp(refTime);
     var cmd = "0197" + ts;
@@ -1323,14 +1332,28 @@ function processRawData(raw, ip) {
         });
 
         // Request next 5-min interval: device stays connected until its buffer is drained.
+        // Fix26: if received interval is more than 1 hour behind server time, skip to
+        // server_time-5min so we don't drain thousands of old (empty) intervals.
         // Limit to 200 intervals per connection to prevent runaway loops.
         var sock = connectedDevices[parsed.device_code];
         if (sock && !sock.destroyed) {
             if (!sock._intervalCount) sock._intervalCount = 0;
             sock._intervalCount++;
             if (sock._intervalCount < 200) {
-                var nextStart = new Date(new Date(parsed.create_at).getTime() + 5 * 60 * 1000);
+                var dataDate = new Date(parsed.create_at);
+                var srvNowFix26 = new Date();
+                var behindMs = srvNowFix26.getTime() - dataDate.getTime();
+                var nextStart;
+                if (!isNaN(dataDate.getTime()) && behindMs > 60 * 60 * 1000) {
+                    // More than 1 hour behind: jump to server time - 5min
+                    nextStart = new Date(srvNowFix26.getTime() - 5 * 60 * 1000);
+                    console.log("[TCP] Fix26: " + parsed.device_code + " interval " + parsed.create_at +
+                        " is " + Math.round(behindMs / 60000) + "min behind — jumping to " + nextStart.toISOString());
+                } else {
+                    nextStart = new Date(dataDate.getTime() + 5 * 60 * 1000);
+                }
                 nextStart.setSeconds(0, 0);
+                nextStart.setMinutes(Math.floor(nextStart.getMinutes() / 5) * 5);
                 var nextTs = formatPollTimestamp(nextStart);
                 sendToDevice(parsed.device_code, sock, "0197" + nextTs, "DATA_REQ_NEXT #" + sock._intervalCount);
             } else {

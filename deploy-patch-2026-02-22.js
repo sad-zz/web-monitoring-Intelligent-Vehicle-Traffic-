@@ -489,6 +489,39 @@ patch(
 );
 
 // ============================================================
+// Fix24 — server/index.js: remove zero-vehicle filter in ratcx1ToIrawdata
+// Zero-vehicle intervals should still be stored so the reception view shows data.
+// ============================================================
+patch(
+    "Fix24: store zero-vehicle intervals (remove totalCount===0 skip filter)",
+    "server/index.js",
+    "        var totalCount = d.a.count + d.b.count + d.c.count + d.d.count + d.e.count + d.x.count;\n        if (totalCount === 0) return; // skip empty lane\n        rows.push({",
+    "        rows.push({"
+);
+
+// ============================================================
+// Fix25 — server/index.js: startDataRequests uses DB last record
+// Request the interval AFTER the last stored one, not device-clock-based guessing.
+// ============================================================
+patch(
+    "Fix25: startDataRequests uses DB last record + 5min instead of dead-clock ref",
+    "server/index.js",
+    "    if (seen && !isNaN(seen.devTime.getTime())) {\n        // Use device's reported time + elapsed wall time since it connected.\n        // This works even when the device RTC battery is dead (year=2000).\n        // NOTE: when device clock is dead (year<2020), do NOT subtract 5min because\n        // that would push refTime into 1999 and the device has no such intervals.\n        var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());\n        var deadClock = seen.devTime.getFullYear() < 2020;\n        refTime = new Date(seen.devTime.getTime() + elapsedMs - (deadClock ? 0 : 5 * 60 * 1000));\n        console.log(\"[TCP] 0197 using device-clock ref: devTime=\" + seen.devTime.toISOString() +\n            \" elapsed=\" + Math.round(elapsedMs / 1000) + \"s ref=\" + refTime.toISOString() + (deadClock ? \" [dead-clock]\" : \"\"));\n    } else {\n        // Fallback: use server time\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }\n    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5, 0, 0);",
+    "    // Fix25: Use last stored DB record + 5min so we continue from where we left off.\n    try {\n        var lastRec = db.prepare(\"SELECT create_at FROM irawdata WHERE device_code = ? ORDER BY create_at DESC LIMIT 1\").get(deviceCode);\n        if (lastRec && lastRec.create_at) {\n            var lastDate = new Date(lastRec.create_at);\n            if (!isNaN(lastDate.getTime()) && lastDate.getFullYear() >= 2000) {\n                refTime = new Date(lastDate.getTime() + 5 * 60 * 1000);\n                console.log(\"[TCP] 0197 using DB last record: last=\" + lastRec.create_at + \" next=\" + refTime.toISOString());\n            }\n        }\n    } catch (e) { /* DB not ready yet */ }\n\n    if (!refTime) {\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n        console.log(\"[TCP] 0197 no DB record for \" + deviceCode + \" \u2014 using server time - 5min: \" + refTime.toISOString());\n    }\n    if (refTime.getTime() > now.getTime()) {\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }\n    refTime.setSeconds(0, 0);\n    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5);"
+);
+
+// ============================================================
+// Fix26 — server/index.js: skip old intervals in 8821 drain loop
+// If interval is >1 hour behind server time, jump to server_time-5min.
+// ============================================================
+patch(
+    "Fix26: 8821 drain loop — skip to server time when interval is >1 hour behind",
+    "server/index.js",
+    "            if (sock._intervalCount < 200) {\n                var nextStart = new Date(new Date(parsed.create_at).getTime() + 5 * 60 * 1000);\n                nextStart.setSeconds(0, 0);\n                var nextTs = formatPollTimestamp(nextStart);",
+    "            if (sock._intervalCount < 200) {\n                var dataDate = new Date(parsed.create_at);\n                var srvNowFix26 = new Date();\n                var behindMs = srvNowFix26.getTime() - dataDate.getTime();\n                var nextStart;\n                if (!isNaN(dataDate.getTime()) && behindMs > 60 * 60 * 1000) {\n                    nextStart = new Date(srvNowFix26.getTime() - 5 * 60 * 1000);\n                    console.log(\"[TCP] Fix26: \" + parsed.device_code + \" interval \" + parsed.create_at +\n                        \" is \" + Math.round(behindMs / 60000) + \"min behind \u2014 jumping to \" + nextStart.toISOString());\n                } else {\n                    nextStart = new Date(dataDate.getTime() + 5 * 60 * 1000);\n                }\n                nextStart.setSeconds(0, 0);\n                nextStart.setMinutes(Math.floor(nextStart.getMinutes() / 5) * 5);\n                var nextTs = formatPollTimestamp(nextStart);"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
