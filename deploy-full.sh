@@ -43,8 +43,10 @@ replace_file() {
     rm -f "${TMPFILE}"
 }
 
-replace_file "server/index.js"     "${REPO_RAW}/server/index.js"
-replace_file "server/scheduler.js" "${REPO_RAW}/server/scheduler.js"
+replace_file "server/index.js"      "${REPO_RAW}/server/index.js"
+replace_file "server/scheduler.js"  "${REPO_RAW}/server/scheduler.js"
+replace_file "server/db.js"         "${REPO_RAW}/server/db.js"
+replace_file "server/rmto-client.js" "${REPO_RAW}/server/rmto-client.js"
 
 # راه‌اندازی مجدد
 echo ""
@@ -66,7 +68,7 @@ pm2 list
 
 echo ""
 echo "========================================================"
-echo "  ✅ کامل شد — server/index.js و server/scheduler.js جایگزین شدند"
+echo "  All 4 server files replaced (index.js + scheduler.js + db.js + rmto-client.js)"
 echo ""
 echo "  برای مشاهده لاگ:"
 echo "    pm2 logs tc-manager --lines 50"
