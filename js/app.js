@@ -49,7 +49,8 @@
         dashboard: "داشبورد",
         devices: "دستگاه‌ها",
         reception: "دریافت داده",
-        rmto: "ارسال رهسام",
+        rmto: "ارسال به سامانه",
+        mehvar: "محورها",
         settings: "تنظیمات"
     };
 
@@ -148,6 +149,7 @@
         else if (view === "devices") loadDevices();
         else if (view === "reception") loadReception();
         else if (view === "rmto") loadRMTO();
+        else if (view === "mehvar") loadMehvar();
         else if (view === "settings") loadSettings();
     }
 
@@ -198,7 +200,56 @@
                     "</tr>";
             }).join("");
         });
+
+        loadTcpConnected();
     }
+
+    function loadTcpConnected() {
+        api("GET", "/api/tcp/connected", null, function (status, data) {
+            var tbody = $("#tcp-table-body");
+            if (!tbody) return;
+            if (status !== 200 || !data || !Object.keys(data).length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8">دستگاهی متصل نیست</td></tr>';
+                return;
+            }
+            var rows = Object.keys(data).map(function (code) {
+                var d = data[code];
+                return "<tr>" +
+                    '<td dir="ltr" style="text-align:center;font-weight:700">' + escapeHtml(code) + "</td>" +
+                    '<td dir="ltr">' + escapeHtml(d.ip || "-") + "</td>" +
+                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.connectedAt)) + "</td>" +
+                    '<td>' +
+                        '<button class="btn btn-sm btn-secondary" data-action="tcp-sync" data-code="' + escapeHtml(code) + '">سینک ساعت</button> ' +
+                        '<button class="btn btn-sm btn-primary" data-action="tcp-poll" data-code="' + escapeHtml(code) + '">دریافت داده</button>' +
+                    '</td>' +
+                    "</tr>";
+            });
+            tbody.innerHTML = rows.join("");
+        });
+    }
+
+    // Event delegation for TCP action buttons
+    var tcpTableEl = $("#tcp-table-body");
+    if (tcpTableEl) tcpTableEl.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-action]");
+        if (!btn) return;
+        var action = btn.getAttribute("data-action");
+        var code = btn.getAttribute("data-code");
+        if (action === "tcp-sync") {
+            api("POST", "/api/tcp/sync-time", { device_code: code }, function (s) {
+                if (s === 200) alert("دستور سینک ساعت ارسال شد: " + code);
+                else alert("خطا در ارسال دستور");
+            });
+        } else if (action === "tcp-poll") {
+            api("POST", "/api/tcp/poll", { device_code: code }, function (s) {
+                if (s === 200) alert("درخواست داده ارسال شد: " + code);
+                else alert("خطا در ارسال درخواست");
+            });
+        }
+    });
+
+    var refreshTcpBtn = $("#btn-refresh-tcp");
+    if (refreshTcpBtn) refreshTcpBtn.addEventListener("click", loadTcpConnected);
 
     var refreshDashBtn = $("#btn-refresh-dashboard");
     if (refreshDashBtn) refreshDashBtn.addEventListener("click", loadDashboard);
@@ -638,7 +689,7 @@
             try { reqData = JSON.stringify(JSON.parse(data.request_data), null, 2); } catch (e) { reqData = data.request_data || "-"; }
             try { respData = JSON.stringify(JSON.parse(data.response_data), null, 2); } catch (e) { respData = data.response_data || "-"; }
 
-            $("#modal-title").textContent = "جزئیات ارسال رهسام - " + data.method;
+            $("#modal-title").textContent = "جزئیات ارسال سامانه - " + data.method;
             $("#modal-body").innerHTML =
                 '<div style="margin-bottom:16px">' +
                     '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">' +
@@ -745,6 +796,67 @@
     if (rmtoRefreshLogsBtn) rmtoRefreshLogsBtn.addEventListener("click", loadRMTOMonitor);
 
     // ============================================================
+    // Mehvar (Routes) Management
+    // ============================================================
+    function loadMehvar() {
+        api("GET", "/api/mehvar", null, function (status, data) {
+            var tbody = $("#mehvar-table-body");
+            if (status !== 200 || !data || !data.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">محوری ثبت نشده</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(function (r) {
+                return "<tr>" +
+                    '<td dir="ltr" style="text-align:center;font-weight:700">' + escapeHtml(r.code) + "</td>" +
+                    "<td>" + escapeHtml(r.name) + "</td>" +
+                    "<td>" + escapeHtml(r.ostan || "-") + "</td>" +
+                    '<td style="text-align:center"><span class="status-badge ' + (r.send_enable ? "online" : "warning") + '">' +
+                        (r.send_enable ? "فعال" : "غیرفعال") + "</span></td>" +
+                    '<td style="text-align:center"><span class="status-badge ' + (r.repair ? "error" : "") + '">' +
+                        (r.repair ? "بله" : "خیر") + "</span></td>" +
+                    '<td><button class="btn btn-sm btn-danger" data-action="delete-mehvar" data-code="' + escapeHtml(String(r.code)) + '">حذف</button></td>' +
+                    "</tr>";
+            }).join("");
+        });
+    }
+
+    // Event delegation for mehvar table buttons
+    var mehvarTableEl = $("#mehvar-table-body");
+    if (mehvarTableEl) mehvarTableEl.addEventListener("click", function (e) {
+        var btn = e.target.closest("button[data-action='delete-mehvar']");
+        if (!btn) return;
+        var code = btn.getAttribute("data-code");
+        if (!confirm("محور " + code + " حذف شود؟")) return;
+        api("DELETE", "/api/mehvar/" + encodeURIComponent(code), null, function (status) {
+            if (status === 200) loadMehvar();
+            else alert("خطا در حذف محور");
+        });
+    });
+
+    var addMehvarBtn = $("#btn-add-mehvar");
+    if (addMehvarBtn) addMehvarBtn.addEventListener("click", function () {
+        var addBody = $("#add-modal-body");
+        var addTitle = $("#add-modal-title");
+        if (!addBody || !addTitle) return;
+        addTitle.textContent = "افزودن محور جدید";
+        addBody.innerHTML =
+            '<div class="form-group"><label>کد محور</label><input type="number" id="new-mehvar-code" placeholder="مثال: 101" dir="ltr"></div>' +
+            '<div class="form-group"><label>نام محور</label><input type="text" id="new-mehvar-name" placeholder="مثال: تهران - مشهد"></div>' +
+            '<div class="form-group"><label>استان</label><input type="text" id="new-mehvar-ostan" placeholder="مثال: تهران"></div>' +
+            '<div class="form-group"><label>ارسال به سامانه</label><select id="new-mehvar-send">' +
+                '<option value="1">فعال</option><option value="0">غیرفعال</option>' +
+            '</select></div>' +
+            '<div class="form-group"><label>تحت تعمیر</label><select id="new-mehvar-repair">' +
+                '<option value="0">خیر</option><option value="1">بله</option>' +
+            '</select></div>';
+        currentAddMode = "mehvar";
+        $("#add-modal-overlay").classList.add("active");
+    });
+
+    var refreshMehvarBtn = $("#btn-refresh-mehvar");
+    if (refreshMehvarBtn) refreshMehvarBtn.addEventListener("click", loadMehvar);
+
+    // ============================================================
     // Settings
     // ============================================================
     function loadSettings() {
@@ -792,7 +904,7 @@
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
             rmto_password: $("#setting-rmto-pass").value
-        }, "تنظیمات رهسام ذخیره شد.");
+        }, "تنظیمات سامانه ذخیره شد.");
     });
 
     // Server Time
@@ -882,7 +994,25 @@
 
     var addSaveBtn = $("#add-modal-save");
     if (addSaveBtn) addSaveBtn.addEventListener("click", function () {
-        if (currentAddMode === "device") {
+        if (currentAddMode === "mehvar") {
+            var mcode = parseInt($("#new-mehvar-code").value, 10);
+            var mname = ($("#new-mehvar-name").value || "").trim();
+            if (!mcode || !mname) { alert("کد و نام محور الزامی است"); return; }
+            api("POST", "/api/mehvar", {
+                code: mcode,
+                name: mname,
+                ostan: ($("#new-mehvar-ostan").value || "").trim(),
+                send_enable: parseInt($("#new-mehvar-send").value, 10),
+                repair: parseInt($("#new-mehvar-repair").value, 10)
+            }, function (status, data) {
+                if (status === 200) {
+                    $("#add-modal-overlay").classList.remove("active");
+                    loadMehvar();
+                } else {
+                    alert((data && data.error) || "خطا در ثبت محور");
+                }
+            });
+        } else if (currentAddMode === "device") {
             var dcode = ($("#new-dev-code") || {}).value;
             var dname = ($("#new-dev-name") || {}).value;
             if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
