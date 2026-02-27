@@ -1113,7 +1113,13 @@ function startPeriodicPoll(deviceCode, socket) {
     socket._pollInterval = intervalId;
 }
 
+// Track all active TCP client sockets so gracefulShutdown can destroy them immediately
+var _activeTcpSockets = new Set();
+
 var tcpServer = net.createServer(function (socket) {
+    _activeTcpSockets.add(socket);
+    socket.on("close", function () { _activeTcpSockets.delete(socket); });
+
     var clientIP = socket.remoteAddress || "";
     var buffer = "";
     var deviceId = null;
@@ -1632,16 +1638,23 @@ tcpServer.on("error", function (err) {
 // ============================================================
 function gracefulShutdown(signal) {
     console.log("[SHUTDOWN] " + signal + " received — closing servers gracefully...");
+    // Destroy all active TCP device sockets immediately so tcpServer.close() resolves fast
+    _activeTcpSockets.forEach(function (s) { try { s.destroy(); } catch (e) {} });
+    _activeTcpSockets.clear();
     tcpServer.close(function () { console.log("[SHUTDOWN] TCP server closed"); });
-    httpServer.close(function () {
-        console.log("[SHUTDOWN] HTTP server closed — exiting");
+    if (httpServer && httpServer.listening) {
+        httpServer.close(function () {
+            console.log("[SHUTDOWN] HTTP server closed — exiting");
+            process.exit(0);
+        });
+    } else {
         process.exit(0);
-    });
-    // Force exit after 8s if servers won't close
+    }
+    // Force exit after 5s if servers won't close
     setTimeout(function () {
-        console.error("[SHUTDOWN] Force exit after 8s timeout");
+        console.error("[SHUTDOWN] Force exit after 5s timeout");
         process.exit(0);
-    }, 8000);
+    }, 5000);
 }
 process.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });
 process.on("SIGINT",  function () { gracefulShutdown("SIGINT"); });
@@ -1680,15 +1693,12 @@ var httpServer = app.listen(PORT, HOST, function () {
 });
 httpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
-        console.error("[HTTP] Port " + PORT + " already in use — exiting for clean PM2 restart");
-        process.exit(1);
-    }
-    throw err;
-});
-httpServer.on("error", function (err) {
-    if (err.code === "EADDRINUSE") {
-        console.error("[HTTP] Port " + PORT + " already in use — waiting 8s then exiting for clean PM2 restart");
-        setTimeout(function () { process.exit(1); }, 8000);
+        console.error("[HTTP] Port " + PORT + " already in use — closing TCP and exiting for clean PM2 restart");
+        // Destroy active TCP sockets so tcpServer releases its port too
+        _activeTcpSockets.forEach(function (s) { try { s.destroy(); } catch (e) {} });
+        _activeTcpSockets.clear();
+        tcpServer.close(function () {});
+        setTimeout(function () { process.exit(1); }, 3000);
         return;
     }
     throw err;

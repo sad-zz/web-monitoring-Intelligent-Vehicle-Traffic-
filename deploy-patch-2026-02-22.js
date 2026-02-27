@@ -899,6 +899,31 @@ patch("Fix39c: normalize SRVDT storage + catch http-status-codes as auth error",
 );
 
 // ============================================================
+// Fix40: destroy active TCP sockets on shutdown + fix duplicate HTTP error handler + ecosystem kill_timeout
+// ============================================================
+
+// Fix40a: add _activeTcpSockets tracking Set before tcpServer.createServer
+patchRegex("Fix40a: add _activeTcpSockets Set + track sockets in tcpServer",
+    "server/index.js",
+    /var tcpServer = net\.createServer\(function \(socket\) \{\s*\n(\s*)var clientIP/,
+    "// Track all active TCP client sockets so gracefulShutdown can destroy them immediately\nvar _activeTcpSockets = new Set();\n\nvar tcpServer = net.createServer(function (socket) {\n    _activeTcpSockets.add(socket);\n    socket.on(\"close\", function () { _activeTcpSockets.delete(socket); });\n\n$1var clientIP"
+);
+
+// Fix40b: gracefulShutdown destroys active sockets immediately + httpServer null-guard
+patchRegex("Fix40b: gracefulShutdown destroys active TCP sockets immediately",
+    "server/index.js",
+    /function gracefulShutdown\(signal\) \{\s*\n\s*console\.log\("\[SHUTDOWN\][\s\S]*?^}/m,
+    "function gracefulShutdown(signal) {\n    console.log(\"[SHUTDOWN] \" + signal + \" received — closing servers gracefully...\");\n    // Destroy all active TCP device sockets immediately so tcpServer.close() resolves fast\n    _activeTcpSockets.forEach(function (s) { try { s.destroy(); } catch (e) {} });\n    _activeTcpSockets.clear();\n    tcpServer.close(function () { console.log(\"[SHUTDOWN] TCP server closed\"); });\n    if (httpServer && httpServer.listening) {\n        httpServer.close(function () {\n            console.log(\"[SHUTDOWN] HTTP server closed — exiting\");\n            process.exit(0);\n        });\n    } else {\n        process.exit(0);\n    }\n    // Force exit after 5s if servers won't close\n    setTimeout(function () {\n        console.error(\"[SHUTDOWN] Force exit after 5s timeout\");\n        process.exit(0);\n    }, 5000);\n}"
+);
+
+// Fix40c: remove duplicate httpServer.on("error") — keep only the graceful one
+patchRegex("Fix40c: remove duplicate HTTP EADDRINUSE handler (keep graceful close-then-exit)",
+    "server/index.js",
+    /httpServer\.on\("error", function \(err\) \{\s*\n\s*if \(err\.code === "EADDRINUSE"\) \{\s*\n\s*console\.error\("\[HTTP\] Port " \+ PORT \+ " already in use — exiting for clean PM2 restart"\);\s*\n\s*process\.exit\(1\);\s*\n\s*\}\s*\n\s*throw err;\s*\n\}\);\s*\nhttpServer\.on\("error"/,
+    "httpServer.on(\"error\""
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
