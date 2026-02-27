@@ -2,6 +2,8 @@
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
  */
+// Set Iran timezone before any SQLite `datetime('now','localtime')` calls
+if (!process.env.TZ) process.env.TZ = "Asia/Tehran";
 var Database = require("better-sqlite3");
 var path = require("path");
 

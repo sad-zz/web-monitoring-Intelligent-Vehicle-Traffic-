@@ -12,6 +12,10 @@
  *        Fix10(0012-yyMMddHHmmss) Fix11(one-cmd-per-conn)
  *        Fix12(syntax-braces) Fix13(uncaughtException)
  */
+// Set Iran Standard Time (UTC+3:30) BEFORE any require() or Date operation.
+// Without this, a UTC-timezone VPS sends UTC time via 0012 → device clocks are
+// 3.5 hours wrong → 0197 requests miss stored intervals → data appears empty.
+if (!process.env.TZ) process.env.TZ = "Asia/Tehran";
 require("dotenv").config();
 
 var express = require("express");

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =======================================================================
-# deploy-full.sh — جایگزینی کامل server/index.js و server/scheduler.js
+# deploy-full.sh — جایگزینی کامل server/index.js و scheduler.js و db.js و rmto-client.js
 # =======================================================================
 # استفاده روی سرور:
 #   cd /opt/tc-manager
@@ -13,7 +13,7 @@ REPO_RAW="https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Ve
 TS=$(date +%Y%m%d_%H%M%S)
 
 echo "========================================================"
-echo "  TC Manager — جایگزینی کامل server/index.js + scheduler.js"
+echo "  TC Manager — جایگزینی کامل فایل‌های سرور"
 echo "========================================================"
 
 replace_file() {
@@ -57,10 +57,18 @@ replace_file() {
     rm -f "${TMPFILE}"
 }
 
-replace_file "server/index.js"      "${REPO_RAW}/server/index.js"
-replace_file "server/scheduler.js"  "${REPO_RAW}/server/scheduler.js"
-replace_file "server/db.js"         "${REPO_RAW}/server/db.js"
+replace_file "server/index.js"       "${REPO_RAW}/server/index.js"
+replace_file "server/scheduler.js"   "${REPO_RAW}/server/scheduler.js"
+replace_file "server/db.js"          "${REPO_RAW}/server/db.js"
 replace_file "server/rmto-client.js" "${REPO_RAW}/server/rmto-client.js"
+
+# دانلود ecosystem.config.js برای PM2 (تنظیم TZ=Asia/Tehran)
+echo ""
+echo "⬇️   دانلود ecosystem.config.js (TZ=Asia/Tehran)..."
+if ! wget -q -O ecosystem.config.js "${REPO_RAW}/ecosystem.config.js" 2>/dev/null; then
+    wget -q --no-check-certificate -O ecosystem.config.js "${REPO_RAW}/ecosystem.config.js"
+fi
+echo "      → ecosystem.config.js دانلود شد"
 
 # راه‌اندازی مجدد
 echo ""
@@ -73,18 +81,18 @@ for PORT in 2022 3000; do
     fi
 done
 sleep 1
-# restart (stops + starts existing process) — safer than stop then start
-pm2 restart tc-manager 2>/dev/null || pm2 start server/index.js --name tc-manager
+# restart with --update-env to pick up TZ=Asia/Tehran from ecosystem.config.js
+pm2 restart tc-manager --update-env 2>/dev/null || pm2 start ecosystem.config.js
 echo ""
 pm2 list
 
 echo ""
 echo "========================================================"
-echo "  All 4 server files replaced (index.js + scheduler.js + db.js + rmto-client.js)"
+echo "  ✅ همه ۴ فایل سرور جایگزین شدند + ecosystem.config.js"
+echo "  ✅ منطقه زمانی: Asia/Tehran (UTC+3:30)"
 echo ""
 echo "  برای مشاهده لاگ:"
 echo "    pm2 logs tc-manager --lines 50"
 echo ""
-echo "  برای بررسی فرمت دستور 0012 (باید 12 رقم باشد):"
-echo "    node verify-timesync.js"
+echo "  بررسی موفقیت: ساعت دستگاه باید ایران (+3:30) باشد"
 echo "========================================================"

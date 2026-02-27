@@ -731,6 +731,67 @@ app.get("/api/rmto/queue", function (req, res) {
 );
 
 // ============================================================
+// Fix30 — منطقه زمانی ایران (CRITICAL: device clocks + data timestamps)
+// ============================================================
+// Fix30a: server/index.js — before require("dotenv")
+patch("Fix30a: set TZ=Asia/Tehran in server/index.js (fix UTC device clock + empty data)",
+    "server/index.js",
+    ' */\nrequire("dotenv").config();',
+    ' */\n// Set Iran Standard Time (UTC+3:30) BEFORE any require() or Date operation.\n// Without this, a UTC-timezone VPS sends UTC time via 0012 → device clocks are\n// 3.5 hours wrong → 0197 requests miss stored intervals → data appears empty.\nif (!process.env.TZ) process.env.TZ = "Asia/Tehran";\nrequire("dotenv").config();'
+);
+
+// Fix30b: server/scheduler.js — before require("node-cron")
+patch("Fix30b: set TZ=Asia/Tehran in server/scheduler.js",
+    "server/scheduler.js",
+    ' */\nvar cron = require("node-cron");',
+    ' */\n// Set Iran timezone before any Date operations (mirrors server/index.js)\nif (!process.env.TZ) process.env.TZ = "Asia/Tehran";\nvar cron = require("node-cron");'
+);
+
+// Fix30c: server/db.js — before require("better-sqlite3")
+patch("Fix30c: set TZ=Asia/Tehran in server/db.js (affects SQLite localtime)",
+    "server/db.js",
+    ' */\nvar Database = require("better-sqlite3");',
+    ' */\n// Set Iran timezone before any SQLite `datetime(\'now\',\'localtime\')` calls\nif (!process.env.TZ) process.env.TZ = "Asia/Tehran";\nvar Database = require("better-sqlite3");'
+);
+
+// Fix30d: create ecosystem.config.js for PM2 (sets TZ before node process starts)
+(function() {
+    var ecosystemPath = path.join(ROOT, "ecosystem.config.js");
+    var ecosystemContent = [
+        "module.exports = {",
+        "    apps: [{",
+        "        name: \"tc-manager\",",
+        "        script: \"server/index.js\",",
+        "        cwd: \"/opt/tc-manager\",",
+        "        instances: 1,",
+        "        autorestart: true,",
+        "        watch: false,",
+        "        max_memory_restart: \"300M\",",
+        "        env: {",
+        "            NODE_ENV: \"production\",",
+        "            TZ: \"Asia/Tehran\"",
+        "        }",
+        "    }]",
+        "};"
+    ].join("\n");
+    if (fs.existsSync(ecosystemPath)) {
+        var existing = fs.readFileSync(ecosystemPath, "utf8");
+        if (existing.indexOf("Asia/Tehran") !== -1) {
+            console.log("[SKIP] Fix30d: ecosystem.config.js — already applied");
+            skip++;
+        } else {
+            fs.writeFileSync(ecosystemPath, ecosystemContent);
+            console.log("[OK]   Fix30d: ecosystem.config.js — TZ=Asia/Tehran added to PM2 config");
+            ok++;
+        }
+    } else {
+        fs.writeFileSync(ecosystemPath, ecosystemContent);
+        console.log("[OK]   Fix30d: ecosystem.config.js — created with TZ=Asia/Tehran");
+        ok++;
+    }
+})();
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
@@ -742,7 +803,8 @@ console.log("======================================");
 
 if (ok > 0 && fail === 0) {
     console.log("\nقدم بعدی:");
-    console.log("  pm2 restart tc-manager");
+    console.log("  pm2 restart tc-manager --update-env");
+    console.log("  (--update-env ضروری است تا TZ=Asia/Tehran اعمال شود)");
 } else if (skip > 0 && fail === 0 && ok === 0) {
     console.log("\nهمه پچ‌ها قبلاً اعمال شده‌اند — نیازی به restart نیست.");
 } else if (fail >= 3) {
