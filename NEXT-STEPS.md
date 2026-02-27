@@ -1,17 +1,42 @@
 # راهنمای گام‌به‌گام استقرار روی سرور
 
-## ۱. قبل از اجرا — اعتبارنامه RMTO را اصلاح کنید
+## ۱. ساخت فایل .env (اگر وجود ندارد)
 
-در فایل `/opt/tc-manager/.env` روی سرور، مقادیر زیر را با اطلاعات صحیح RAHSAM پر کنید:
+فایل `.env` در مسیر `/opt/tc-manager/server/.env` باید وجود داشته باشد.
+برای ساخت آن اسکریپت زیر را اجرا کنید — نام کاربری و کلمه عبور RMTO را از شما می‌پرسد:
 
-```env
-RMTO_URL=http://XXXX.XXXX.XX/XXX/service.asmx
-RMTO_USER=your_username_here
-RMTO_PASS=your_password_here
-RMTO_FID=your_fid_here
+```bash
+cd /opt/tc-manager
+wget -q "https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/review-project-issues/create-env.sh" -O create-env.sh
+bash create-env.sh
 ```
 
-> اگر این اعتبارنامه‌ها اشتباه باشند، RMTO خطای `Wrong username or password` می‌دهد.
+**یا اگر ترجیح می‌دهید دستی بسازید:**
+
+```bash
+nano /opt/tc-manager/server/.env
+```
+
+محتوای `.env` باید این باشد (متغیرهای دقیق):
+
+```env
+PORT=3000
+HOST=0.0.0.0
+TCP_PORT=2022
+TZ=Asia/Tehran
+ADMIN_USER=admin
+ADMIN_PASS=admin123
+SESSION_SECRET=یک_رشته_تصادفی_بلند
+RMTO_WSDL=http://otf.rmto.ir/Companies/Companies.asmx?WSDL
+RMTO_COMPANY_CODE=58
+RMTO_USERNAME=نام_کاربری_RAHSAM
+RMTO_PASSWORD=کلمه_عبور_RAHSAM
+SEND_INTERVAL_MINUTES=5
+```
+
+> ⚠️ **نکته مهم**: نام متغیرها دقیقاً باید `RMTO_USERNAME` و `RMTO_PASSWORD` باشند (نه `RMTO_USER` یا `RMTO_PASS`)
+
+> اگر اعتبارنامه‌ها اشتباه باشند، RMTO خطای `Wrong username or password` می‌دهد.
 
 ---
 
