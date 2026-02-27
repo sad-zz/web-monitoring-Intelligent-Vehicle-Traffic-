@@ -239,12 +239,28 @@ function formatDateTime(isoStr) {
 /**
  * Start the scheduler.
  */
+/**
+ * Mark devices as offline if they haven't been seen for more than 15 minutes.
+ */
+function checkOfflineDevices() {
+    var cutoff = toLocalISOString(new Date(Date.now() - 15 * 60 * 1000));
+    var stale = db.prepare(
+        "SELECT device_code FROM devices WHERE status = 'online' AND last_seen < ?"
+    ).all(cutoff);
+
+    stale.forEach(function (d) {
+        db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(d.device_code);
+        console.log("[Scheduler] Device " + d.device_code + " marked offline (last_seen < " + cutoff + ")");
+    });
+}
+
 function start() {
     // Run every INTERVAL minutes
     var cronExpr = "*/" + INTERVAL + " * * * *";
     console.log("[Scheduler] Starting with cron:", cronExpr);
 
     cron.schedule(cronExpr, function () {
+        try { checkOfflineDevices(); } catch (e) { console.error("[Scheduler] checkOfflineDevices error:", e.message); }
         aggregateAndSend();
     });
 
@@ -258,5 +274,6 @@ function start() {
 module.exports = {
     start: start,
     aggregateAndSend: aggregateAndSend,
-    sendUnsentData: sendUnsentData
+    sendUnsentData: sendUnsentData,
+    checkOfflineDevices: checkOfflineDevices
 };

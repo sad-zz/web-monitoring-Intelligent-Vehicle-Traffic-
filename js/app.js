@@ -202,6 +202,7 @@
         });
 
         loadTcpConnected();
+        loadLive();
     }
 
     function loadTcpConnected() {

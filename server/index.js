@@ -733,15 +733,23 @@ function parseRATCX1Interval(intervalStr) {
 
 /** Convert RATCX1 parsed interval to irawdata rows (one per lane) */
 function ratcx1ToIrawdata(parsed) {
+    // Compute stop time = create_at + 5 minutes
+    var startDate = new Date(parsed.create_at);
+    var stopDate = new Date(startDate.getTime() + 5 * 60 * 1000);
+    var stopStr;
+    if (isNaN(stopDate.getTime())) {
+        stopStr = parsed.create_at; // fallback if date is invalid
+    } else {
+        stopStr = stopDate.getFullYear() + "-" + String(stopDate.getMonth() + 1).padStart(2, "0") + "-" + String(stopDate.getDate()).padStart(2, "0") + "T" + String(stopDate.getHours()).padStart(2, "0") + ":" + String(stopDate.getMinutes()).padStart(2, "0") + ":00";
+    }
+
     var rows = [];
     [{ lane: 1, data: parsed.lane1 }, { lane: 2, data: parsed.lane2 }].forEach(function (l) {
         var d = l.data;
-        var totalCount = d.a.count + d.b.count + d.c.count + d.d.count + d.e.count + d.x.count;
-        if (totalCount === 0) return; // skip empty lane
         rows.push({
             device_code: parsed.device_code,
             create_at: parsed.create_at,
-            stop: parsed.create_at,
+            stop: stopStr,
             lane: l.lane,
             a: d.a.count, b: d.b.count, c: d.c.count, d: d.d.count, e: d.e.count, x: d.x.count,
             sa: d.a.avgSpeed * d.a.count, sb: d.b.avgSpeed * d.b.count,
@@ -1174,16 +1182,18 @@ var tcpServer = net.createServer(function (socket) {
 });
 
 function storeIrawdata(parsed) {
+    var total = (parsed.a||0) + (parsed.b||0) + (parsed.c||0) + (parsed.d||0) + (parsed.e||0) + (parsed.x||0);
+    console.log("[DB] INSERT irawdata: device=" + parsed.device_code + " create_at=" + parsed.create_at + " stop=" + parsed.stop + " lane=" + parsed.lane + " total=" + total);
     var insertRaw = db.prepare(
         "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     insertRaw.run(
         parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,
-        parsed.a, parsed.b, parsed.c, parsed.d, parsed.e, parsed.x,
-        parsed.sa, parsed.sb, parsed.sc, parsed.sd, parsed.se, parsed.sx,
-        parsed.sao, parsed.sbo, parsed.sco, parsed.sdo, parsed.seo, parsed.sxo,
-        parsed.overtaking, parsed.tooclose
+        parsed.a||0, parsed.b||0, parsed.c||0, parsed.d||0, parsed.e||0, parsed.x||0,
+        parsed.sa||0, parsed.sb||0, parsed.sc||0, parsed.sd||0, parsed.se||0, parsed.sx||0,
+        parsed.sao||0, parsed.sbo||0, parsed.sco||0, parsed.sdo||0, parsed.seo||0, parsed.sxo||0,
+        parsed.overtaking||0, parsed.tooclose||0
     );
 }
 
@@ -1259,35 +1269,39 @@ function processRawData(raw, ip) {
 
         // Validate device timestamp - detect clock drift and correct if needed
         var serverNow = new Date();
+        var originalCreateAt = parsed.create_at;
         var deviceTime = new Date(parsed.create_at);
         var timestampCorrected = false;
+
+        // Helper: round server time to nearest 5-min interval for correction
+        function correctedServerTime() {
+            var c = new Date();
+            c.setMinutes(Math.floor(c.getMinutes() / 5) * 5, 0, 0);
+            return c.getFullYear() + "-" + String(c.getMonth() + 1).padStart(2, "0") + "-" + String(c.getDate()).padStart(2, "0") + "T" + String(c.getHours()).padStart(2, "0") + ":" + String(c.getMinutes()).padStart(2, "0") + ":00";
+        }
+
         // Pre-check: if device date is NaN (e.g. month=26), correct it to server time
         if (isNaN(deviceTime.getTime())) {
-            var corrNow = new Date();
-            corrNow.setMinutes(Math.floor(corrNow.getMinutes() / 5) * 5, 0, 0);
-            var corrStr = corrNow.getFullYear() + "-" + String(corrNow.getMonth() + 1).padStart(2, "0") + "-" + String(corrNow.getDate()).padStart(2, "0") + "T" + String(corrNow.getHours()).padStart(2, "0") + ":" + String(corrNow.getMinutes()).padStart(2, "0") + ":00";
-            console.log("[TCP] Device " + parsed.device_code + " has INVALID date: " + parsed.create_at + " -> correcting to " + corrStr);
+            var corrStr = correctedServerTime();
+            console.log("[TCP] Device " + parsed.device_code + " has INVALID date: " + originalCreateAt + " -> correcting to " + corrStr);
             parsed.create_at = corrStr;
             timestampCorrected = true;
-            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "تاریخ نامعتبر: " + parsed.create_at + " - اصلاح شد به " + corrStr });
-        }
-        if (!isNaN(deviceTime.getTime())) {
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "تاریخ نامعتبر: " + originalCreateAt + " - اصلاح شد به " + corrStr });
+        } else {
             var driftMs = Math.abs(serverNow.getTime() - deviceTime.getTime());
             var driftMinutes = Math.round(driftMs / 60000);
-            if (driftMinutes > 30) {
-                console.log("[TCP] WARNING: Device " + parsed.device_code + " clock drift = " + driftMinutes + " min (device=" + parsed.create_at + " server=" + serverNow.toISOString() + ")");
-                // Correct the timestamp to server time (round to nearest 5-min interval)
-                var corrected = new Date(serverNow);
-                corrected.setMinutes(Math.floor(corrected.getMinutes() / 5) * 5, 0, 0);
-                var correctedStr = corrected.getFullYear() + "-" + String(corrected.getMonth() + 1).padStart(2, "0") + "-" + String(corrected.getDate()).padStart(2, "0") + "T" + String(corrected.getHours()).padStart(2, "0") + ":" + String(corrected.getMinutes()).padStart(2, "0") + ":00";
-                console.log("[TCP] Correcting timestamp: " + parsed.create_at + " -> " + correctedStr);
+            if (driftMinutes > 5) {
+                var correctedStr = correctedServerTime();
+                console.log("[TCP] WARNING: Device " + parsed.device_code + " clock drift = " + driftMinutes + " min (device=" + originalCreateAt + " server=" + serverNow.toISOString() + ") -> correcting to " + correctedStr);
                 parsed.create_at = correctedStr;
                 timestampCorrected = true;
-                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "اختلاف ساعت " + driftMinutes + " دقیقه - زمان اصلاح شد به " + correctedStr });
-                // Force immediate re-sync
-                var sock = connectedDevices[parsed.device_code];
-                if (sock && !sock.destroyed) {
-                    syncDeviceTime(parsed.device_code, sock);
+                addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "اختلاف ساعت " + driftMinutes + " دقیقه - زمان اصلاح شد: " + originalCreateAt + " → " + correctedStr });
+                // Force immediate re-sync if drift is large
+                if (driftMinutes > 30) {
+                    var sock = connectedDevices[parsed.device_code];
+                    if (sock && !sock.destroyed) {
+                        syncDeviceTime(parsed.device_code, sock);
+                    }
                 }
             }
         }
