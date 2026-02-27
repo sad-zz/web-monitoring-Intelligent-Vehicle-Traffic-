@@ -974,10 +974,13 @@ function startDataRequests(deviceCode, socket) {
     if (seen && !isNaN(seen.devTime.getTime())) {
         // Use device's reported time + elapsed wall time since it connected.
         // This works even when the device RTC battery is dead (year=2000).
+        // NOTE: when device clock is dead (year<2020), do NOT subtract 5min because
+        // that would push refTime into 1999 and the device has no such intervals.
         var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());
-        refTime = new Date(seen.devTime.getTime() + elapsedMs - 5 * 60 * 1000);
+        var deadClock = seen.devTime.getFullYear() < 2020;
+        refTime = new Date(seen.devTime.getTime() + elapsedMs - (deadClock ? 0 : 5 * 60 * 1000));
         console.log("[TCP] 0197 using device-clock ref: devTime=" + seen.devTime.toISOString() +
-            " elapsed=" + Math.round(elapsedMs / 1000) + "s ref=" + refTime.toISOString());
+            " elapsed=" + Math.round(elapsedMs / 1000) + "s ref=" + refTime.toISOString() + (deadClock ? " [dead-clock]" : ""));
     } else {
         // Fallback: use server time
         refTime = new Date(now.getTime() - 5 * 60 * 1000);
@@ -986,8 +989,9 @@ function startDataRequests(deviceCode, socket) {
 
     var ts = formatPollTimestamp(refTime);
     var cmd = "0197" + ts;
+    if (!socket._lastDataReqTs) socket._lastDataReqTs = ts;
     sendToDevice(deviceCode, socket, cmd, "DATA_REQ");
-    console.log("[TCP] Sent single 0197 for device " + deviceCode + " interval " + ts);
+    console.log("[TCP] Sent 0197 for device " + deviceCode + " interval " + ts);
 }
 
 /**
@@ -1048,6 +1052,8 @@ var tcpServer = net.createServer(function (socket) {
                 pollStarted = true;
                 connectedDevices[deviceId] = socket;
                 socket._connectedAt = new Date().toISOString();
+                socket._intervalCount = 0;  // count 8821 responses per connection
+                socket._lastDataReqTs = null;
                 console.log("[TCP] Device " + deviceId + " registered for commands");
                 startDevicePoll(deviceId, socket);
             }
@@ -1315,6 +1321,22 @@ function processRawData(raw, ip) {
             total: totalAll, battery: parsed.battery, solar: parsed.solar,
             detail: "تردد=" + totalAll + " باتری=" + parsed.battery + " سولار=" + parsed.solar + " خطا=" + parsed.error_byte
         });
+
+        // Request next 5-min interval: device stays connected until its buffer is drained.
+        // Limit to 200 intervals per connection to prevent runaway loops.
+        var sock = connectedDevices[parsed.device_code];
+        if (sock && !sock.destroyed) {
+            if (!sock._intervalCount) sock._intervalCount = 0;
+            sock._intervalCount++;
+            if (sock._intervalCount < 200) {
+                var nextStart = new Date(new Date(parsed.create_at).getTime() + 5 * 60 * 1000);
+                nextStart.setSeconds(0, 0);
+                var nextTs = formatPollTimestamp(nextStart);
+                sendToDevice(parsed.device_code, sock, "0197" + nextTs, "DATA_REQ_NEXT #" + sock._intervalCount);
+            } else {
+                console.log("[TCP] Max 200 intervals per connection reached for " + parsed.device_code + " — stopping poll");
+            }
+        }
         return;
     }
 
@@ -1362,6 +1384,15 @@ function processRawData(raw, ip) {
 
         // Clear drift so next 8000 connection takes the "normal data poll" path
         delete deviceClockDrift[sid];
+
+        // IMPORTANT: After 8012 ACK the device has NOT CIPSHUTted — it is waiting
+        // for a 0197 data request.  Send it immediately using the old device-clock
+        // reference (deviceLastSeen still holds the pre-sync 2000.01.01 time so the
+        // 0197 timestamp will match the intervals stored in the device's buffer).
+        var activeSock = connectedDevices[sid] || socket;
+        if (activeSock && !activeSock.destroyed) {
+            startDataRequests(sid, activeSock);
+        }
 
         if (syncVerified) {
             console.log("[TCP]   TIME_SYNC verified for " + sid + " - next connection will poll data");

@@ -445,6 +445,50 @@ patch(
 );
 
 // ============================================================
+// Fix21 — server/index.js: don't subtract 5min for dead-clock devices (year<2020)
+// When device clock is stuck at 2000.01.01, the -5min pushed refTime to 1999.
+// Fix: use devTime+elapsed directly for dead-clock devices.
+// ============================================================
+patch(
+    "Fix21: 0197 no -5min offset for dead-clock devices (year<2020)",
+    "server/index.js",
+    "        var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());\n        refTime = new Date(seen.devTime.getTime() + elapsedMs - 5 * 60 * 1000);\n        console.log(\"[TCP] 0197 using device-clock ref: devTime=\" + seen.devTime.toISOString() +\n            \" elapsed=\" + Math.round(elapsedMs / 1000) + \"s ref=\" + refTime.toISOString());",
+    "        var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());\n        var deadClock = seen.devTime.getFullYear() < 2020;\n        refTime = new Date(seen.devTime.getTime() + elapsedMs - (deadClock ? 0 : 5 * 60 * 1000));\n        console.log(\"[TCP] 0197 using device-clock ref: devTime=\" + seen.devTime.toISOString() +\n            \" elapsed=\" + Math.round(elapsedMs / 1000) + \"s ref=\" + refTime.toISOString() + (deadClock ? \" [dead-clock]\" : \"\"));"
+);
+
+// ============================================================
+// Fix22a — server/index.js: track intervalCount + lastDataReqTs on socket
+// ============================================================
+patch(
+    "Fix22a: init socket._intervalCount and _lastDataReqTs in checkHandshake",
+    "server/index.js",
+    "                connectedDevices[deviceId] = socket;\n                socket._connectedAt = new Date().toISOString();\n                console.log(\"[TCP] Device \" + deviceId + \" registered for commands\");",
+    "                connectedDevices[deviceId] = socket;\n                socket._connectedAt = new Date().toISOString();\n                socket._intervalCount = 0;  // count 8821 responses per connection\n                socket._lastDataReqTs = null;\n                console.log(\"[TCP] Device \" + deviceId + \" registered for commands\");"
+);
+
+// ============================================================
+// Fix22b — server/index.js: after 8012 ACK send 0197 immediately
+// The device has NOT CIPSHUTted — it's waiting for the data request.
+// ============================================================
+patch(
+    "Fix22b: after 8012 ACK send 0197 immediately (device waiting for data request)",
+    "server/index.js",
+    "        // Clear drift so next 8000 connection takes the \"normal data poll\" path\n        delete deviceClockDrift[sid];",
+    "        // Clear drift so next 8000 connection takes the \"normal data poll\" path\n        delete deviceClockDrift[sid];\n\n        // IMPORTANT: After 8012 ACK the device has NOT CIPSHUTted — it is waiting\n        // for a 0197 data request.  Send it immediately using the old device-clock\n        // reference (deviceLastSeen still holds the pre-sync 2000.01.01 time so the\n        // 0197 timestamp will match the intervals stored in the device's buffer).\n        var activeSock = connectedDevices[sid] || socket;\n        if (activeSock && !activeSock.destroyed) {\n            startDataRequests(sid, activeSock);\n        }"
+);
+
+// ============================================================
+// Fix23 — server/index.js: after 8821 send next 0197 to drain device buffer
+// The device stays connected and sends all buffered intervals one by one.
+// ============================================================
+patch(
+    "Fix23: after 8821 data send next 0197 to drain device buffer (max 200 per connection)",
+    "server/index.js",
+    "            detail: \"تردد=\" + totalAll + \" باتری=\" + parsed.battery + \" سولار=\" + parsed.solar + \" خطا=\" + parsed.error_byte\n        });\n        return;\n    }",
+    "            detail: \"تردد=\" + totalAll + \" باتری=\" + parsed.battery + \" سولار=\" + parsed.solar + \" خطا=\" + parsed.error_byte\n        });\n\n        // Request next 5-min interval: device stays connected until its buffer is drained.\n        // Limit to 200 intervals per connection to prevent runaway loops.\n        var sock = connectedDevices[parsed.device_code];\n        if (sock && !sock.destroyed) {\n            if (!sock._intervalCount) sock._intervalCount = 0;\n            sock._intervalCount++;\n            if (sock._intervalCount < 200) {\n                var nextStart = new Date(new Date(parsed.create_at).getTime() + 5 * 60 * 1000);\n                nextStart.setSeconds(0, 0);\n                var nextTs = formatPollTimestamp(nextStart);\n                sendToDevice(parsed.device_code, sock, \"0197\" + nextTs, \"DATA_REQ_NEXT #\" + sock._intervalCount);\n            } else {\n                console.log(\"[TCP] Max 200 intervals per connection reached for \" + parsed.device_code + \" \u2014 stopping poll\");\n            }\n        }\n        return;\n    }"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
