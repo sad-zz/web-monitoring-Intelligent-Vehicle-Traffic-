@@ -370,6 +370,81 @@ patch(
 );
 
 // ============================================================
+// Fix17 — server/index.js: normalize sysId (strip leading zeros) in 8000 handler
+// Affects devices whose code has leading zeros (e.g. "00001125" → "1125").
+// No-op for devices without leading zeros (e.g. "10001125" stays "10001125").
+// ============================================================
+patch(
+    "Fix17: strip leading zeros from sysId in 8000 handler so deviceClockDrift key matches",
+    "server/index.js",
+    "        var sysId = clean.substring(25, 33);\n        var rest = clean.substring(33);",
+    "        var sysId = clean.substring(25, 33).replace(/^0+/, \"\") || \"0\";\n        var rest = clean.substring(33);"
+);
+
+// ============================================================
+// Fix18 — server/index.js: clear deviceClockDrift when socket closes after 0012
+// ROOT CAUSE: pendingSyncs is cleaned on disconnect but deviceClockDrift is NOT.
+// If firmware never sends 8012 ACK (which logs show it doesn't for RATCX1),
+// deviceClockDrift stays at 13M minutes forever → infinite 0012 loop → no data.
+// Fix: delete deviceClockDrift[deviceId] in end/error handlers AND in max-retry.
+// ============================================================
+patch(
+    "Fix18a: clear deviceClockDrift on socket end (was keeping drift forever → infinite 0012 loop)",
+    "server/index.js",
+    "        // Clean up pending time syncs\n        if (deviceId && pendingSyncs[deviceId]) {\n            clearTimeout(pendingSyncs[deviceId].timer);\n            delete pendingSyncs[deviceId];\n        }\n        // Mark device offline when it disconnects",
+    "        // Clean up pending time syncs\n        if (deviceId && pendingSyncs[deviceId]) {\n            clearTimeout(pendingSyncs[deviceId].timer);\n            delete pendingSyncs[deviceId];\n            // Clear drift so next connection takes the data-poll path.\n            // The firmware may not send 8012 ACK; if the socket closes without ACK,\n            // assume 0012 was processed and let the next connection try 0197.\n            delete deviceClockDrift[deviceId];\n        }\n        // Mark device offline when it disconnects"
+);
+patch(
+    "Fix18b: clear deviceClockDrift in socket error handler",
+    "server/index.js",
+    "        // Clean up pending time syncs\n        if (deviceId && pendingSyncs[deviceId]) {\n            clearTimeout(pendingSyncs[deviceId].timer);\n            delete pendingSyncs[deviceId];\n        }\n        if (deviceId) {\n            try { db.prepare(\"UPDATE devices SET status = 'offline' WHERE device_code = ?\").run(deviceId); } catch(e){}\n        }\n        console.error(\"[TCP] Error from \" + clientIP",
+    "        // Clean up pending time syncs\n        if (deviceId && pendingSyncs[deviceId]) {\n            clearTimeout(pendingSyncs[deviceId].timer);\n            delete pendingSyncs[deviceId];\n            delete deviceClockDrift[deviceId]; // clear drift so next connection tries data poll\n        }\n        if (deviceId) {\n            try { db.prepare(\"UPDATE devices SET status = 'offline' WHERE device_code = ?\").run(deviceId); } catch(e){}\n        }\n        console.error(\"[TCP] Error from \" + clientIP"
+);
+patch(
+    "Fix18c: clear deviceClockDrift in syncDeviceTime max-retry handler",
+    "server/index.js",
+    "            console.log(\"[TCP] TIME_SYNC failed for \" + deviceCode + \" after 3 retries — next connection will retry\");\n            // Do NOT call startDataRequests here: the socket is likely destroyed\n            // (device CIPSHUTs after each command).  The next 8000 connection will\n            // call startDevicePoll which will retry 0012 if drift is still large.\n            delete pendingSyncs[deviceCode];",
+    "            console.log(\"[TCP] TIME_SYNC failed for \" + deviceCode + \" after 3 retries — clearing drift so next connection polls data\");\n            delete pendingSyncs[deviceCode];\n            // Clear drift so the next 8000 connection takes the data-poll path.\n            // The device may not implement 8012 ACK; clearing here prevents the\n            // infinite 0012-only loop.\n            delete deviceClockDrift[deviceCode];"
+);
+
+// ============================================================
+// Fix19 — server/index.js: use device-adjusted time in 0197 requests
+// When device RTC battery is dead (year=2000), server time requests (2026) never
+// match device's stored intervals → no data returned.
+// Fix: store device's reported clock in deviceLastSeen and use it (+ elapsed)
+// as the reference timestamp for 0197 commands.
+// ============================================================
+patchRegex(
+    "Fix19a: add deviceLastSeen tracking variable",
+    "server/index.js",
+    /\/\/ Track clock drift per device \(device_code -> drift in minutes\)\nvar deviceClockDrift = \{\};/,
+    "// Track clock drift per device (device_code -> drift in minutes)\nvar deviceClockDrift = {};\n\n// Track device's last known reported time (device_code -> { devTime: Date, serverTime: Date })\n// Used to send 0197 with device-matching timestamps even when RTC is dead\nvar deviceLastSeen = {};"
+);
+patchRegex(
+    "Fix19b: save deviceLastSeen in 8000 processRawData handler",
+    "server/index.js",
+    /\/\/ Store drift so startDevicePoll can decide whether to request old data\n            deviceClockDrift\[sysId\] = driftM;/,
+    "// Store device's reported time for use in 0197 requests\n            // (so we can send 0197 with device-matching timestamps even when RTC is dead)\n            if (!isNaN(devDate.getTime())) {\n                deviceLastSeen[sysId] = { devTime: devDate, serverTime: new Date() };\n            }\n            // Store drift so startDevicePoll can decide whether to request old data\n            deviceClockDrift[sysId] = driftM;"
+);
+patchRegex(
+    "Fix19c: update startDataRequests to use device-adjusted time for 0197",
+    "server/index.js",
+    /function startDataRequests\(deviceCode, socket\) \{\n    if \(socket\.destroyed\) return;\n\n    \/\/ Request the last COMPLETED 5-minute interval \(current - 5 min\)\n    var now = new Date\(\);\n    var t = new Date\(now\.getTime\(\) - 5 \* 60 \* 1000\);\n    t\.setMinutes\(Math\.floor\(t\.getMinutes\(\) \/ 5\) \* 5, 0, 0\);\n    var ts = formatPollTimestamp\(t\);\n\n    var cmd = "0197" \+ ts;\n    sendToDevice\(deviceCode, socket, cmd, "DATA_REQ"\);\n    console\.log\("\[TCP\] Sent single 0197 for device " \+ deviceCode \+ " interval " \+ ts\);\n\}/,
+    "function startDataRequests(deviceCode, socket) {\n    if (socket.destroyed) return;\n\n    var now = new Date();\n    var seen = deviceLastSeen[deviceCode];\n    var refTime;\n\n    if (seen && !isNaN(seen.devTime.getTime())) {\n        // Use device's reported time adjusted for elapsed time since handshake.\n        // This works even when the device RTC battery is dead (year=2000).\n        var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());\n        refTime = new Date(seen.devTime.getTime() + elapsedMs - 5 * 60 * 1000);\n        console.log(\"[TCP] 0197 using device-clock ref: devTime=\" + seen.devTime.toISOString() +\n            \" elapsed=\" + Math.round(elapsedMs / 1000) + \"s ref=\" + refTime.toISOString());\n    } else {\n        refTime = new Date(now.getTime() - 5 * 60 * 1000);\n    }\n    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5, 0, 0);\n\n    var ts = formatPollTimestamp(refTime);\n    var cmd = \"0197\" + ts;\n    sendToDevice(deviceCode, socket, cmd, \"DATA_REQ\");\n    console.log(\"[TCP] Sent single 0197 for device \" + deviceCode + \" interval \" + ts);\n}"
+);
+
+// ============================================================
+// Fix20 — server/index.js: socket.setNoDelay(true) for immediate command delivery
+// Without this, Nagle's algorithm may buffer small packets, delaying 0012/0197.
+// ============================================================
+patch(
+    "Fix20: socket.setNoDelay(true) — disable Nagle for immediate command delivery",
+    "server/index.js",
+    "    var clientIP = socket.remoteAddress || \"\";\n    var buffer = \"\";\n    var deviceId = null;\n    var pollStarted = false;\n    console.log(\"[TCP] New connection from \" + clientIP);",
+    "    var clientIP = socket.remoteAddress || \"\";\n    var buffer = \"\";\n    var deviceId = null;\n    var pollStarted = false;\n    socket.setNoDelay(true); // disable Nagle — send commands immediately without buffering\n    console.log(\"[TCP] New connection from \" + clientIP);"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

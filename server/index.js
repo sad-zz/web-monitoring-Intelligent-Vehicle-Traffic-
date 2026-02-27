@@ -813,8 +813,11 @@ var connectedDevices = {};
 // Track pending time syncs waiting for ACK (device_code -> { retries, timer, deferDataRequest, socket })
 var pendingSyncs = {};
 
-// Track clock drift per device (device_code -> drift in minutes)
-var deviceClockDrift = {};
+undefined
+
+// Track device's last known reported time (device_code -> { devTime: Date, serverTime: Date })
+// Used to send 0197 with device-adjusted timestamp when device RTC is out of sync
+var deviceLastSeen = {};
 
 // ============================================================
 // TCP: Time sync & Active polling
@@ -893,11 +896,12 @@ function syncDeviceTime(deviceCode, socket) {
             console.log("[TCP] TIME_SYNC ACK not received for " + deviceCode + ", retry " + pendingSyncs[deviceCode].retries + "/3");
             syncDeviceTime(deviceCode, socket);
         } else {
-            console.log("[TCP] TIME_SYNC failed for " + deviceCode + " after 3 retries — next connection will retry");
-            // Do NOT call startDataRequests here: the socket is likely destroyed
-            // (device CIPSHUTs after each command).  The next 8000 connection will
-            // call startDevicePoll which will retry 0012 if drift is still large.
+            console.log("[TCP] TIME_SYNC failed for " + deviceCode + " after 3 retries — clearing drift so next connection polls data");
             delete pendingSyncs[deviceCode];
+            // Clear drift so the next 8000 connection takes the data-poll path.
+            // The device may not implement 8012 ACK; clearing here prevents the
+            // infinite 0012-only loop.
+            delete deviceClockDrift[deviceCode];
         }
     }, 10000); // Wait 10 seconds for ACK
 
@@ -928,6 +932,9 @@ function startDevicePoll(deviceCode, socket) {
         if (socket.destroyed) return;
         if (largeDrift) {
             // Clock badly wrong: send 0012 ONLY. Next connection handles data.
+            // NOTE: drift is cleared when socket closes (see end/error handlers)
+            // so the NEXT connection will send 0197 even if 8012 ACK never arrives
+            // (some firmware versions do not send 8012 back).
             syncDeviceTime(deviceCode, socket);
             if (pendingSyncs[deviceCode]) {
                 pendingSyncs[deviceCode].deferDataRequest = false; // no data request after 8012
@@ -951,16 +958,33 @@ function startDevicePoll(deviceCode, socket) {
  * "SEND OK" from the modem while extra bytes overflow the buffer.
  * Therefore we send ONLY ONE 0197 per connection.  On the NEXT 8000
  * connection, startDevicePoll calls us again to get the next interval.
+ *
+ * DEVICE-CLOCK NOTE: If the device RTC is dead (shows 2000.01.01), we use
+ * the device's own reported time as a reference, adjusted for elapsed time
+ * since the last handshake.  This lets the device find the matching interval
+ * in its buffer even when its clock is wrong.
  */
 function startDataRequests(deviceCode, socket) {
     if (socket.destroyed) return;
 
-    // Request the last COMPLETED 5-minute interval (current - 5 min)
     var now = new Date();
-    var t = new Date(now.getTime() - 5 * 60 * 1000);
-    t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
-    var ts = formatPollTimestamp(t);
+    var seen = deviceLastSeen[deviceCode];
+    var refTime;
 
+    if (seen && !isNaN(seen.devTime.getTime())) {
+        // Use device's reported time + elapsed wall time since it connected.
+        // This works even when the device RTC battery is dead (year=2000).
+        var elapsedMs = Math.max(0, now.getTime() - seen.serverTime.getTime());
+        refTime = new Date(seen.devTime.getTime() + elapsedMs - 5 * 60 * 1000);
+        console.log("[TCP] 0197 using device-clock ref: devTime=" + seen.devTime.toISOString() +
+            " elapsed=" + Math.round(elapsedMs / 1000) + "s ref=" + refTime.toISOString());
+    } else {
+        // Fallback: use server time
+        refTime = new Date(now.getTime() - 5 * 60 * 1000);
+    }
+    refTime.setMinutes(Math.floor(refTime.getMinutes() / 5) * 5, 0, 0);
+
+    var ts = formatPollTimestamp(refTime);
     var cmd = "0197" + ts;
     sendToDevice(deviceCode, socket, cmd, "DATA_REQ");
     console.log("[TCP] Sent single 0197 for device " + deviceCode + " interval " + ts);
@@ -1011,6 +1035,7 @@ var tcpServer = net.createServer(function (socket) {
     var buffer = "";
     var deviceId = null;
     var pollStarted = false;
+    socket.setNoDelay(true); // disable Nagle — send commands immediately without buffering
     console.log("[TCP] New connection from " + clientIP);
 
     // Helper: check for handshake and start polling (only once per connection)
@@ -1106,6 +1131,10 @@ var tcpServer = net.createServer(function (socket) {
         if (deviceId && pendingSyncs[deviceId]) {
             clearTimeout(pendingSyncs[deviceId].timer);
             delete pendingSyncs[deviceId];
+            // Clear drift so next connection takes the data-poll path.
+            // The firmware may not send 8012 ACK; if the socket closes without ACK,
+            // assume 0012 was processed and let the next connection try 0197.
+            delete deviceClockDrift[deviceId];
         }
         // Mark device offline when it disconnects
         if (deviceId) {
@@ -1124,6 +1153,7 @@ var tcpServer = net.createServer(function (socket) {
         if (deviceId && pendingSyncs[deviceId]) {
             clearTimeout(pendingSyncs[deviceId].timer);
             delete pendingSyncs[deviceId];
+            delete deviceClockDrift[deviceId]; // clear drift so next connection tries data poll
         }
         if (deviceId) {
             try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
@@ -1156,7 +1186,7 @@ function processRawData(raw, ip) {
     // --- RATCX1 Handshake: "8000" + datetime(21) + system_id(8) + model + version + "READY" ---
     if (clean.substring(0, 4) === "8000") {
         var datetime = clean.substring(4, 25);
-        var sysId = clean.substring(25, 33);
+        var sysId = clean.substring(25, 33).replace(/^0+/, "") || "0";
         var rest = clean.substring(33);
         console.log("[TCP] RATCX1 handshake: device=" + sysId + " time=" + datetime + " info=" + rest);
 
@@ -1174,6 +1204,11 @@ function processRawData(raw, ip) {
                 console.log("[TCP] Device " + sysId + " clock INVALID date: " + devTimeParts[1] + "-" + devTimeParts[2] + "-" + devTimeParts[3] + " (month=" + devMonth + " day=" + devDay + ") - treating as large drift");
             } else {
                 driftM = Math.round(Math.abs(srvDate.getTime() - devDate.getTime()) / 60000);
+            }
+            // Store device's reported time for use in 0197 requests
+            // (so we can send 0197 with device-matching timestamps even when RTC is dead)
+            if (!isNaN(devDate.getTime())) {
+                deviceLastSeen[sysId] = { devTime: devDate, serverTime: new Date() };
             }
             // Store drift so startDevicePoll can decide whether to request old data
             deviceClockDrift[sysId] = driftM;
