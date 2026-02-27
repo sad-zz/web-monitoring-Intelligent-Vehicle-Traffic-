@@ -37,10 +37,13 @@ function processAndSendIrawdata() {
         companyCode = parseInt((row && row.value) || "58", 10) || 58;
     } catch (e) {}
 
-    // Get up to 100 unprocessed records (rmto_id IS NULL), oldest first
+    // Get up to 50 unprocessed records (rmto_id IS NULL) or failed (rmto_id = 0), oldest first
+    // Auth errors (rmto_id = -2) are NOT retried — user must fix credentials first
     var rows;
     try {
-        rows = db.prepare("SELECT * FROM irawdata WHERE rmto_id IS NULL ORDER BY create_at ASC LIMIT 100").all();
+        rows = db.prepare(
+            "SELECT * FROM irawdata WHERE (rmto_id IS NULL OR rmto_id = 0) ORDER BY create_at ASC LIMIT 50"
+        ).all();
     } catch (e) {
         console.error("[Scheduler] processAndSendIrawdata query error:", e.message);
         return;
@@ -51,7 +54,7 @@ function processAndSendIrawdata() {
 
     rows.forEach(function (row) {
         // Mark as in-flight (rmto_id = -1) to prevent double-processing
-        try { db.prepare("UPDATE irawdata SET rmto_id = -1 WHERE id = ? AND rmto_id IS NULL").run(row.id); } catch (e) { return; }
+        try { db.prepare("UPDATE irawdata SET rmto_id = -1 WHERE id = ? AND (rmto_id IS NULL OR rmto_id = 0)").run(row.id); } catch (e) { return; }
 
         // Compute RMTO fields
         var a = row.a || 0, b = row.b || 0, c = row.c || 0, d = row.d || 0;
@@ -105,18 +108,30 @@ function processAndSendIrawdata() {
         }, function (err, response) {
             try {
                 var rmtoId, cfl = null, srvdt = null, bil = null, errMsg = null;
-                if (isNull) {
-                    // Null record - mark as sent with RMTO_ID = 1 (per C# reference)
-                    rmtoId = 1; cfl = 0; bil = 0; errMsg = "NULL SENT";
+                var isAuthError = false;
+                if (err && err.message && (err.message.indexOf("password") >= 0 || err.message.indexOf("username") >= 0 || err.message.indexOf("Wrong") >= 0)) {
+                    // Auth error — mark as permanent failure (-2) to stop retry loop
+                    rmtoId = -2; errMsg = err.message; isAuthError = true;
                 } else if (response) {
                     rmtoId = response.ID || 0;
                     cfl = response.CFL || 0;
                     srvdt = response.SRVDT ? String(response.SRVDT) : null;
                     bil = response.BIL || 0;
                     errMsg = response.ERR || null;
+                    // Check if RMTO error indicates auth problem
+                    if (errMsg && (errMsg.indexOf("password") >= 0 || errMsg.indexOf("username") >= 0 || errMsg.indexOf("Wrong") >= 0)) {
+                        rmtoId = -2; isAuthError = true;
+                    }
                 } else {
                     rmtoId = 0;
                     errMsg = err ? err.message : "no response";
+                }
+
+                // For null records: if SOAP succeeded (ID>0), accept it.
+                // If SOAP failed with non-auth error, reset to NULL for retry.
+                if (isNull && !isAuthError && rmtoId <= 0) {
+                    // Null record network/server error — reset to NULL so it retries
+                    rmtoId = null;
                 }
 
                 db.prepare(

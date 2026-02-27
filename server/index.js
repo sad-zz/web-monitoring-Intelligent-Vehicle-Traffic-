@@ -380,6 +380,16 @@ app.post("/api/rmto/aggregate", function (req, res) {
     res.json({ success: true });
 });
 
+// Reset auth-error records so they can be retried after credentials are fixed
+app.post("/api/rmto/reset-auth-errors", function (req, res) {
+    try {
+        var info = db.prepare("UPDATE irawdata SET rmto_id = NULL, rmto_err = NULL WHERE rmto_id = -2").run();
+        res.json({ success: true, reset: info.changes });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get("/api/rmto/queue", function (req, res) {
     // Show irawdata records with RMTO status (per-interval pipeline)
     var unsent = db.prepare(
@@ -396,7 +406,16 @@ app.get("/api/rmto/queue", function (req, res) {
         "rmto_id, rmto_cfl, rmto_srvdt, rmto_bil, rmto_err " +
         "FROM irawdata WHERE rmto_id IS NOT NULL AND rmto_id > 0 ORDER BY create_at DESC LIMIT 50"
     ).all();
-    res.json({ unsent: unsent, sent: sent });
+    // Auth-error records (rmto_id = -2): permanent failures, user must fix credentials
+    var authErrors = db.prepare(
+        "SELECT COUNT(*) as c FROM irawdata WHERE rmto_id = -2"
+    ).get().c;
+    // Recent auth errors from send_log (last 10 entries)
+    var recentAuthErr = db.prepare(
+        "SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND error_message LIKE '%Wrong%' " +
+        "AND created_at >= datetime('now','-1 hour','localtime')"
+    ).get().c;
+    res.json({ unsent: unsent, sent: sent, authErrorCount: authErrors, recentAuthErrors: recentAuthErr });
 });
 
 // ============================================================

@@ -342,6 +342,10 @@
                     <button class="btn btn-primary" id="btn-rmto-send-now">ارسال الان</button>
                     <button class="btn btn-secondary" id="btn-rmto-aggregate">تجمیع و ارسال</button>
                     <button class="btn btn-secondary" id="btn-rmto-refresh">بروزرسانی</button>
+                    <button class="btn btn-secondary" id="btn-rmto-reset-auth" style="display:none;background:#dc2626;color:#fff">بازنشانی خطاهای اعتبارنامه</button>
+                </div>
+                <div id="rmto-auth-warning" style="display:none;background:#fef2f2;border:1px solid #dc2626;color:#dc2626;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px">
+                    ⚠️ خطای احراز هویت RMTO: نام کاربری یا رمز عبور اشتباه است. لطفاً تنظیمات RMTO را بررسی و اصلاح کنید، سپس دکمه «بازنشانی خطاهای اعتبارنامه» را بزنید تا ارسال مجدد انجام شود.
                 </div>
 
                 <!-- Unsent Queue -->
@@ -381,10 +385,11 @@
                                     <th>وضعیت</th>
                                     <th>پاسخ</th>
                                     <th>زمان</th>
+                                    <th>جزییات</th>
                                 </tr>
                             </thead>
                             <tbody id="rmto-log-body">
-                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                                <tr><td colspan="6" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
                             </tbody>
                         </table>
                     </div>

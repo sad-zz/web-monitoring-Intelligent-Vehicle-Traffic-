@@ -575,9 +575,26 @@
     // RMTO Send
     // ============================================================
     function loadRMTO() {
+        // Fix37b: reset auto-refresh timer (self-scheduling when RMTO view is active)
+        if (_rmtoRefreshTimer) { clearTimeout(_rmtoRefreshTimer); _rmtoRefreshTimer = null; }
+        _rmtoRefreshTimer = setTimeout(function () {
+            if (document.querySelector("#view-rmto.active")) loadRMTO();
+        }, 30000);
+
         // Load queue from irawdata-based pipeline
         api("GET", "/api/rmto/queue", null, function (status, data) {
             if (status !== 200 || !data) return;
+
+            // Auth-error warning
+            var warnDiv = $("#rmto-auth-warning");
+            var resetBtn = $("#btn-rmto-reset-auth");
+            if (data.recentAuthErrors > 0 || data.authErrorCount > 0) {
+                if (warnDiv) warnDiv.style.display = "";
+                if (resetBtn) resetBtn.style.display = "";
+            } else {
+                if (warnDiv) warnDiv.style.display = "none";
+                if (resetBtn) resetBtn.style.display = "none";
+            }
 
             // Unsent queue
             var ubody = $("#rmto-unsent-body");
@@ -614,23 +631,39 @@
         api("GET", "/api/rmto/logs?limit=30", null, function (status, data) {
             var lbody = $("#rmto-log-body");
             if (status !== 200 || !data || !data.length) {
-                lbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                lbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
                 return;
             }
             lbody.innerHTML = data.map(function (r) {
                 var ok = r.success === 1;
                 var resp = r.response_data || "";
                 if (resp.length > 60) resp = resp.substring(0, 60) + "...";
+                var fullResp = escapeHtml((r.response_data || "") + (r.error_message ? "\nخطا: " + r.error_message : ""));
                 return "<tr>" +
                     "<td>" + escapeHtml(r.method) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
                     '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
+                    '<td><button class="btn btn-sm btn-secondary rmto-detail-btn" data-resp="' + fullResp + '" data-err="' + escapeHtml(r.error_message || "") + '">جزییات</button></td>' +
                     "</tr>";
             }).join("");
         });
     }
+
+    // Fix37a: detail button handler (event delegation on document)
+    document.addEventListener("click", function (ev) {
+        var btn = ev.target.closest ? ev.target.closest(".rmto-detail-btn") : (ev.target.className.indexOf("rmto-detail-btn") >= 0 ? ev.target : null);
+        if (!btn) return;
+        var resp = btn.getAttribute("data-resp") || "";
+        var errMsg = btn.getAttribute("data-err") || "";
+        var msg = resp || "(پاسخی دریافت نشد)";
+        if (errMsg) msg += "\n\nخطا:\n" + errMsg;
+        alert(msg);
+    });
+
+    // Fix37b: auto-refresh RMTO section every 30s when active
+    var _rmtoRefreshTimer = null;
 
     var rmtoSendBtn = $("#btn-rmto-send-now");
     if (rmtoSendBtn) rmtoSendBtn.addEventListener("click", function () {
@@ -640,8 +673,8 @@
             rmtoSendBtn.disabled = false;
             rmtoSendBtn.textContent = "ارسال الان";
             if (status === 200) {
-                alert("ارسال انجام شد. نتیجه را در تاریخچه ببینید.");
-                loadRMTO();
+                // Fix37c: wait 3s for async SOAP to complete before refreshing
+                setTimeout(function () { loadRMTO(); }, 3000);
             } else alert("خطا در ارسال");
         });
     });
@@ -652,14 +685,24 @@
         api("POST", "/api/rmto/aggregate", {}, function (status) {
             rmtoAggBtn.disabled = false;
             if (status === 200) {
-                alert("تجمیع و ارسال انجام شد.");
-                loadRMTO();
+                setTimeout(function () { loadRMTO(); }, 3000);
             } else alert("خطا");
         });
     });
 
     var rmtoRefreshBtn = $("#btn-rmto-refresh");
     if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
+
+    var rmtoResetAuthBtn = $("#btn-rmto-reset-auth");
+    if (rmtoResetAuthBtn) rmtoResetAuthBtn.addEventListener("click", function () {
+        if (!confirm("آیا مطمئن هستید؟ رکوردهای خطای اعتبارنامه برای ارسال مجدد بازنشانی می‌شوند.")) return;
+        api("POST", "/api/rmto/reset-auth-errors", {}, function (status, data) {
+            if (status === 200) {
+                alert("بازنشانی انجام شد. " + (data && data.reset || 0) + " رکورد برای ارسال مجدد آماده شد.");
+                loadRMTO();
+            } else alert("خطا در بازنشانی");
+        });
+    });
 
     // ============================================================
     // Mehvar (Routes) Management
