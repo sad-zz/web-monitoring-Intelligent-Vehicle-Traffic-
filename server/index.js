@@ -63,10 +63,54 @@ var ADMIN_PASS_HASH = null;
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+
+// ----------------------------------------------------------------
+// SQLite-backed session store — sessions survive PM2 restart
+// (no extra npm packages needed; uses existing better-sqlite3 db)
+// ----------------------------------------------------------------
+(function () {
+    db.exec(
+        "CREATE TABLE IF NOT EXISTS sessions (" +
+        "  sid TEXT PRIMARY KEY," +
+        "  data TEXT NOT NULL," +
+        "  expires INTEGER NOT NULL" +
+        ")"
+    );
+    db.prepare("DELETE FROM sessions WHERE expires < ?").run(Math.floor(Date.now() / 1000));
+    setInterval(function () {
+        db.prepare("DELETE FROM sessions WHERE expires < ?").run(Math.floor(Date.now() / 1000));
+    }, 3600000);
+})();
+
+var util = require("util");
+function SqliteStore(options) { session.Store.call(this, options || {}); }
+util.inherits(SqliteStore, session.Store);
+SqliteStore.prototype.get = function (sid, cb) {
+    var row = db.prepare("SELECT data, expires FROM sessions WHERE sid = ?").get(sid);
+    if (!row || row.expires < Math.floor(Date.now() / 1000)) {
+        if (row) db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+        return cb(null, null);
+    }
+    try { cb(null, JSON.parse(row.data)); } catch (e) { cb(e); }
+};
+SqliteStore.prototype.set = function (sid, sess, cb) {
+    var exp = sess.cookie && sess.cookie.expires
+        ? Math.floor(new Date(sess.cookie.expires).getTime() / 1000)
+        : Math.floor(Date.now() / 1000) + 86400;
+    db.prepare("INSERT INTO sessions (sid,data,expires) VALUES(?,?,?) ON CONFLICT(sid) DO UPDATE SET data=?,expires=?")
+        .run(sid, JSON.stringify(sess), exp, JSON.stringify(sess), exp);
+    if (cb) cb(null);
+};
+SqliteStore.prototype.destroy = function (sid, cb) {
+    db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+    if (cb) cb(null);
+};
+
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    store: new SqliteStore(),
     cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
 }));
 
@@ -399,6 +443,14 @@ app.post("/api/rmto/reset-auth-errors", function (req, res) {
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
+});
+
+// Reinitialize RMTO SOAP client after settings change (called by UI after saving RMTO settings)
+app.post("/api/rmto/reinit", function (req, res) {
+    rmto.reinit(function (err, info) {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true, wsdl: info.wsdl, company: info.company, user: info.user, hasPass: info.hasPass });
+    });
 });
 
 app.get("/api/rmto/queue", function (req, res) {
@@ -1690,6 +1742,14 @@ var httpServer = app.listen(PORT, HOST, function () {
     });
 
     scheduler.start();
+});
+httpServer.on("error", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[HTTP] Port " + PORT + " already in use — waiting 8s then exiting for clean PM2 restart");
+        setTimeout(function () { process.exit(1); }, 8000);
+        return;
+    }
+    throw err;
 });
 httpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {

@@ -812,26 +812,91 @@
     }
 
     var saveSettingsBtn = $("#btn-save-settings");
+    var generalStatusEl = $("#general-save-status");
     if (saveSettingsBtn) saveSettingsBtn.addEventListener("click", function () {
         var tcpPort = $("#setting-tcp-port");
-        saveSettings({
+        saveSettingsBtn.disabled = true;
+        api("POST", "/api/settings", {
             system_name: $("#setting-name").value,
             server_ip: $("#setting-server").value,
             server_port: $("#setting-port").value,
             tcp_port: tcpPort ? tcpPort.value : "2022",
             refresh_interval: $("#setting-refresh").value,
             max_speed: $("#setting-max-speed").value
-        }, "تنظیمات عمومی ذخیره شد.");
+        }, function (status) {
+            saveSettingsBtn.disabled = false;
+            if (generalStatusEl) {
+                generalStatusEl.style.display = "";
+                generalStatusEl.style.color = status === 200 ? "#16a34a" : "#dc2626";
+                generalStatusEl.textContent = status === 200 ? "✅ تنظیمات عمومی ذخیره شد" : (status === 401 ? "❌ نشست منقضی — مجدداً وارد شوید" : "❌ خطا در ذخیره");
+                setTimeout(function () { if (generalStatusEl) generalStatusEl.style.display = "none"; }, 5000);
+            }
+            if (status === 401) setTimeout(function () { window.location.reload(); }, 2000);
+        });
     });
 
     var saveRmtoBtn = $("#btn-save-rmto");
+    var rmtoStatusEl = $("#rmto-save-status");
+    function showRmtoStatus(msg, ok) {
+        if (!rmtoStatusEl) return;
+        rmtoStatusEl.style.display = "";
+        rmtoStatusEl.style.color = ok ? "#16a34a" : "#dc2626";
+        rmtoStatusEl.textContent = msg;
+        setTimeout(function () { if (rmtoStatusEl) rmtoStatusEl.style.display = "none"; }, 6000);
+    }
     if (saveRmtoBtn) saveRmtoBtn.addEventListener("click", function () {
-        saveSettings({
+        saveRmtoBtn.disabled = true;
+        api("POST", "/api/settings", {
             rmto_wsdl: $("#setting-rmto-wsdl").value,
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
             rmto_password: $("#setting-rmto-pass").value
-        }, "تنظیمات رهسام ذخیره شد.");
+        }, function (status) {
+            saveRmtoBtn.disabled = false;
+            if (status === 200) {
+                showRmtoStatus("✅ تنظیمات ذخیره شد — در حال اعمال به سرور...", true);
+                // Force SOAP client reinit so new credentials are used immediately
+                api("POST", "/api/rmto/reinit", {}, function (s, d) {
+                    if (s === 200 && d && d.success) {
+                        showRmtoStatus("✅ تنظیمات ذخیره شد و اتصال رهسام بازسازی شد (کاربر: " + (d.user || "-") + ")", true);
+                    } else {
+                        showRmtoStatus("✅ ذخیره شد — خطا در اتصال: " + ((d && d.error) || "بررسی کنید"), false);
+                    }
+                });
+            } else if (status === 401) {
+                showRmtoStatus("❌ نشست منقضی شده — لطفاً مجدداً وارد شوید", false);
+                setTimeout(function () { window.location.reload(); }, 2000);
+            } else {
+                showRmtoStatus("❌ خطا در ذخیره تنظیمات (کد: " + status + ")", false);
+            }
+        });
+    });
+
+    var testRmtoBtn = $("#btn-test-rmto");
+    if (testRmtoBtn) testRmtoBtn.addEventListener("click", function () {
+        testRmtoBtn.disabled = true;
+        testRmtoBtn.textContent = "در حال تست...";
+        api("POST", "/api/rmto/reinit", {}, function (s, d) {
+            testRmtoBtn.disabled = false;
+            testRmtoBtn.textContent = "تست اتصال";
+            if (s === 200 && d && d.success) {
+                showRmtoStatus("✅ اتصال موفق — کاربر: " + (d.user || "-") + " | کد شرکت: " + (d.company || "-"), true);
+            } else {
+                showRmtoStatus("❌ خطا در اتصال به رهسام: " + ((d && d.error) || "WSDL یا اعتبارنامه را بررسی کنید"), false);
+            }
+        });
+    });
+
+    var settingsResetAuthBtn = $("#btn-settings-reset-auth");
+    if (settingsResetAuthBtn) settingsResetAuthBtn.addEventListener("click", function () {
+        if (!confirm("آیا مطمئن هستید؟ رکوردهای خطای اعتبارنامه برای ارسال مجدد بازنشانی می‌شوند.")) return;
+        api("POST", "/api/rmto/reset-auth-errors", {}, function (status, data) {
+            if (status === 200) {
+                showRmtoStatus("✅ " + (data && data.reset || 0) + " رکورد برای ارسال مجدد بازنشانی شد", true);
+            } else {
+                showRmtoStatus("❌ خطا در بازنشانی", false);
+            }
+        });
     });
 
     // Server Time

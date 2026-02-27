@@ -290,8 +290,21 @@ function ensureClient(callback) {
     initClient(function (err) { callback(err); });
 }
 
+/**
+ * Reload settings from DB and force SOAP client re-init.
+ * Called by /api/rmto/reinit after settings are saved via UI.
+ */
+function reinit(callback) {
+    soapClient = null;  // force re-creation
+    loadDbSettings();
+    initClient(function (err) {
+        callback(err, { wsdl: WSDL_URL, company: COMPANY_CODE, user: USERNAME, hasPass: !!PASSWORD });
+    });
+}
+
 module.exports = {
     initClient: initClient,
+    reinit: reinit,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
     sendAddData8: sendAddData8,

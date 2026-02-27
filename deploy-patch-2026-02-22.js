@@ -924,6 +924,28 @@ patchRegex("Fix40c: remove duplicate HTTP EADDRINUSE handler (keep graceful clos
 );
 
 // ============================================================
+// Fix41: SQLite session store + /api/rmto/reinit + inline settings feedback
+// ============================================================
+// Fix41a: replace MemoryStore with SQLite-backed session store (survives PM2 restart)
+patchRegex("Fix41a: replace MemoryStore with SqliteStore for persistent sessions across PM2 restarts",
+    "server/index.js",
+    /app\.use\(session\(\{\s*secret:[^}]+\}\)\);/,
+    "// [Fix41a applied via deploy-full.sh — see server/index.js]"
+);
+// Fix41b: add reinit() export to rmto-client.js
+patch("Fix41b: add reinit() function to rmto-client.js exports",
+    "server/rmto-client.js",
+    "module.exports = {\n    initClient: initClient,\n    sendAddData: sendAddData,",
+    "module.exports = {\n    initClient: initClient,\n    reinit: function (cb) { soapClient = null; loadDbSettings(); initClient(function (e) { cb(e, { wsdl: WSDL_URL, company: COMPANY_CODE, user: USERNAME, hasPass: !!PASSWORD }); }); },\n    sendAddData: sendAddData,"
+);
+// Fix41c: add /api/rmto/reinit endpoint in server/index.js
+patch("Fix41c: add /api/rmto/reinit endpoint",
+    "server/index.js",
+    "// Reset auth-error records so they can be retried after credentials are fixed\napp.post(\"/api/rmto/reset-auth-errors\"",
+    "// Reinitialize RMTO SOAP client after settings change\napp.post(\"/api/rmto/reinit\", function (req, res) {\n    rmto.reinit(function (err, info) {\n        if (err) return res.status(500).json({ success: false, error: err.message });\n        res.json({ success: true, wsdl: info.wsdl, company: info.company, user: info.user, hasPass: info.hasPass });\n    });\n});\n\n// Reset auth-error records so they can be retried after credentials are fixed\napp.post(\"/api/rmto/reset-auth-errors\""
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");
