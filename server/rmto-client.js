@@ -173,6 +173,22 @@ function sendAddData5(data, callback) {
  * @param {number|null} data.oo     - Overtaking count
  * @param {number|null} data.esd    - Headway (tooclose)
  */
+/**
+ * Normalize a date value to RMTO-expected XSD datetime: "YYYY-MM-DDTHH:mm:ss" (local, no Z, no ms).
+ * node-soap corrupts ISO strings with Z/ms suffix when serializing xsd:dateTime fields.
+ */
+function toSoapDateTime(s) {
+    if (!s) return new Date().toISOString().slice(0, 19);
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 19);
+    return d.getFullYear() + "-" +
+        String(d.getMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getDate()).padStart(2, "0") + "T" +
+        String(d.getHours()).padStart(2, "0") + ":" +
+        String(d.getMinutes()).padStart(2, "0") + ":" +
+        String(d.getSeconds()).padStart(2, "0");
+}
+
 function sendAdd5(data, callback) {
     ensureClient(function (err) {
         if (err) return callback(err);
@@ -184,8 +200,8 @@ function sendAdd5(data, callback) {
             PWD: PASSWORD,
             FID: data.fid,
             RID: data.rid,
-            ST: data.st,
-            ET: data.et,
+            ST: toSoapDateTime(data.st),
+            ET: toSoapDateTime(data.et),
             C1: isNull ? null : (data.c1 || 0),
             C2: isNull ? null : (data.c2 || 0),
             C3: isNull ? null : (data.c3 || 0),

@@ -30,19 +30,32 @@ function toLocalISOString(d) {
  *   irawdata → compute weighted avg + per-class speeds → Add5 → store RMTO response
  */
 function processAndSendIrawdata() {
-    // Load current RMTO company code from settings
+    // Load current RMTO settings from DB + env
     var companyCode = 58;
+    var rmtoUser = process.env.RMTO_USERNAME || "";
+    var rmtoPass = process.env.RMTO_PASSWORD || "";
     try {
-        var row = db.prepare("SELECT value FROM settings WHERE key = 'rmto_company_code'").get();
-        companyCode = parseInt((row && row.value) || "58", 10) || 58;
+        var settingRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code','rmto_username','rmto_password')").all();
+        settingRows.forEach(function (r) {
+            if (r.key === "rmto_company_code") companyCode = parseInt(r.value || "58", 10) || 58;
+            if (r.key === "rmto_username" && r.value) rmtoUser = r.value;
+            if (r.key === "rmto_password" && r.value !== undefined) rmtoPass = r.value;
+        });
     } catch (e) {}
 
-    // Get up to 50 unprocessed records (rmto_id IS NULL) or failed (rmto_id = 0), oldest first
+    // Skip entirely if no credentials configured — prevents spam-logging auth errors
+    if (!rmtoUser) {
+        console.warn("[Scheduler] RMTO credentials not configured — skipping send (set rmto_username in settings or .env)");
+        return;
+    }
+
+    // Get up to 20 unprocessed records (rmto_id IS NULL) or transiently-failed (rmto_id = 0), oldest first
     // Auth errors (rmto_id = -2) are NOT retried — user must fix credentials first
+    // Records with rid=0 (unknown device) are also excluded — RMTO rejects them
     var rows;
     try {
         rows = db.prepare(
-            "SELECT * FROM irawdata WHERE (rmto_id IS NULL OR rmto_id = 0) ORDER BY create_at ASC LIMIT 50"
+            "SELECT * FROM irawdata WHERE (rmto_id IS NULL OR rmto_id = 0) AND CAST(device_code AS INTEGER) > 0 ORDER BY create_at ASC LIMIT 20"
         ).all();
     } catch (e) {
         console.error("[Scheduler] processAndSendIrawdata query error:", e.message);
@@ -109,17 +122,21 @@ function processAndSendIrawdata() {
             try {
                 var rmtoId, cfl = null, srvdt = null, bil = null, errMsg = null;
                 var isAuthError = false;
-                if (err && err.message && (err.message.indexOf("password") >= 0 || err.message.indexOf("username") >= 0 || err.message.indexOf("Wrong") >= 0)) {
-                    // Auth error — mark as permanent failure (-2) to stop retry loop
+                function isAuthMsg(msg) {
+                    return msg && (msg.indexOf("password") >= 0 || msg.indexOf("username") >= 0 || msg.indexOf("Wrong") >= 0 || msg.indexOf("status codes") >= 0);
+                }
+                if (err && isAuthMsg(err.message)) {
+                    // Auth / HTTP 401/403 error — mark as permanent failure (-2) to stop retry loop
                     rmtoId = -2; errMsg = err.message; isAuthError = true;
                 } else if (response) {
                     rmtoId = response.ID || 0;
                     cfl = response.CFL || 0;
-                    srvdt = response.SRVDT ? String(response.SRVDT) : null;
+                    // SRVDT from RMTO is a Date object; store as local ISO string
+                    srvdt = response.SRVDT ? new Date(response.SRVDT).toISOString().slice(0, 19) : null;
                     bil = response.BIL || 0;
                     errMsg = response.ERR || null;
-                    // Check if RMTO error indicates auth problem
-                    if (errMsg && (errMsg.indexOf("password") >= 0 || errMsg.indexOf("username") >= 0 || errMsg.indexOf("Wrong") >= 0)) {
+                    // Check if RMTO error field indicates auth problem
+                    if (isAuthMsg(errMsg)) {
                         rmtoId = -2; isAuthError = true;
                     }
                 } else {

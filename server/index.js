@@ -1680,6 +1680,13 @@ var httpServer = app.listen(PORT, HOST, function () {
 });
 httpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
+        console.error("[HTTP] Port " + PORT + " already in use — exiting for clean PM2 restart");
+        process.exit(1);
+    }
+    throw err;
+});
+httpServer.on("error", function (err) {
+    if (err.code === "EADDRINUSE") {
         console.error("[HTTP] Port " + PORT + " already in use — waiting 8s then exiting for clean PM2 restart");
         setTimeout(function () { process.exit(1); }, 8000);
         return;
