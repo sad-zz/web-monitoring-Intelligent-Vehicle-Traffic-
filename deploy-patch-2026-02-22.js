@@ -740,11 +740,22 @@ console.log("  ⏩ از قبل بود:  " + skip);
 if (fail > 0) console.log("  ❌ پیدا نشد:   " + fail + "  (بررسی دستی لازم)");
 console.log("======================================");
 
-if (ok > 0) {
+if (ok > 0 && fail === 0) {
     console.log("\nقدم بعدی:");
     console.log("  pm2 restart tc-manager");
-} else if (skip > 0 && fail === 0) {
+} else if (skip > 0 && fail === 0 && ok === 0) {
     console.log("\nهمه پچ‌ها قبلاً اعمال شده‌اند — نیازی به restart نیست.");
-} else {
-    console.log("\nبرخی پچ‌ها اعمال نشدند — لاگ بالا را بررسی کنید.");
+} else if (fail >= 3) {
+    console.log("\n⚠️  تعداد زیادی پچ پیدا نشدند (" + fail + " مورد).");
+    console.log("   این به این معناست که نسخه فایل‌های سرور با الگوهای پچ فرق دارد.");
+    console.log("   ===> از deploy-full.sh استفاده کنید که فایل‌ها را کامل جایگزین می‌کند: <===");
+    console.log("");
+    console.log("   wget -q \"https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/review-project-issues/deploy-full.sh\" -O deploy-full.sh");
+    console.log("   bash deploy-full.sh");
+    console.log("");
+    console.log("   (پچ‌های اعمال‌شده امروز [OK] در بالا باقی می‌مانند — deploy-full.sh آنها را هم cover می‌کند)");
+} else if (fail > 0) {
+    console.log("\nبرخی پچ‌ها (" + fail + " مورد) اعمال نشدند.");
+    if (ok > 0) console.log("  pm2 restart tc-manager");
+    console.log("  لاگ WARN بالا را بررسی کنید یا از deploy-full.sh استفاده کنید.");
 }

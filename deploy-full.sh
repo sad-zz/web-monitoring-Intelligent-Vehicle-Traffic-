@@ -19,7 +19,8 @@ echo "========================================================"
 replace_file() {
     local LOCAL="$1"
     local URL="$2"
-    local TMPFILE="/tmp/tc-check-${TS}-$(basename ${LOCAL}).js"
+    # Use /tmp with .js extension so node --check works on Node.js v20+
+    local TMPFILE="/tmp/tc-syntax-$(basename ${LOCAL%.*})-${TS}.js"
 
     echo ""
     echo "📦  پشتیبان‌گیری از ${LOCAL}..."
@@ -27,16 +28,29 @@ replace_file() {
     echo "      → ${LOCAL}.bak-${TS}"
 
     echo "⬇️   دانلود ${LOCAL} از repo..."
-    wget -q -O "${LOCAL}.new" "${URL}"
-    echo "      → دانلود شد ($(wc -c < "${LOCAL}.new") بایت)"
+    # Try with SSL verification first, fall back to --no-check-certificate
+    if ! wget -q -O "${LOCAL}.new" "${URL}" 2>/dev/null; then
+        echo "      (SSL مشکل دارد، تلاش بدون بررسی SSL...)"
+        wget -q --no-check-certificate -O "${LOCAL}.new" "${URL}"
+    fi
+    local SZ
+    SZ=$(wc -c < "${LOCAL}.new")
+    echo "      → دانلود شد (${SZ} بایت)"
+    if [ "${SZ}" -lt 100 ]; then
+        echo "      ❌ فایل دانلود‌شده خیلی کوچک است (${SZ} بایت) — احتمالاً خطای دانلود."
+        cat "${LOCAL}.new"
+        rm -f "${LOCAL}.new"
+        exit 1
+    fi
 
     echo "🔍  بررسی syntax..."
     cp "${LOCAL}.new" "${TMPFILE}"
-    if node --check "${TMPFILE}"; then
+    if node --check "${TMPFILE}" 2>&1; then
         echo "      ✅ syntax درست است"
         mv "${LOCAL}.new" "${LOCAL}"
     else
-        echo "      ❌ خطای syntax! فایل جایگزین نشد."
+        echo "      ❌ خطای syntax! فایل جایگزین نشد. بک‌آپ را برگردانید:"
+        echo "         cp ${LOCAL}.bak-${TS} ${LOCAL}"
         rm -f "${LOCAL}.new" "${TMPFILE}"
         exit 1
     fi
@@ -51,9 +65,6 @@ replace_file "server/rmto-client.js" "${REPO_RAW}/server/rmto-client.js"
 # راه‌اندازی مجدد
 echo ""
 echo "🔄  راه‌اندازی مجدد سرور..."
-# توقف کامل PM2 اول
-pm2 stop tc-manager 2>/dev/null || true
-sleep 1
 # آزاد کردن پورت‌های 2022 و 3000 اگر هنوز در اشغال باشند
 for PORT in 2022 3000; do
     if fuser ${PORT}/tcp >/dev/null 2>&1; then
@@ -61,8 +72,9 @@ for PORT in 2022 3000; do
         fuser -k ${PORT}/tcp 2>/dev/null || true
     fi
 done
-sleep 2
-pm2 start tc-manager
+sleep 1
+# restart (stops + starts existing process) — safer than stop then start
+pm2 restart tc-manager 2>/dev/null || pm2 start server/index.js --name tc-manager
 echo ""
 pm2 list
 
