@@ -1,6 +1,10 @@
 /**
  * Scheduler - Aggregates traffic data every 15 minutes and sends to RMTO.
  */
+
+// Ensure Iran timezone (in case scheduler is loaded independently)
+if (!process.env.TZ) process.env.TZ = "Asia/Tehran";
+
 var cron = require("node-cron");
 var db = require("./db");
 var rmto = require("./rmto-client");

@@ -5,6 +5,11 @@
  * - Receives data from 100+ devices
  * - Aggregates and sends to RMTO via SOAP
  */
+
+// Set timezone to Iran Standard Time (UTC+3:30) BEFORE any Date operations
+// This ensures all new Date() calls return Iran local time
+process.env.TZ = "Asia/Tehran";
+
 require("dotenv").config();
 
 var express = require("express");
