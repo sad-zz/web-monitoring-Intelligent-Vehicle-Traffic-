@@ -80,9 +80,11 @@ for PORT in 2022 3000; do
         fuser -k ${PORT}/tcp 2>/dev/null || true
     fi
 done
-sleep 1
+sleep 2
 # restart with --update-env to pick up TZ=Asia/Tehran from ecosystem.config.js
-pm2 restart tc-manager --update-env 2>/dev/null || pm2 start ecosystem.config.js
+pm2 stop tc-manager 2>/dev/null || true
+sleep 2
+pm2 start ecosystem.config.js 2>/dev/null || pm2 restart tc-manager --update-env
 echo ""
 pm2 list
 

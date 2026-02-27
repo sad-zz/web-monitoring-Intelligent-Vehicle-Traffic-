@@ -1559,12 +1559,32 @@ tcpServer.on("error", function (err) {
 });
 
 // ============================================================
+// Graceful shutdown — close servers so PM2 restart finds ports free
+// ============================================================
+function gracefulShutdown(signal) {
+    console.log("[SHUTDOWN] " + signal + " received — closing servers gracefully...");
+    tcpServer.close(function () { console.log("[SHUTDOWN] TCP server closed"); });
+    httpServer.close(function () {
+        console.log("[SHUTDOWN] HTTP server closed — exiting");
+        process.exit(0);
+    });
+    // Force exit after 8s if servers won't close
+    setTimeout(function () {
+        console.error("[SHUTDOWN] Force exit after 8s timeout");
+        process.exit(0);
+    }, 8000);
+}
+process.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });
+process.on("SIGINT",  function () { gracefulShutdown("SIGINT"); });
+
+// ============================================================
 // Global Error Handlers — prevent process crash on unexpected errors
 // ============================================================
 process.on("uncaughtException", function (err) {
     if (err.code === "EADDRINUSE") {
-        console.error("[FATAL] Port already in use (" + (err.port || "unknown") + ") — exiting for clean PM2 restart");
-        process.exit(1);
+        console.error("[FATAL] Port already in use (" + (err.port || "unknown") + ") — waiting 8s then exiting for clean PM2 restart");
+        setTimeout(function () { process.exit(1); }, 8000);
+        return;
     }
     console.error("[FATAL] Uncaught exception (server kept running):", err.message, err.stack || "");
 });
@@ -1591,8 +1611,9 @@ var httpServer = app.listen(PORT, HOST, function () {
 });
 httpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
-        console.error("[HTTP] Port " + PORT + " already in use — exiting for clean PM2 restart");
-        process.exit(1);
+        console.error("[HTTP] Port " + PORT + " already in use — waiting 8s then exiting for clean PM2 restart");
+        setTimeout(function () { process.exit(1); }, 8000);
+        return;
     }
     throw err;
 });

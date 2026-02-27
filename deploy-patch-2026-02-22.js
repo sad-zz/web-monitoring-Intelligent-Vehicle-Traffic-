@@ -807,6 +807,36 @@ patch("Fix32: add received_at migration to irawdata in db.js",
     '["received_at TEXT DEFAULT (datetime(\'now\',\'localtime\'))", "rmto_id INTEGER", "rmto_cfl INTEGER", "rmto_srvdt TEXT", "rmto_bil INTEGER", "rmto_err TEXT"].forEach(function (col) {'
 );
 
+
+// Fix33: SIGTERM graceful shutdown + EADDRINUSE 8s delay (prevent crash loop)
+patch("Fix33a: add SIGTERM handler before uncaughtException (prevents port-in-use crash loop)",
+    "server/index.js",
+    '// ============================================================\n// Global Error Handlers — prevent process crash on unexpected errors\n// ============================================================\nprocess.on("uncaughtException", function (err) {\n    if (err.code === "EADDRINUSE") {\n        console.error("[FATAL] Port already in use (" + (err.port || "unknown") + ") — exiting for clean PM2 restart");\n        process.exit(1);\n    }',
+    '// ============================================================\n// Graceful shutdown — close servers so PM2 restart finds ports free\n// ============================================================\nfunction gracefulShutdown(signal) {\n    console.log("[SHUTDOWN] " + signal + " received — closing servers gracefully...");\n    tcpServer.close(function () { console.log("[SHUTDOWN] TCP server closed"); });\n    httpServer.close(function () {\n        console.log("[SHUTDOWN] HTTP server closed — exiting");\n        process.exit(0);\n    });\n    setTimeout(function () {\n        console.error("[SHUTDOWN] Force exit after 8s timeout");\n        process.exit(0);\n    }, 8000);\n}\nprocess.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });\nprocess.on("SIGINT",  function () { gracefulShutdown("SIGINT"); });\n\n// ============================================================\n// Global Error Handlers — prevent process crash on unexpected errors\n// ============================================================\nprocess.on("uncaughtException", function (err) {\n    if (err.code === "EADDRINUSE") {\n        console.error("[FATAL] Port already in use (" + (err.port || "unknown") + ") — waiting 8s then exiting for clean PM2 restart");\n        setTimeout(function () { process.exit(1); }, 8000);\n        return;\n    }'
+);
+
+patch("Fix33b: HTTP EADDRINUSE add 8s delay before exit (prevents tight crash loop)",
+    "server/index.js",
+    'console.error("[HTTP] Port " + PORT + " already in use \u2014 exiting for clean PM2 restart");\n        process.exit(1);',
+    'console.error("[HTTP] Port " + PORT + " already in use \u2014 waiting 8s then exiting for clean PM2 restart");\n        setTimeout(function () { process.exit(1); }, 8000);\n        return;'
+);
+
+(function fix33c() {
+    var ecoPath = "ecosystem.config.js";
+    if (!fs.existsSync(ecoPath)) { skip++; return; }
+    var eco = fs.readFileSync(ecoPath, "utf8");
+    if (eco.includes("restart_delay")) { console.log("[SKIP] Fix33c: ecosystem.config.js restart_delay — already applied"); skip++; return; }
+    // Insert restart_delay/kill_timeout after max_memory_restart line
+    var updated = eco.replace(
+        /max_memory_restart: "300M",/,
+        'max_memory_restart: "300M",\n        restart_delay: 5000,\n        min_uptime: 3000,\n        kill_timeout: 10000,'
+    );
+    if (updated === eco) { console.log("[WARN] Fix33c: ecosystem.config.js — max_memory_restart not found"); fail++; return; }
+    fs.writeFileSync(ecoPath, updated);
+    console.log("[OK]   Fix33c: ecosystem.config.js — added restart_delay:5000 kill_timeout:10000");
+    ok++;
+})();
+
 // ============================================================
 // نتیجه نهایی
 // ============================================================
