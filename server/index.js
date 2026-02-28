@@ -461,6 +461,93 @@ app.post("/api/rmto/reinit", function (req, res) {
     });
 });
 
+// Preview Add5 payload for a specific irawdata record
+app.get("/api/rmto/preview/:id", function (req, res) {
+    try {
+        var row = db.prepare("SELECT * FROM irawdata WHERE id = ?").get(req.params.id);
+        if (!row) return res.status(404).json({ error: "رکورد یافت نشد" });
+
+        var companyCode = 58;
+        try {
+            var s = db.prepare("SELECT value FROM settings WHERE key='rmto_company_code'").get();
+            if (s && s.value) companyCode = parseInt(s.value, 10) || 58;
+        } catch (e) {}
+
+        var a = row.a || 0, b = row.b || 0, c = row.c || 0, d = row.d || 0;
+        var e5 = (row.e || 0) + (row.x || 0);
+        var totalCount = a + b + c + d + e5;
+        var sa = row.sa || 0, sb = row.sb || 0, sc = row.sc || 0, sd = row.sd || 0;
+        var se = (row.se || 0) + (row.sx || 0);
+        var asp = totalCount > 0 ? Math.round((sa + sb + sc + sd + se) / totalCount) : 0;
+        var s1 = a > 0 ? Math.round(sa / a) : 0;
+        var s2 = b > 0 ? Math.round(sb / b) : 0;
+        var s3 = c > 0 ? Math.round(sc / c) : 0;
+        var s4 = d > 0 ? Math.round(sd / d) : 0;
+        var s5 = e5 > 0 ? Math.round(se / e5) : 0;
+        var so1 = row.sao || 0, so2 = row.sbo || 0, so3 = row.sco || 0;
+        var so4 = row.sdo || 0, so5 = (row.seo || 0) + (row.sxo || 0);
+        var sso = so1 + so2 + so3 + so4 + so5;
+        var isNull = (totalCount === 0);
+
+        var payload = {
+            CID: companyCode,
+            UID: "(rmto_username از تنظیمات)",
+            PWD: "***",
+            FID: row.id,
+            RID: parseInt(row.device_code, 10) || 0,
+            ST: row.create_at,
+            ET: row.stop,
+            C1: isNull ? null : a,
+            C2: isNull ? null : b,
+            C3: isNull ? null : c,
+            C4: isNull ? null : d,
+            C5: isNull ? null : e5,
+            ASP: isNull ? null : asp,
+            S1: isNull ? null : s1,
+            S2: isNull ? null : s2,
+            S3: isNull ? null : s3,
+            S4: isNull ? null : s4,
+            S5: isNull ? null : s5,
+            SSO: isNull ? null : sso,
+            SO1: isNull ? null : so1,
+            SO2: isNull ? null : so2,
+            SO3: isNull ? null : so3,
+            SO4: isNull ? null : so4,
+            SO5: isNull ? null : so5,
+            OO: row.overtaking || 0,
+            ESD: row.tooclose || 0
+        };
+
+        var soapXml = '<?xml version="1.0" encoding="utf-8"?>\n' +
+            '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">\n' +
+            '  <soap:Body>\n' +
+            '    <Add5 xmlns="http://otf.rmto.ir/">\n' +
+            Object.keys(payload).map(function (k) {
+                return "      <" + k + ">" + (payload[k] === null ? "" : payload[k]) + "</" + k + ">";
+            }).join("\n") + "\n" +
+            '    </Add5>\n' +
+            '  </soap:Body>\n' +
+            '</soap:Envelope>';
+
+        res.json({
+            record: {
+                id: row.id,
+                device_code: row.device_code,
+                create_at: row.create_at,
+                stop: row.stop,
+                total_vehicles: totalCount,
+                isNull: isNull,
+                rmto_id: row.rmto_id,
+                rmto_err: row.rmto_err
+            },
+            payload: payload,
+            soapXml: soapXml
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get("/api/rmto/queue", function (req, res) {
     // Show irawdata records with RMTO status (per-interval pipeline)
     var unsent = db.prepare(

@@ -606,6 +606,7 @@
                         '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(r.stop)) + "</td>" +
                         '<td dir="ltr" style="text-align:center">' + (r.total_vehicles || 0) + "</td>" +
                         '<td dir="ltr" style="text-align:center">' + (r.avg_speed || 0) + "</td>" +
+                        '<td><button class="btn btn-sm btn-secondary rmto-preview-btn" data-id="' + r.id + '">نمونه SOAP</button></td>' +
                         "</tr>";
                 }).join("");
                 $("#rmto-unsent-count").textContent = data.unsent.length;
@@ -662,6 +663,40 @@
         var msg = resp || "(پاسخی دریافت نشد)";
         if (errMsg) msg += "\n\nخطا:\n" + errMsg;
         alert(msg);
+    });
+
+    // RMTO SOAP preview button handler
+    document.addEventListener("click", function (ev) {
+        var btn = ev.target.closest ? ev.target.closest(".rmto-preview-btn") : (ev.target.className.indexOf("rmto-preview-btn") >= 0 ? ev.target : null);
+        if (!btn) return;
+        var id = btn.getAttribute("data-id");
+        if (!id) return;
+        btn.disabled = true;
+        btn.textContent = "...";
+        api("GET", "/api/rmto/preview/" + id, null, function (status, data) {
+            btn.disabled = false;
+            btn.textContent = "نمونه SOAP";
+            if (status !== 200 || !data) { alert("خطا در دریافت نمونه"); return; }
+            var lines = [
+                "═══ رکورد irawdata #" + data.record.id + " ═══",
+                "دستگاه: " + data.record.device_code,
+                "بازه: " + data.record.create_at + " تا " + data.record.stop,
+                "تردد کل: " + data.record.total_vehicles,
+                data.record.isNull ? "⚠️ رکورد null (بدون تردد)" : "",
+                "",
+                "═══ پارامترهای Add5 ═══"
+            ];
+            var p = data.payload;
+            lines.push("CID=" + p.CID + "  FID=" + p.FID + "  RID=" + p.RID);
+            lines.push("ST=" + p.ST + "  ET=" + p.ET);
+            lines.push("C1(موتور)=" + p.C1 + "  C2(سواری)=" + p.C2 + "  C3(وانت)=" + p.C3 + "  C4(کامیون)=" + p.C4 + "  C5(سنگین)=" + p.C5);
+            lines.push("ASP=" + p.ASP + "  S1=" + p.S1 + "  S2=" + p.S2 + "  S3=" + p.S3 + "  S4=" + p.S4 + "  S5=" + p.S5);
+            lines.push("SSO=" + p.SSO + "  OO=" + p.OO + "  ESD=" + p.ESD);
+            lines.push("");
+            lines.push("═══ SOAP XML ═══");
+            lines.push(data.soapXml);
+            alert(lines.filter(function (l) { return l !== undefined; }).join("\n"));
+        });
     });
 
     // Fix37b: auto-refresh RMTO section every 30s when active
