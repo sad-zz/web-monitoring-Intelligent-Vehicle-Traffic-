@@ -125,6 +125,9 @@ function processAndSendIrawdata() {
                 function isAuthMsg(msg) {
                     return msg && (msg.indexOf("password") >= 0 || msg.indexOf("username") >= 0 || msg.indexOf("Wrong") >= 0 || msg.indexOf("status codes") >= 0);
                 }
+                function isDuplicateMsg(msg) {
+                    return msg && (msg.toUpperCase().indexOf("DUPLICATE") >= 0);
+                }
                 if (err && isAuthMsg(err.message)) {
                     // Auth / HTTP 401/403 error — mark as permanent failure (-2) to stop retry loop
                     rmtoId = -2; errMsg = err.message; isAuthError = true;
@@ -139,6 +142,11 @@ function processAndSendIrawdata() {
                     errMsg = response.ERR || null;
                     if (!errMsg && cfl > 0) errMsg = "RMTO خطا (CFL=" + cfl + ", ID=" + (response.ID || 0) + ")";
                     if (!errMsg && rmtoId === 0) errMsg = "RMTO: ID=0 (داده پذیرفته نشد)";
+                    // DUPLICATE RECORD → data already in RMTO (e.g. sent in prev session before DB update)
+                    // Treat as permanent success (-3) to stop infinite retry loop
+                    if (isDuplicateMsg(errMsg)) {
+                        rmtoId = -3; errMsg = "DUPLICATE (قبلاً ارسال شده)";
+                    }
                     // Check if RMTO error field indicates auth problem
                     if (isAuthMsg(errMsg)) {
                         rmtoId = -2; isAuthError = true;
@@ -148,10 +156,10 @@ function processAndSendIrawdata() {
                     errMsg = err ? err.message : "no response";
                 }
 
-                // For null records: if SOAP succeeded (ID>0), accept it.
-                // If SOAP failed with non-auth error, reset to NULL for retry.
-                if (isNull && !isAuthError && rmtoId <= 0) {
-                    // Null record network/server error — reset to NULL so it retries
+                // For null records: only retry on transient network errors (rmto_id stays 0).
+                // Auth errors (-2), duplicates (-3) and successes (>0) are final — do not reset to NULL.
+                if (isNull && !isAuthError && rmtoId === 0) {
+                    // Null record transient network error — reset to NULL so it retries
                     rmtoId = null;
                 }
 
@@ -166,7 +174,7 @@ function processAndSendIrawdata() {
                     "Add5", row.device_code,
                     JSON.stringify({ fid: row.id, rid: row.device_code, st: row.create_at, et: row.stop, total: totalCount }),
                     JSON.stringify(response),
-                    (rmtoId && rmtoId > 0) ? 1 : 0,
+                    (rmtoId && (rmtoId > 0 || rmtoId === -3)) ? 1 : 0,
                     errMsg
                 );
             } catch (dbErr) {

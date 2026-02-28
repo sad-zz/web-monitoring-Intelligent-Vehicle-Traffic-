@@ -946,6 +946,34 @@ patch("Fix41c: add /api/rmto/reinit endpoint",
 );
 
 // ============================================================
+// Fix43: SRVDT local time + CFL error message (already in scheduler.js via deploy-full.sh)
+// Fix44: DUPLICATE RECORD → permanent (-3) to stop infinite retry loop
+// ============================================================
+patchRegex("Fix44: DUPLICATE RECORD → rmto_id=-3 (permanent, stop retry loop)",
+    "server/scheduler.js",
+    /function isAuthMsg\(msg\) \{[^}]+\}\s*\n\s*if \(err && isAuthMsg\(err\.message\)\)/,
+    "function isAuthMsg(msg) {\n                    return msg && (msg.indexOf(\"password\") >= 0 || msg.indexOf(\"username\") >= 0 || msg.indexOf(\"Wrong\") >= 0 || msg.indexOf(\"status codes\") >= 0);\n                }\n                function isDuplicateMsg(msg) {\n                    return msg && (msg.toUpperCase().indexOf(\"DUPLICATE\") >= 0);\n                }\n                if (err && isAuthMsg(err.message))"
+);
+
+patchRegex("Fix44b: mark DUPLICATE as -3, fix null-record reset condition",
+    "server/scheduler.js",
+    /if \(!errMsg && rmtoId === 0\) errMsg = "RMTO: ID=0[^"]*";\s*\n\s*\/\/ Check if RMTO error field indicates auth problem/,
+    "if (!errMsg && rmtoId === 0) errMsg = \"RMTO: ID=0 (داده پذیرفته نشد)\";\n                    // DUPLICATE RECORD → data already in RMTO (sent before but DB update lost on crash)\n                    if (isDuplicateMsg(errMsg)) { rmtoId = -3; errMsg = \"DUPLICATE (قبلاً ارسال شده)\"; }\n                    // Check if RMTO error field indicates auth problem"
+);
+
+patchRegex("Fix44c: null-record only resets to NULL on rmto_id===0 (not -3 or -2)",
+    "server/scheduler.js",
+    /if \(isNull && !isAuthError && rmtoId <= 0\) \{/,
+    "if (isNull && !isAuthError && rmtoId === 0) {"
+);
+
+patchRegex("Fix44d: send_log treats -3 (duplicate) as success in UI",
+    "server/scheduler.js",
+    /\(rmtoId && rmtoId > 0\) \? 1 : 0,/,
+    "(rmtoId && (rmtoId > 0 || rmtoId === -3)) ? 1 : 0,"
+);
+
+// ============================================================
 // نتیجه نهایی
 // ============================================================
 console.log("\n======================================");

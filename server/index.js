@@ -435,6 +435,14 @@ app.post("/api/rmto/aggregate", function (req, res) {
     res.json({ success: true });
 });
 
+// Reinitialize RMTO SOAP client after settings change
+app.post("/api/rmto/reinit", function (req, res) {
+    rmto.reinit(function (err, info) {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true, wsdl: info.wsdl, company: info.company, user: info.user, hasPass: info.hasPass });
+    });
+});
+
 // Reset auth-error records so they can be retried after credentials are fixed
 app.post("/api/rmto/reset-auth-errors", function (req, res) {
     try {
@@ -1742,6 +1750,13 @@ var httpServer = app.listen(PORT, HOST, function () {
     });
 
     scheduler.start();
+});
+httpServer.on("error", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[HTTP] Port " + PORT + " already in use — exiting for clean PM2 restart");
+        process.exit(1);
+    }
+    throw err;
 });
 httpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
