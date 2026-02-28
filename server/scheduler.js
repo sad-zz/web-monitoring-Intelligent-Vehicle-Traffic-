@@ -69,25 +69,45 @@ function processAndSendIrawdata() {
         // Mark as in-flight (rmto_id = -1) to prevent double-processing
         try { db.prepare("UPDATE irawdata SET rmto_id = -1 WHERE id = ? AND (rmto_id IS NULL OR rmto_id = 0)").run(row.id); } catch (e) { return; }
 
-        // Compute RMTO fields
-        var a = row.a || 0, b = row.b || 0, c = row.c || 0, d = row.d || 0;
-        var e5 = (row.e || 0) + (row.x || 0);   // C5 = e + x (heavy)
-        var totalCount = a + b + c + d + e5;
+        // RID = RMTO Road ID (شناسه محور) — from devices.mehvar_code, NOT device_code
+        var devRow = null;
+        try { devRow = db.prepare("SELECT mehvar_code FROM devices WHERE device_code = ?").get(row.device_code); } catch (e) {}
+        var rid = (devRow && devRow.mehvar_code) ? parseInt(devRow.mehvar_code, 10) : (parseInt(row.device_code, 10) || 0);
 
-        var sa = row.sa || 0, sb = row.sb || 0, sc = row.sc || 0, sd = row.sd || 0;
-        var se = (row.se || 0) + (row.sx || 0);
-        var asp = totalCount > 0 ? Math.round((sa + sb + sc + sd + se) / totalCount) : 0;
+        // RMTO Add5 class mapping (RATCX1 firmware → RMTO 5 vehicle classes):
+        // C1 = سواری و وانت       = firmware a (motorcycle) + b (car) + c (van/pickup)
+        // C2 = کامیونت و مینی‌بوس = firmware d (light truck/minibus)
+        // C3 = کامیون دو محور     = firmware e (2-axle truck)
+        // C4 = اتوبوس             = 0 (RATCX1 cannot separate bus from 2-axle truck)
+        // C5 = کامیون سه محور+    = firmware x (3+ axle heavy truck)
+        var c1 = (row.a || 0) + (row.b || 0) + (row.c || 0);  // سواری و وانت
+        var c2 = row.d || 0;                                    // کامیونت و مینی‌بوس
+        var c3 = row.e || 0;                                    // کامیون دو محور
+        var c4 = 0;                                             // اتوبوس (not distinguishable)
+        var c5 = row.x || 0;                                    // کامیون سه محور به بالا
+        var totalCount = c1 + c2 + c3 + c4 + c5;
+
+        // Weighted average speed across all classes
+        var sc1 = (row.sa || 0) + (row.sb || 0) + (row.sc || 0);  // sum of speeds for C1 vehicles
+        var sc2 = row.sd || 0;
+        var sc3 = row.se || 0;
+        var sc4 = 0;
+        var sc5 = row.sx || 0;
+        var asp = totalCount > 0 ? Math.round((sc1 + sc2 + sc3 + sc4 + sc5) / totalCount) : 0;
 
         // Per-class avg speeds
-        var s1 = a > 0 ? Math.round(sa / a) : 0;
-        var s2 = b > 0 ? Math.round(sb / b) : 0;
-        var s3 = c > 0 ? Math.round(sc / c) : 0;
-        var s4 = d > 0 ? Math.round(sd / d) : 0;
-        var s5 = e5 > 0 ? Math.round(se / e5) : 0;
+        var s1 = c1 > 0 ? Math.round(sc1 / c1) : 0;
+        var s2 = c2 > 0 ? Math.round(sc2 / c2) : 0;
+        var s3 = c3 > 0 ? Math.round(sc3 / c3) : 0;
+        var s4 = 0;
+        var s5 = c5 > 0 ? Math.round(sc5 / c5) : 0;
 
         // Per-class overspeed counts
-        var so1 = row.sao || 0, so2 = row.sbo || 0, so3 = row.sco || 0;
-        var so4 = row.sdo || 0, so5 = (row.seo || 0) + (row.sxo || 0);
+        var so1 = (row.sao || 0) + (row.sbo || 0) + (row.sco || 0);  // C1 overspeed
+        var so2 = row.sdo || 0;                                        // C2 overspeed
+        var so3 = row.seo || 0;                                        // C3 overspeed
+        var so4 = 0;                                                    // C4 overspeed
+        var so5 = row.sxo || 0;                                        // C5 overspeed
         var sso = so1 + so2 + so3 + so4 + so5;
 
         // Null record: all counts zero (inactive device) — per C# reference isnull logic
@@ -96,14 +116,14 @@ function processAndSendIrawdata() {
         rmto.sendAdd5({
             cid: companyCode,
             fid: row.id,
-            rid: parseInt(row.device_code, 10) || 0,
+            rid: rid,
             st: row.create_at,
             et: row.stop,
-            c1: isNull ? null : a,
-            c2: isNull ? null : b,
-            c3: isNull ? null : c,
-            c4: isNull ? null : d,
-            c5: isNull ? null : e5,
+            c1: isNull ? null : c1,
+            c2: isNull ? null : c2,
+            c3: isNull ? null : c3,
+            c4: isNull ? null : c4,
+            c5: isNull ? null : c5,
             asp: isNull ? null : asp,
             s1: isNull ? null : s1,
             s2: isNull ? null : s2,

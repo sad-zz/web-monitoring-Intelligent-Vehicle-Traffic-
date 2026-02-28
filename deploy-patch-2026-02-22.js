@@ -973,6 +973,31 @@ patchRegex("Fix44d: send_log treats -3 (duplicate) as success in UI",
     "(rmtoId && (rmtoId > 0 || rmtoId === -3)) ? 1 : 0,"
 );
 
+// Fix45: RID = mehvar_code (شناسه محور), not device_code; correct C1-C5 class mapping
+patchRegex("Fix45a: add mehvar_code column to devices table in db.js",
+    "server/db.js",
+    /\/\/ Reset any in-flight records \(rmto_id = -1\) left by a previous crash\s*\ntry \{ db\.exec\("UPDATE irawdata SET rmto_id = NULL WHERE rmto_id = -1"\); \} catch \(e\) \{\}/,
+    "// Reset any in-flight records (rmto_id = -1) left by a previous crash\ntry { db.exec(\"UPDATE irawdata SET rmto_id = NULL WHERE rmto_id = -1\"); } catch (e) {}\n\n// Add mehvar_code to devices (safe migration — stores the RMTO Road ID / شناسه محور)\ntry { db.exec(\"ALTER TABLE devices ADD COLUMN mehvar_code INTEGER\"); } catch (e) { /* already exists */ }"
+);
+
+patchRegex("Fix45b: lookup mehvar_code for RID in scheduler.js (RID = road ID, not device code)",
+    "server/scheduler.js",
+    /\/\/ Mark as in-flight \(rmto_id = -1\) to prevent double-processing\s*\ntry \{ db\.prepare\("UPDATE irawdata SET rmto_id = -1 WHERE id = \? AND \(rmto_id IS NULL OR rmto_id = 0\)"\)\.run\(row\.id\); \} catch \(e\) \{ return; \}\s*\n\s*\/\/ Compute RMTO fields/,
+    "// Mark as in-flight (rmto_id = -1) to prevent double-processing\n        try { db.prepare(\"UPDATE irawdata SET rmto_id = -1 WHERE id = ? AND (rmto_id IS NULL OR rmto_id = 0)\").run(row.id); } catch (e) { return; }\n\n        // RID = RMTO Road ID (شناسه محور) — from devices.mehvar_code, NOT device_code\n        var devRow = null;\n        try { devRow = db.prepare(\"SELECT mehvar_code FROM devices WHERE device_code = ?\").get(row.device_code); } catch (e) {}\n        var rid = (devRow && devRow.mehvar_code) ? parseInt(devRow.mehvar_code, 10) : (parseInt(row.device_code, 10) || 0);\n\n        // RMTO Add5 class mapping (RATCX1 firmware → RMTO 5 vehicle classes):\n        // C1 = سواری و وانت       = firmware a (motorcycle) + b (car) + c (van/pickup)\n        // C2 = کامیونت و مینی‌بوس = firmware d (light truck/minibus)\n        // C3 = کامیون دو محور     = firmware e (2-axle truck)\n        // C4 = اتوبوس             = 0 (RATCX1 cannot separate bus from 2-axle truck)\n        // C5 = کامیون سه محور+    = firmware x (3+ axle heavy truck)\n        var c1 = (row.a || 0) + (row.b || 0) + (row.c || 0);  // سواری و وانت\n        var c2 = row.d || 0;                                    // کامیونت و مینی‌بوس\n        var c3 = row.e || 0;                                    // کامیون دو محور\n        var c4 = 0;                                             // اتوبوس (not distinguishable)\n        var c5 = row.x || 0;                                    // کامیون سه محور به بالا\n        var totalCount = c1 + c2 + c3 + c4 + c5;\n\n        // Weighted average speed across all classes\n        var sc1 = (row.sa || 0) + (row.sb || 0) + (row.sc || 0);\n        var sc2 = row.sd || 0;\n        var sc3 = row.se || 0;\n        var sc4 = 0;\n        var sc5 = row.sx || 0;\n        var asp = totalCount > 0 ? Math.round((sc1 + sc2 + sc3 + sc4 + sc5) / totalCount) : 0;\n\n        // Per-class avg speeds\n        var s1 = c1 > 0 ? Math.round(sc1 / c1) : 0;\n        var s2 = c2 > 0 ? Math.round(sc2 / c2) : 0;\n        var s3 = c3 > 0 ? Math.round(sc3 / c3) : 0;\n        var s4 = 0;\n        var s5 = c5 > 0 ? Math.round(sc5 / c5) : 0;\n\n        // Per-class overspeed counts\n        var so1 = (row.sao || 0) + (row.sbo || 0) + (row.sco || 0);\n        var so2 = row.sdo || 0;\n        var so3 = row.seo || 0;\n        var so4 = 0;\n        var so5 = row.sxo || 0;\n        var sso = so1 + so2 + so3 + so4 + so5;\n\n        // Null record: all counts zero (inactive device) — per C# reference isnull logic\n        var isNull = (totalCount === 0);"
+);
+
+patchRegex("Fix45c: use c1-c5 variables (not a,b,c,d,e5) in sendAdd5 call",
+    "server/scheduler.js",
+    /c1: isNull \? null : a,\s*\nc2: isNull \? null : b,\s*\nc3: isNull \? null : c,\s*\nc4: isNull \? null : d,\s*\nc5: isNull \? null : e5,/,
+    "c1: isNull ? null : c1,\n            c2: isNull ? null : c2,\n            c3: isNull ? null : c3,\n            c4: isNull ? null : c4,\n            c5: isNull ? null : c5,"
+);
+
+patchRegex("Fix45d: update rid: field in sendAdd5 call from device_code to rid variable",
+    "server/scheduler.js",
+    /rid: parseInt\(row\.device_code, 10\) \|\| 0,/,
+    "rid: rid,"
+);
+
 // ============================================================
 // نتیجه نهایی
 // ============================================================

@@ -376,6 +376,7 @@
                     "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
                     '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
                     "<td>" + escapeHtml(d.route || "-") + "</td>" +
+                    '<td dir="ltr" style="text-align:center;font-weight:' + (d.mehvar_code ? '700;color:#0f766e' : '400;color:#94a3b8') + '">' + escapeHtml(d.mehvar_code ? String(d.mehvar_code) : "—") + "</td>" +
                     '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
                     '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
                     "<td>" +
@@ -435,6 +436,7 @@
                     '<option value="radar">رادار</option>' +
                 '</select></div>' +
                 '<div class="form-group"><label>محور</label><input type="text" id="new-dev-route" placeholder="نام محور"></div>' +
+                '<div class="form-group"><label>شناسه محور (RID) — برای ارسال به سامانه RMTO</label><input type="number" id="new-dev-mehvar-code" dir="ltr" placeholder="مثال: 613151"></div>' +
                 '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
             '</form>';
         currentAddMode = "device";
@@ -457,6 +459,7 @@
                     '<option value="radar"' + (dev.type === "radar" ? " selected" : "") + '>رادار</option>' +
                 '</select></div>' +
                 '<div class="form-group"><label>محور</label><input type="text" id="new-dev-route" value="' + escapeHtml(dev.route || "") + '" placeholder="نام محور"></div>' +
+                '<div class="form-group"><label>شناسه محور (RID) — برای ارسال به سامانه RMTO</label><input type="number" id="new-dev-mehvar-code" dir="ltr" value="' + escapeHtml(String(dev.mehvar_code || "")) + '" placeholder="مثال: 613151"></div>' +
                 '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" value="' + escapeHtml(dev.ip || "") + '" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
             '</form>';
         currentAddMode = "device";
@@ -1029,6 +1032,8 @@
             if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
             var dtype = ($("#new-dev-type") || {}).value || "counter";
             var droute = ($("#new-dev-route") || {}).value || "";
+            var dmehvar = ($("#new-dev-mehvar-code") || {}).value || "";
+            var dmehvarCode = dmehvar ? parseInt(dmehvar, 10) : null;
             var dip = ($("#new-dev-ip") || {}).value || "";
 
             if (currentEditCode) {
@@ -1037,7 +1042,8 @@
                     name: dname.trim(),
                     type: dtype,
                     route: droute,
-                    ip: dip
+                    ip: dip,
+                    mehvar_code: dmehvarCode
                 }, function (status) {
                     if (status === 200) {
                         $("#add-modal-overlay").classList.remove("active");
@@ -1055,7 +1061,8 @@
                     name: dname.trim(),
                     type: dtype,
                     route: droute,
-                    ip: dip
+                    ip: dip,
+                    mehvar_code: dmehvarCode
                 }, function (status, data) {
                     if (status === 200) {
                         $("#add-modal-overlay").classList.remove("active");

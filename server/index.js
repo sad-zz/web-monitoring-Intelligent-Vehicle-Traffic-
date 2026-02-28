@@ -361,7 +361,7 @@ app.post("/api/devices", function (req, res) {
     if (!b.device_code || !b.name) return res.status(400).json({ error: "device_code and name required" });
     if (!/^\d{1,8}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 1-8 digits" });
     try {
-        db.prepare("INSERT INTO devices (device_code, name, type, route, ip, status, firmware) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.device_code, b.name, b.type || "sensor", b.route || "", b.ip || "", "offline", b.firmware || "");
+        db.prepare("INSERT INTO devices (device_code, name, type, route, ip, status, firmware, mehvar_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(b.device_code, b.name, b.type || "sensor", b.route || "", b.ip || "", "offline", b.firmware || "", b.mehvar_code || null);
         res.json({ success: true, device_code: b.device_code });
     } catch (e) {
         if (e.message.indexOf("UNIQUE") !== -1) return res.status(409).json({ error: "duplicate device_code" });
@@ -371,7 +371,7 @@ app.post("/api/devices", function (req, res) {
 
 app.put("/api/devices/:code", function (req, res) {
     var b = req.body;
-    db.prepare("UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), route = COALESCE(?, route), ip = COALESCE(?, ip), firmware = COALESCE(?, firmware) WHERE device_code = ?").run(b.name, b.type, b.route, b.ip, b.firmware, req.params.code);
+    db.prepare("UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), route = COALESCE(?, route), ip = COALESCE(?, ip), firmware = COALESCE(?, firmware), mehvar_code = COALESCE(?, mehvar_code) WHERE device_code = ?").run(b.name, b.type, b.route, b.ip, b.firmware, b.mehvar_code || null, req.params.code);
     res.json({ success: true });
 });
 

@@ -209,6 +209,9 @@ try { db.exec("UPDATE irawdata SET rmto_id = NULL WHERE rmto_id = -1"); } catch 
     try { db.exec("ALTER TABLE irawdata ADD COLUMN " + col); } catch (e) { /* already exists */ }
 });
 
+// Add mehvar_code to devices (safe migration — stores the RMTO Road ID / شناسه محور)
+try { db.exec("ALTER TABLE devices ADD COLUMN mehvar_code INTEGER"); } catch (e) { /* already exists */ }
+
 // Reset any in-flight records (rmto_id = -1) left by a previous crash
 try { db.exec("UPDATE irawdata SET rmto_id = NULL WHERE rmto_id = -1"); } catch (e) {}
 
