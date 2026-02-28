@@ -636,16 +636,18 @@
             }
             lbody.innerHTML = data.map(function (r) {
                 var ok = r.success === 1;
-                var resp = r.response_data || "";
-                if (resp.length > 60) resp = resp.substring(0, 60) + "...";
-                var fullResp = escapeHtml((r.response_data || "") + (r.error_message ? "\nخطا: " + r.error_message : ""));
+                // Show error_message directly in table; fall back to truncated response_data for success
+                var displayText = ok
+                    ? (r.response_data ? r.response_data.substring(0, 50) + (r.response_data.length > 50 ? "..." : "") : "-")
+                    : (r.error_message || "(جزییات ناموجود)");
+                var fullResp = (r.response_data || "") + (r.error_message ? "\n\nپیام خطا:\n" + r.error_message : "");
                 return "<tr>" +
                     "<td>" + escapeHtml(r.method) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
                     '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
-                    '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
+                    '<td dir="ltr" style="font-size:11px;max-width:220px;overflow:hidden;text-overflow:ellipsis;color:' + (ok ? "inherit" : "#ef4444") + '">' + escapeHtml(displayText) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
-                    '<td><button class="btn btn-sm btn-secondary rmto-detail-btn" data-resp="' + fullResp + '" data-err="' + escapeHtml(r.error_message || "") + '">جزییات</button></td>' +
+                    '<td><button class="btn btn-sm btn-secondary rmto-detail-btn" data-resp="' + escapeHtml(fullResp) + '" data-err="' + escapeHtml(r.error_message || "") + '">جزییات</button></td>' +
                     "</tr>";
             }).join("");
         });

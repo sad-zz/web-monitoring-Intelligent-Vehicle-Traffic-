@@ -131,10 +131,14 @@ function processAndSendIrawdata() {
                 } else if (response) {
                     rmtoId = response.ID || 0;
                     cfl = response.CFL || 0;
-                    // SRVDT from RMTO is a Date object; store as local ISO string
-                    srvdt = response.SRVDT ? new Date(response.SRVDT).toISOString().slice(0, 19) : null;
+                    // SRVDT: use local time, ignore C# DateTime.MinValue (year 0001 → shows as 0000-12-31 UTC)
+                    var srvdtRaw = response.SRVDT ? new Date(response.SRVDT) : null;
+                    srvdt = (srvdtRaw && srvdtRaw.getFullYear() > 2000) ? toLocalISOString(srvdtRaw) : null;
                     bil = response.BIL || 0;
+                    // ERR field: if empty but CFL > 0, build a descriptive message
                     errMsg = response.ERR || null;
+                    if (!errMsg && cfl > 0) errMsg = "RMTO خطا (CFL=" + cfl + ", ID=" + (response.ID || 0) + ")";
+                    if (!errMsg && rmtoId === 0) errMsg = "RMTO: ID=0 (داده پذیرفته نشد)";
                     // Check if RMTO error field indicates auth problem
                     if (isAuthMsg(errMsg)) {
                         rmtoId = -2; isAuthError = true;
