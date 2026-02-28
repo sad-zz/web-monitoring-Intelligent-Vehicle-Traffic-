@@ -9,6 +9,14 @@
 # =======================================================================
 set -e
 
+# ── auto-cd to project root ──────────────────────────────────────────────────
+APP_DIR="/opt/tc-manager"
+if [ ! -d "$APP_DIR" ]; then
+  echo "❌  دایرکتوری $APP_DIR پیدا نشد"; exit 1
+fi
+cd "$APP_DIR"
+echo "📂  کار در: $(pwd)"
+
 REPO_RAW="https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/review-project-issues"
 TS=$(date +%Y%m%d_%H%M%S)
 
