@@ -512,12 +512,17 @@ app.get("/api/rmto/preview/:id", function (req, res) {
         var sso = so1 + so2 + so3 + so4 + so5;
         var isNull = (totalCount === 0);
 
+        // RID = mehvar_code (شناسه محور) if set, otherwise device_code
+        var previewDevRow = null;
+        try { previewDevRow = db.prepare("SELECT mehvar_code FROM devices WHERE device_code = ?").get(row.device_code); } catch (e) {}
+        var previewRid = (previewDevRow && previewDevRow.mehvar_code) ? parseInt(previewDevRow.mehvar_code, 10) : (parseInt(row.device_code, 10) || 0);
+
         var payload = {
             CID: companyCode,
             UID: "(rmto_username از تنظیمات)",
             PWD: "***",
             FID: row.id,
-            RID: parseInt(row.device_code, 10) || 0,
+            RID: previewRid,
             ST: row.create_at,
             ET: row.stop,
             C1: isNull ? null : a,
