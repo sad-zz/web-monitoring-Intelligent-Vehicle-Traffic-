@@ -1,26 +1,28 @@
 #!/bin/bash
-# deploy-offline.sh — TC Manager offline deploy (no internet required)
-# Contains all server files embedded. Transfer this single file to server and run:
-#   bash /tmp/deploy-offline.sh
+# deploy-offline.sh — TC Manager v2026-03-07
+# Self-contained: no internet required on server
+# Usage: scp this file to server, then: bash deploy-offline.sh
 set -e
-APP=/opt/tc-manager
+TC_DIR="/opt/tc-manager"
+if [ ! -d "$TC_DIR" ]; then echo "❌ $TC_DIR not found"; exit 1; fi
+cd "$TC_DIR"
 echo "========================================================"
-echo "  TC Manager — Offline Deploy (Fix1-Fix45)"
+echo "  TC Manager — آفلاین deploy (Fix1-Fix45 + Fix46-preview)"
 echo "========================================================"
-if [ ! -d "$APP" ]; then echo "ERROR: $APP not found"; exit 1; fi
-cd "$APP"
-
-# Stop crash loop first
 pm2 stop tc-manager 2>/dev/null || true
 sleep 2
-fuser -k 2022/tcp 2>/dev/null || true
-fuser -k 3000/tcp 2>/dev/null || true
+fuser -k 2022/tcp 3000/tcp 2>/dev/null || true
 sleep 1
 
-mkdir -p server js data css
-echo "--- Writing files ---"
-echo '  [server/index.js]'
-cat > $APP/server/index.js << 'EOF_server_index_js'
+write_file() {
+  local path="$1"; local content="$2"
+  mkdir -p "$(dirname "$TC_DIR/$path")"
+  printf '%s' "$content" > "$TC_DIR/$path"
+  echo "✅ $path"
+}
+
+# === server/index.js ===
+cat > "$TC_DIR/server/index.js" << 'TCEOF_server_index_js'
 /**
  * TC Manager Server (Noavaran Jonoob Shargh)
  * - Login authentication
@@ -484,6 +486,12 @@ app.post("/api/rmto/reinit", function (req, res) {
     });
 });
 
+// Show last SOAP XML actually sent by node-soap (for debugging)
+app.get("/api/rmto/lastsoap", requireAuth, function (req, res) {
+    var xml = rmto.getLastSoapXml ? rmto.getLastSoapXml() : null;
+    res.json({ soapXml: xml || "(هنوز هیچ ارسالی انجام نشده یا RMTO_DEBUG=1 نیست)" });
+});
+
 // Preview Add5 payload for a specific irawdata record
 app.get("/api/rmto/preview/:id", function (req, res) {
     try {
@@ -496,19 +504,34 @@ app.get("/api/rmto/preview/:id", function (req, res) {
             if (s && s.value) companyCode = parseInt(s.value, 10) || 58;
         } catch (e) {}
 
-        var a = row.a || 0, b = row.b || 0, c = row.c || 0, d = row.d || 0;
-        var e5 = (row.e || 0) + (row.x || 0);
-        var totalCount = a + b + c + d + e5;
-        var sa = row.sa || 0, sb = row.sb || 0, sc = row.sc || 0, sd = row.sd || 0;
-        var se = (row.se || 0) + (row.sx || 0);
-        var asp = totalCount > 0 ? Math.round((sa + sb + sc + sd + se) / totalCount) : 0;
-        var s1 = a > 0 ? Math.round(sa / a) : 0;
-        var s2 = b > 0 ? Math.round(sb / b) : 0;
-        var s3 = c > 0 ? Math.round(sc / c) : 0;
-        var s4 = d > 0 ? Math.round(sd / d) : 0;
-        var s5 = e5 > 0 ? Math.round(se / e5) : 0;
-        var so1 = row.sao || 0, so2 = row.sbo || 0, so3 = row.sco || 0;
-        var so4 = row.sdo || 0, so5 = (row.seo || 0) + (row.sxo || 0);
+        // RMTO Add5 class mapping — identical to scheduler.js (Fix45c)
+        // C1 = سواری و وانت       = firmware a (motorcycle) + b (car) + c (van/pickup)
+        // C2 = کامیونت و مینی‌بوس = firmware d (light truck/minibus)
+        // C3 = کامیون دو محور     = firmware e (2-axle truck)
+        // C4 = اتوبوس             = 0 (RATCX1 cannot distinguish bus)
+        // C5 = کامیون سه محور+    = firmware x (3+ axle heavy)
+        var c1 = (row.a || 0) + (row.b || 0) + (row.c || 0);
+        var c2 = row.d || 0;
+        var c3 = row.e || 0;
+        var c4 = 0;
+        var c5 = row.x || 0;
+        var totalCount = c1 + c2 + c3 + c4 + c5;
+        var sc1 = (row.sa || 0) + (row.sb || 0) + (row.sc || 0);
+        var sc2 = row.sd || 0;
+        var sc3 = row.se || 0;
+        var sc4 = 0;
+        var sc5 = row.sx || 0;
+        var asp = totalCount > 0 ? Math.round((sc1 + sc2 + sc3 + sc4 + sc5) / totalCount) : 0;
+        var s1 = c1 > 0 ? Math.round(sc1 / c1) : 0;
+        var s2 = c2 > 0 ? Math.round(sc2 / c2) : 0;
+        var s3 = c3 > 0 ? Math.round(sc3 / c3) : 0;
+        var s4 = 0;
+        var s5 = c5 > 0 ? Math.round(sc5 / c5) : 0;
+        var so1 = (row.sao || 0) + (row.sbo || 0) + (row.sco || 0);
+        var so2 = row.sdo || 0;
+        var so3 = row.seo || 0;
+        var so4 = 0;
+        var so5 = row.sxo || 0;
         var sso = so1 + so2 + so3 + so4 + so5;
         var isNull = (totalCount === 0);
 
@@ -525,11 +548,11 @@ app.get("/api/rmto/preview/:id", function (req, res) {
             RID: previewRid,
             ST: row.create_at,
             ET: row.stop,
-            C1: isNull ? null : a,
-            C2: isNull ? null : b,
-            C3: isNull ? null : c,
-            C4: isNull ? null : d,
-            C5: isNull ? null : e5,
+            C1: isNull ? null : c1,
+            C2: isNull ? null : c2,
+            C3: isNull ? null : c3,
+            C4: isNull ? null : c4,
+            C5: isNull ? null : c5,
             ASP: isNull ? null : asp,
             S1: isNull ? null : s1,
             S2: isNull ? null : s2,
@@ -546,12 +569,28 @@ app.get("/api/rmto/preview/:id", function (req, res) {
             ESD: row.tooclose || 0
         };
 
+        // Note: node-soap determines actual namespace from WSDL (typically http://tempuri.org/)
+        // The XML below uses the standard .NET ASMX namespace
+        var nsUri = "http://tempuri.org/";
+        var classLabels = {
+            CID: "شناسه شرکت", UID: "نام کاربری", PWD: "رمز عبور",
+            FID: "شناسه رکورد", RID: "شناسه محور",
+            ST: "زمان شروع", ET: "زمان پایان",
+            C1: "سواری و وانت (a+b+c)", C2: "کامیونت و مینی‌بوس (d)", C3: "کامیون دو محور (e)",
+            C4: "اتوبوس (0-RATCX1 ندارد)", C5: "کامیون سه محور+ (x)",
+            ASP: "سرعت متوسط وزنی", S1: "سرعت C1", S2: "سرعت C2",
+            S3: "سرعت C3", S4: "سرعت C4", S5: "سرعت C5",
+            SSO: "تخلف سرعت جمع", SO1: "تخلف سرعت C1", SO2: "تخلف سرعت C2",
+            SO3: "تخلف سرعت C3", SO4: "تخلف سرعت C4", SO5: "تخلف سرعت C5",
+            OO: "سبقت غیرمجاز", ESD: "فاصله غیرمجاز"
+        };
         var soapXml = '<?xml version="1.0" encoding="utf-8"?>\n' +
             '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">\n' +
             '  <soap:Body>\n' +
-            '    <Add5 xmlns="http://otf.rmto.ir/">\n' +
+            '    <Add5 xmlns="' + nsUri + '">\n' +
             Object.keys(payload).map(function (k) {
-                return "      <" + k + ">" + (payload[k] === null ? "" : payload[k]) + "</" + k + ">";
+                var label = classLabels[k] ? " <!-- " + classLabels[k] + " -->" : "";
+                return "      <" + k + ">" + (payload[k] === null ? "" : payload[k]) + "</" + k + ">" + label;
             }).join("\n") + "\n" +
             '    </Add5>\n' +
             '  </soap:Body>\n' +
@@ -1893,11 +1932,10 @@ httpServer.on("error", function (err) {
     }
     throw err;
 });
+TCEOF_server_index_js
 
-EOF_server_index_js
-
-echo '  [server/scheduler.js]'
-cat > $APP/server/scheduler.js << 'EOF_server_scheduler_js'
+# === server/scheduler.js ===
+cat > "$TC_DIR/server/scheduler.js" << 'TCEOF_server_scheduler_js'
 /**
  * Scheduler - Aggregates traffic data every 15 minutes and sends to RMTO.
  */
@@ -2341,11 +2379,10 @@ module.exports = {
     sendUnsentData: sendUnsentData,
     checkOfflineDevices: checkOfflineDevices
 };
+TCEOF_server_scheduler_js
 
-EOF_server_scheduler_js
-
-echo '  [server/db.js]'
-cat > $APP/server/db.js << 'EOF_server_db_js'
+# === server/db.js ===
+cat > "$TC_DIR/server/db.js" << 'TCEOF_server_db_js'
 /**
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
@@ -2586,11 +2623,10 @@ Object.keys(defaultSettings).forEach(function (k) {
 });
 
 module.exports = db;
+TCEOF_server_db_js
 
-EOF_server_db_js
-
-echo '  [server/rmto-client.js]'
-cat > $APP/server/rmto-client.js << 'EOF_server_rmto-client_js'
+# === server/rmto-client.js ===
+cat > "$TC_DIR/server/rmto-client.js" << 'TCEOF_server_rmto-client_js'
 /**
  * RMTO SOAP Client
  * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
@@ -2606,6 +2642,7 @@ var db = require("./db");
 var WSDL_URL = process.env.RMTO_WSDL || "http://otf.rmto.ir/Companies/Companies.asmx?WSDL";
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
+var lastSoapXml = null;  // stores last Add5 SOAP XML for /api/rmto/lastsoap
 var PASSWORD = process.env.RMTO_PASSWORD || "";
 
 var soapClient = null;
@@ -2819,6 +2856,10 @@ function sendAdd5(data, callback) {
         console.log("[RMTO] Add5 fid=" + data.fid + " rid=" + data.rid + " total=" + ((data.c1||0)+(data.c2||0)+(data.c3||0)+(data.c4||0)+(data.c5||0)));
 
         soapClient.Add5(args, function (err, result) {
+            // Store last SOAP XML for debugging
+            if (soapClient.lastRequest) {
+                lastSoapXml = soapClient.lastRequest;
+            }
             if (err) {
                 console.error("[RMTO] Add5 error:", err.message);
                 return callback(err, null);
@@ -2898,16 +2939,16 @@ function reinit(callback) {
 module.exports = {
     initClient: initClient,
     reinit: reinit,
+    getLastSoapXml: function () { return lastSoapXml; },
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
     sendAddData8: sendAddData8,
     sendAdd5: sendAdd5
 };
+TCEOF_server_rmto-client_js
 
-EOF_server_rmto-client_js
-
-echo '  [js/app.js]'
-cat > $APP/js/app.js << 'EOF_js_app_js'
+# === js/app.js ===
+cat > "$TC_DIR/js/app.js" << 'TCEOF_js_app_js'
 (function () {
     "use strict";
 
@@ -4057,11 +4098,10 @@ cat > $APP/js/app.js << 'EOF_js_app_js'
     }, 30000);
 
 })();
+TCEOF_js_app_js
 
-EOF_js_app_js
-
-echo '  [index.html]'
-cat > $APP/index.html << 'EOF_index_html'
+# === index.html ===
+cat > "$TC_DIR/index.html" << 'TCEOF_index_html'
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -4677,11 +4717,10 @@ cat > $APP/index.html << 'EOF_index_html'
     <script src="js/app.js"></script>
 </body>
 </html>
+TCEOF_index_html
 
-EOF_index_html
-
-echo '  [ecosystem.config.js]'
-cat > $APP/ecosystem.config.js << 'EOF_ecosystem_config_js'
+# === ecosystem.config.js ===
+cat > "$TC_DIR/ecosystem.config.js" << 'TCEOF_ecosystem_config_js'
 /**
  * PM2 ecosystem config — TC Manager
  * Usage:
@@ -4706,15 +4745,13 @@ module.exports = {
         }
     }]
 };
+TCEOF_ecosystem_config_js
 
-EOF_ecosystem_config_js
-
-echo "--- Restarting PM2 ---"
-pm2 restart tc-manager --update-env 2>/dev/null || pm2 start ecosystem.config.js
 echo ""
-echo "========================================================"
-echo "  ✅ Deploy کامل شد!"
+echo "🔄 راه‌اندازی مجدد..."
+pm2 start ecosystem.config.js --update-env 2>/dev/null || pm2 restart tc-manager --update-env
+sleep 3
+pm2 list
 echo ""
-echo "  مرحله بعد: تنظیم شناسه محور (RID)"
-echo "  http://5.159.49.246:3000 → دستگاه‌ها → ویرایش → شناسه محور = 613151"
-echo "========================================================"
+echo "✅ Deploy کامل شد!"
+echo "📌 گام بعدی: دستگاه‌ها → ویرایش → شناسه محور (RID) را تنظیم کنید"

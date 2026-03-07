@@ -13,6 +13,7 @@ var db = require("./db");
 var WSDL_URL = process.env.RMTO_WSDL || "http://otf.rmto.ir/Companies/Companies.asmx?WSDL";
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
+var lastSoapXml = null;  // stores last Add5 SOAP XML for /api/rmto/lastsoap
 var PASSWORD = process.env.RMTO_PASSWORD || "";
 
 var soapClient = null;
@@ -226,6 +227,10 @@ function sendAdd5(data, callback) {
         console.log("[RMTO] Add5 fid=" + data.fid + " rid=" + data.rid + " total=" + ((data.c1||0)+(data.c2||0)+(data.c3||0)+(data.c4||0)+(data.c5||0)));
 
         soapClient.Add5(args, function (err, result) {
+            // Store last SOAP XML for debugging
+            if (soapClient.lastRequest) {
+                lastSoapXml = soapClient.lastRequest;
+            }
             if (err) {
                 console.error("[RMTO] Add5 error:", err.message);
                 return callback(err, null);
@@ -305,6 +310,7 @@ function reinit(callback) {
 module.exports = {
     initClient: initClient,
     reinit: reinit,
+    getLastSoapXml: function () { return lastSoapXml; },
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
     sendAddData8: sendAddData8,
