@@ -1,5 +1,45 @@
 # راهنمای گام‌به‌گام استقرار روی سرور
 
+---
+
+## 🪟 دانلود `deploy-offline.sh` روی Windows و انتقال به سرور
+
+> سرور لینوکسی به GitHub دسترسی ندارد؟ این روش‌ها فقط نیاز به Windows شما دارند.
+
+### روش ۱: مرورگر (ساده‌ترین — بدون هیچ دستوری)
+1. این لینک را در **Chrome یا Edge** باز کنید:
+   ```
+   https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/raw/copilot/review-project-issues/deploy-offline.sh
+   ```
+2. صفحه متن باز می‌شود → **Ctrl+S** → نام فایل را `deploy-offline.sh` بگذارید → ذخیره
+
+### روش ۲: PowerShell
+> ⚠️ **PowerShell** را باز کنید — نه CMD (Command Prompt)
+> دکمه Start → تایپ `PowerShell` → Enter
+
+```powershell
+cd C:\Users\research\Downloads
+Invoke-WebRequest -Uri "https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/raw/copilot/review-project-issues/deploy-offline.sh" -OutFile "deploy-offline.sh"
+```
+
+### روش ۳: git clone (اگر git دارید)
+```cmd
+git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic- --branch copilot/review-project-issues --depth 1 tc-src
+cd tc-src
+REM فایل deploy-offline.sh اینجاست
+```
+
+### انتقال به سرور (PowerShell):
+```powershell
+# مسیر فایل دانلود‌شده را جایگزین کنید:
+scp C:\Users\research\Downloads\deploy-offline.sh root@5.159.49.246:/tmp/
+
+# اجرا روی سرور:
+ssh root@5.159.49.246 "bash /tmp/deploy-offline.sh"
+```
+
+---
+
 ## ۱. ساخت فایل .env (اگر وجود ندارد)
 
 فایل `.env` در مسیر `/opt/tc-manager/server/.env` باید وجود داشته باشد.
