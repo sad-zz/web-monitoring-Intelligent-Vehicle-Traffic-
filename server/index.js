@@ -445,7 +445,9 @@ app.get("/api/rmto/last-xml", function (req, res) {
 
 // RMTO send log detail including SOAP XML
 app.get("/api/rmto/log/:id/xml", function (req, res) {
-    var row = db.prepare("SELECT soap_xml FROM send_log WHERE id = ?").get(parseInt(req.params.id, 10));
+    var id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "invalid id" });
+    var row = db.prepare("SELECT soap_xml FROM send_log WHERE id = ?").get(id);
     if (!row) return res.status(404).json({ error: "not found" });
     res.json({ soap_xml: row.soap_xml || null });
 });
