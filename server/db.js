@@ -182,6 +182,23 @@ db.exec([
     ");"
 ].join("\n"));
 
+// Add new columns for RMTO format compliance (Direction, O3, Speed85)
+// These ALTER TABLE statements are safe - they silently fail if columns already exist.
+var alterStatements = [
+    "ALTER TABLE rmto_queue ADD COLUMN direction INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue ADD COLUMN overtaking_count INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue ADD COLUMN speed85 INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue_5class ADD COLUMN direction INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue_5class ADD COLUMN overtaking_count INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue_5class ADD COLUMN speed85 INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue_8class ADD COLUMN direction INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue_8class ADD COLUMN overtaking_count INTEGER DEFAULT 0",
+    "ALTER TABLE rmto_queue_8class ADD COLUMN speed85 INTEGER DEFAULT 0"
+];
+alterStatements.forEach(function (sql) {
+    try { db.exec(sql); } catch (e) { /* column already exists */ }
+});
+
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
