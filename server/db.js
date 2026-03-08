@@ -196,7 +196,11 @@ var alterStatements = [
     "ALTER TABLE rmto_queue_8class ADD COLUMN speed85 INTEGER DEFAULT 0"
 ];
 alterStatements.forEach(function (sql) {
-    try { db.exec(sql); } catch (e) { /* column already exists */ }
+    try { db.exec(sql); } catch (e) {
+        if (e.message && e.message.indexOf("duplicate column") === -1) {
+            console.error("[DB] ALTER TABLE warning:", e.message);
+        }
+    }
 });
 
 // Insert default settings if not exists
