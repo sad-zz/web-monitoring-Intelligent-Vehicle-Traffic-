@@ -163,8 +163,31 @@ device_code | period_start | period_end | counts... | avg_speed | sent | sent_at
 ## RMTO Integration
 
 **WSDL:** `http://otf.rmto.ir/Companies/Companies.asmx?WSDL`
+**SOAP Namespace:** `xmlns="ITS"`
 **Company Code:** 58
 **Methods:** AddData (simple), AddData5 (5-class), AddData8 (8-class)
+**DateTime Format:** ISO `YYYY-MM-DDTHH:mm:ss` (e.g., `2026-02-21T14:30:00`)
+**DateTime Fields:** `StartDateTime` (period start) + `EndDateTime` (period end)
+
+### SOAP XML Format (AddData5 example)
+```xml
+<soap:Envelope xmlns:xsi="..." xmlns:xsd="..." xmlns:soap="...">
+  <soap:Body>
+    <AddData5 xmlns="ITS">
+      <CompanyCode>58</CompanyCode>
+      <UserName>...</UserName>
+      <Password>...</Password>
+      <StationCode>0102</StationCode>
+      <StartDateTime>2026-02-21T14:30:00</StartDateTime>
+      <EndDateTime>2026-02-21T14:45:00</EndDateTime>
+      <C1>500</C1><C2>500</C2><C3>10</C3><C4>57</C4><C5>480</C5>
+      <S1>70</S1><S2>60</S2><S3>50</S3><S4>40</S4><S5>50</S5>
+      <Violation>25</Violation>
+      <Speed>65</Speed>
+    </AddData5>
+  </soap:Body>
+</soap:Envelope>
+```
 
 ### Scheduler Flow (every 15 min)
 ```

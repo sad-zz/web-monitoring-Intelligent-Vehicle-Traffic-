@@ -2,10 +2,31 @@
  * RMTO SOAP Client
  * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
  *
+ * SOAP namespace: xmlns="ITS"
+ * WSDL: http://otf.rmto.ir/Companies/Companies.asmx?WSDL
+ *
  * Methods:
  *   - AddData  (v1.02): Simple total count + avg speed per 15-min period
  *   - AddData5 (v1.01): 5-class volume + 5-class speed + violations
  *   - AddData8 (v1.00): 8-class volume + 8-class speed + violations
+ *
+ * Expected SOAP XML format (AddData5 example):
+ *   <soap:Envelope xmlns:xsi="..." xmlns:xsd="..." xmlns:soap="...">
+ *     <soap:Body>
+ *       <AddData5 xmlns="ITS">
+ *         <CompanyCode>58</CompanyCode>
+ *         <UserName>...</UserName>
+ *         <Password>...</Password>
+ *         <StationCode>0102</StationCode>
+ *         <StartDateTime>2009-02-24T14:55:00</StartDateTime>
+ *         <EndDateTime>2009-02-24T15:00:00</EndDateTime>
+ *         <C1>500</C1> ... <C5>480</C5>
+ *         <S1>70</S1> ... <S5>50</S5>
+ *         <Violation>25</Violation>
+ *         <Speed>13</Speed>
+ *       </AddData5>
+ *     </soap:Body>
+ *   </soap:Envelope>
  */
 var soap = require("soap");
 var db = require("./db");
@@ -16,6 +37,7 @@ var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
 
 var soapClient = null;
+var wsdlDescription = null;
 
 /**
  * Load RMTO settings from database (overrides env vars).
@@ -32,6 +54,7 @@ function loadDbSettings() {
         if (s.rmto_wsdl && s.rmto_wsdl !== WSDL_URL) {
             WSDL_URL = s.rmto_wsdl;
             soapClient = null; // force re-creation with new URL
+            wsdlDescription = null;
         }
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
@@ -51,14 +74,23 @@ function initClient(callback) {
         }
         soapClient = client;
         console.log("[RMTO] SOAP client initialized");
-        // Auto-detect binding name (could be CompanySoap, CompaniesSoap, etc.)
+        // Auto-detect binding name and log full WSDL description
         var desc = client.describe();
+        wsdlDescription = desc;
         var serviceName = Object.keys(desc)[0];
         if (serviceName) {
             var portName = Object.keys(desc[serviceName])[0];
             if (portName) {
                 console.log("[RMTO] Service=" + serviceName + " Port=" + portName);
-                console.log("[RMTO] Available methods:", Object.keys(desc[serviceName][portName]));
+                var methods = desc[serviceName][portName];
+                console.log("[RMTO] Available methods:", Object.keys(methods));
+                // Log parameter details for each method
+                Object.keys(methods).forEach(function (methodName) {
+                    var params = methods[methodName];
+                    if (params && params.input) {
+                        console.log("[RMTO] " + methodName + " parameters:", JSON.stringify(params.input));
+                    }
+                });
             } else {
                 console.log("[RMTO] WARNING: No SOAP port found in service " + serviceName);
             }
@@ -70,12 +102,32 @@ function initClient(callback) {
 }
 
 /**
+ * Get the WSDL description (for diagnostics/preview).
+ * @returns {object|null} The WSDL description or null if not yet loaded.
+ */
+function getWsdlDescription() {
+    return wsdlDescription;
+}
+
+/**
+ * Get the last SOAP XML that was sent (for diagnostics).
+ * @returns {string|null}
+ */
+function getLastRequestXml() {
+    if (soapClient) {
+        return soapClient.lastRequest || null;
+    }
+    return null;
+}
+
+/**
  * AddData (v1.02) - Simple traffic data
  * @param {object} data
- * @param {string} data.deviceCode - 4-digit device code
- * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
- * @param {number} data.totalCount - Total vehicles in period
- * @param {number} data.avgSpeed   - Average speed in period
+ * @param {string} data.deviceCode     - Device/station code
+ * @param {string} data.startDateTime  - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.endDateTime    - Period end "YYYY-MM-DDTHH:mm:ss"
+ * @param {number} data.totalCount     - Total vehicles in period
+ * @param {number} data.avgSpeed       - Average speed in period
  */
 function sendAddData(data, callback) {
     ensureClient(function (err) {
@@ -86,7 +138,8 @@ function sendAddData(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            StartDateTime: data.startDateTime,
+            EndDateTime: data.endDateTime,
             Count: data.totalCount,
             Speed: Math.round(data.avgSpeed)
         };
@@ -94,13 +147,17 @@ function sendAddData(data, callback) {
         console.log("[RMTO] AddData request:", JSON.stringify(args));
 
         soapClient.AddData(args, function (err, result) {
+            var lastXml = soapClient.lastRequest;
+            if (lastXml) {
+                console.log("[RMTO] AddData SOAP XML sent:\n" + lastXml);
+            }
             if (err) {
                 console.error("[RMTO] AddData error:", err.message);
-                return callback(err, null);
+                return callback(err, null, lastXml);
             }
             var response = result && result.AddDataResult;
             console.log("[RMTO] AddData response:", response);
-            callback(null, response);
+            callback(null, response, lastXml);
         });
     });
 }
@@ -109,7 +166,8 @@ function sendAddData(data, callback) {
  * AddData5 (v1.01) - 5-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.startDateTime  - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.endDateTime    - Period end "YYYY-MM-DDTHH:mm:ss"
  * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
  * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
  * @param {number} data.violations
@@ -124,7 +182,8 @@ function sendAddData5(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            StartDateTime: data.startDateTime,
+            EndDateTime: data.endDateTime,
             // 5 volume classes
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
@@ -145,13 +204,17 @@ function sendAddData5(data, callback) {
         console.log("[RMTO] AddData5 request:", JSON.stringify(args));
 
         soapClient.AddData5(args, function (err, result) {
+            var lastXml = soapClient.lastRequest;
+            if (lastXml) {
+                console.log("[RMTO] AddData5 SOAP XML sent:\n" + lastXml);
+            }
             if (err) {
                 console.error("[RMTO] AddData5 error:", err.message);
-                return callback(err, null);
+                return callback(err, null, lastXml);
             }
             var response = result && result.AddData5Result;
             console.log("[RMTO] AddData5 response:", response);
-            callback(null, response);
+            callback(null, response, lastXml);
         });
     });
 }
@@ -160,7 +223,8 @@ function sendAddData5(data, callback) {
  * AddData8 (v1.00) - 8-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.startDateTime  - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.endDateTime    - Period end "YYYY-MM-DDTHH:mm:ss"
  * @param {number} data.class1Count .. data.class8Count
  * @param {number} data.speed1Count .. data.speed8Count
  * @param {number} data.violations
@@ -175,7 +239,8 @@ function sendAddData8(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            StartDateTime: data.startDateTime,
+            EndDateTime: data.endDateTime,
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
             C3: data.class3Count || 0,
@@ -199,13 +264,17 @@ function sendAddData8(data, callback) {
         console.log("[RMTO] AddData8 request:", JSON.stringify(args));
 
         soapClient.AddData8(args, function (err, result) {
+            var lastXml = soapClient.lastRequest;
+            if (lastXml) {
+                console.log("[RMTO] AddData8 SOAP XML sent:\n" + lastXml);
+            }
             if (err) {
                 console.error("[RMTO] AddData8 error:", err.message);
-                return callback(err, null);
+                return callback(err, null, lastXml);
             }
             var response = result && result.AddData8Result;
             console.log("[RMTO] AddData8 response:", response);
-            callback(null, response);
+            callback(null, response, lastXml);
         });
     });
 }
@@ -220,5 +289,7 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    sendAddData8: sendAddData8
+    sendAddData8: sendAddData8,
+    getWsdlDescription: getWsdlDescription,
+    getLastRequestXml: getLastRequestXml
 };
