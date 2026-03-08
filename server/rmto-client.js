@@ -106,51 +106,75 @@ function sendAddData(data, callback) {
 }
 
 /**
- * AddData5 (v1.01) - 5-class traffic data
+ * AddData5 → RMTO "Add5" method (v1.01) - 5-class traffic data
+ *
+ * Expected SOAP body by RMTO:
+ *   <Add5 xmlns="ITS">
+ *     <CID>companyId</CID> <UID>user</UID> <PWD>pass</PWD>
+ *     <FID>0</FID> <RID>routeId</RID>
+ *     <ST>startTime</ST> <ET>endTime</ET>
+ *     <C1>..</C1> <C2>..</C2> <C3>..</C3> <C4>..</C4> <C5>..</C5>
+ *     <ASP>avgSpeed</ASP>
+ *     <S1>..</S1> <S2>..</S2> <S3>..</S3> <S4>..</S4> <S5>..</S5>
+ *     <SSO>totalViolations</SSO>
+ *     <SO1>..</SO1> <SO2>..</SO2> <SO3>..</SO3> <SO4>..</SO4> <SO5 xsi:nil="true"/>
+ *     <OO>overtaking</OO> <ESD>tooClose</ESD>
+ *   </Add5>
+ *
  * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
- * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
- * @param {number} data.violations
- * @param {number} data.avgSpeed
+ * @param {string} data.RID        - Route ID (mehvar code, e.g. "102030")
+ * @param {string} data.ST         - Start time "YYYY-MM-DDTHH:mm:00"
+ * @param {string} data.ET         - End time "YYYY-MM-DDTHH:mm:00"
+ * @param {number} data.C1..C5     - Vehicle counts by class
+ * @param {number} data.ASP        - Average speed (all classes)
+ * @param {number} data.S1..S5     - Average speed per class
+ * @param {number} data.SSO        - Total speed violations
+ * @param {number} data.SO1..SO5   - Speed violations per class (SO5 can be null)
+ * @param {number} data.OO         - Overtaking count
+ * @param {number} data.ESD        - Too-close (headway) count
  */
 function sendAddData5(data, callback) {
     ensureClient(function (err) {
         if (err) return callback(err);
 
         var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            // 5 volume classes
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            // 5 speed classes
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            // Violation & speed
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
+            CID: parseInt(COMPANY_CODE) || 0,
+            UID: USERNAME,
+            PWD: PASSWORD,
+            FID: 0,
+            RID: parseInt(data.RID) || 0,
+            ST: data.ST,
+            ET: data.ET,
+            C1: data.C1 || 0,
+            C2: data.C2 || 0,
+            C3: data.C3 || 0,
+            C4: data.C4 || 0,
+            C5: data.C5 || 0,
+            ASP: data.ASP || 0,
+            S1: data.S1 || 0,
+            S2: data.S2 || 0,
+            S3: data.S3 || 0,
+            S4: data.S4 || 0,
+            S5: data.S5 || 0,
+            SSO: data.SSO || 0,
+            SO1: data.SO1 || 0,
+            SO2: data.SO2 || 0,
+            SO3: data.SO3 || 0,
+            SO4: data.SO4 || 0,
+            SO5: data.SO5 != null ? data.SO5 : null,
+            OO: data.OO || 0,
+            ESD: data.ESD || 0
         };
 
-        console.log("[RMTO] AddData5 request:", JSON.stringify(args));
+        console.log("[RMTO] Add5 request:", JSON.stringify(args));
 
-        soapClient.AddData5(args, function (err, result) {
+        soapClient.Add5(args, function (err, result) {
             if (err) {
-                console.error("[RMTO] AddData5 error:", err.message);
+                console.error("[RMTO] Add5 error:", err.message);
                 return callback(err, null);
             }
-            var response = result && result.AddData5Result;
-            console.log("[RMTO] AddData5 response:", response);
+            var response = result && result.Add5Result;
+            console.log("[RMTO] Add5 response:", response);
             callback(null, response);
         });
     });

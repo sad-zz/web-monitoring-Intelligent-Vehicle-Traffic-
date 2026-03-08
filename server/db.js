@@ -59,23 +59,33 @@ db.exec([
     "CREATE TABLE IF NOT EXISTS rmto_queue_5class (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
     "  device_code TEXT NOT NULL,",
+    "  route_id TEXT,",
     "  period_start TEXT NOT NULL,",
     "  period_end TEXT NOT NULL,",
-    "  -- Volume classes (5 classes by vehicle size)",
-    "  class1_count INTEGER DEFAULT 0,",
-    "  class2_count INTEGER DEFAULT 0,",
-    "  class3_count INTEGER DEFAULT 0,",
-    "  class4_count INTEGER DEFAULT 0,",
-    "  class5_count INTEGER DEFAULT 0,",
-    "  -- Speed classes (5 classes by speed range)",
-    "  speed1_count INTEGER DEFAULT 0,",
-    "  speed2_count INTEGER DEFAULT 0,",
-    "  speed3_count INTEGER DEFAULT 0,",
-    "  speed4_count INTEGER DEFAULT 0,",
-    "  speed5_count INTEGER DEFAULT 0,",
-    "  -- Violation count",
-    "  violations INTEGER DEFAULT 0,",
+    "  -- Volume classes (C1-C5: by vehicle size)",
+    "  c1 INTEGER DEFAULT 0,",
+    "  c2 INTEGER DEFAULT 0,",
+    "  c3 INTEGER DEFAULT 0,",
+    "  c4 INTEGER DEFAULT 0,",
+    "  c5 INTEGER DEFAULT 0,",
+    "  -- Average speed overall (ASP)",
     "  avg_speed REAL DEFAULT 0,",
+    "  -- Average speed per class (S1-S5)",
+    "  s1 REAL DEFAULT 0,",
+    "  s2 REAL DEFAULT 0,",
+    "  s3 REAL DEFAULT 0,",
+    "  s4 REAL DEFAULT 0,",
+    "  s5 REAL DEFAULT 0,",
+    "  -- Speed violations total (SSO) and per class (SO1-SO5)",
+    "  sso INTEGER DEFAULT 0,",
+    "  so1 INTEGER DEFAULT 0,",
+    "  so2 INTEGER DEFAULT 0,",
+    "  so3 INTEGER DEFAULT 0,",
+    "  so4 INTEGER DEFAULT 0,",
+    "  so5 INTEGER,",
+    "  -- Overtaking (OO) and too-close/headway (ESD)",
+    "  oo INTEGER DEFAULT 0,",
+    "  esd INTEGER DEFAULT 0,",
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
@@ -181,6 +191,37 @@ db.exec([
     "  value TEXT",
     ");"
 ].join("\n"));
+
+// Migration: if rmto_queue_5class has old column names, recreate it
+try {
+    var cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
+    var colNames = cols.map(function(c) { return c.name; });
+    if (colNames.indexOf("class1_count") !== -1) {
+        console.log("[DB] Migrating rmto_queue_5class to new RMTO Add5 format...");
+        db.exec("DROP TABLE IF EXISTS rmto_queue_5class");
+        db.exec([
+            "CREATE TABLE rmto_queue_5class (",
+            "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
+            "  device_code TEXT NOT NULL,",
+            "  route_id TEXT,",
+            "  period_start TEXT NOT NULL,",
+            "  period_end TEXT NOT NULL,",
+            "  c1 INTEGER DEFAULT 0, c2 INTEGER DEFAULT 0, c3 INTEGER DEFAULT 0, c4 INTEGER DEFAULT 0, c5 INTEGER DEFAULT 0,",
+            "  avg_speed REAL DEFAULT 0,",
+            "  s1 REAL DEFAULT 0, s2 REAL DEFAULT 0, s3 REAL DEFAULT 0, s4 REAL DEFAULT 0, s5 REAL DEFAULT 0,",
+            "  sso INTEGER DEFAULT 0,",
+            "  so1 INTEGER DEFAULT 0, so2 INTEGER DEFAULT 0, so3 INTEGER DEFAULT 0, so4 INTEGER DEFAULT 0, so5 INTEGER,",
+            "  oo INTEGER DEFAULT 0, esd INTEGER DEFAULT 0,",
+            "  sent INTEGER DEFAULT 0, sent_at TEXT, rmto_response TEXT,",
+            "  created_at TEXT DEFAULT (datetime('now','localtime'))",
+            ")"
+        ].join("\n"));
+        db.exec("CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code)");
+        console.log("[DB] rmto_queue_5class migrated successfully");
+    }
+} catch(e) {
+    // Table doesn't exist yet - will be created by schema above
+}
 
 // Insert default settings if not exists
 var defaultSettings = {

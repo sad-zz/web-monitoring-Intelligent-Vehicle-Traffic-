@@ -49,66 +49,70 @@ function aggregateAndSend() {
         var code = dev.device_code;
 
         // Aggregate from irawdata table (where TCP/HTTP device data is stored)
-        // This is the correct source - TCP RATCX1 data only goes to irawdata
         var iraw = db.prepare(
             "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
             "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
-            "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo " +
+            "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo, " +
+            "SUM(overtaking) as overtaking, SUM(tooclose) as tooclose " +
             "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0"
         ).get(code, startStr, endStr);
 
         if (!iraw) return;
-        var totalVehicles = (iraw.a||0) + (iraw.b||0) + (iraw.c||0) + (iraw.d||0) + (iraw.e||0) + (iraw.x||0);
+        // RMTO class mapping: C1=a(motorcycle) C2=b(car) C3=c(van) C4=d(bus) C5=e+x(truck+other)
+        var c1 = iraw.a||0, c2 = iraw.b||0, c3 = iraw.c||0, c4 = iraw.d||0, c5 = (iraw.e||0) + (iraw.x||0);
+        var totalVehicles = c1 + c2 + c3 + c4 + c5;
         if (totalVehicles === 0) return;
 
-        var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
-        var avgSpeed = totalVehicles > 0 ? totalSpeedSum / totalVehicles : 0;
-        var violations = (iraw.sao||0) + (iraw.sbo||0) + (iraw.sco||0) + (iraw.sdo||0) + (iraw.seo||0) + (iraw.sxo||0);
+        // Average speed per class: sa/sb/sc/sd/se/sx are SUM(avgSpeed * count) in irawdata
+        // So per-class average = sa / a (speed-sum / count)
+        var s1 = c1 > 0 ? Math.round((iraw.sa||0) / c1) : 0;
+        var s2 = c2 > 0 ? Math.round((iraw.sb||0) / c2) : 0;
+        var s3 = c3 > 0 ? Math.round((iraw.sc||0) / c3) : 0;
+        var s4 = c4 > 0 ? Math.round((iraw.sd||0) / c4) : 0;
+        var c5count = (iraw.e||0) + (iraw.x||0);
+        var s5 = c5count > 0 ? Math.round(((iraw.se||0) + (iraw.sx_sum||0)) / c5count) : 0;
 
-        // Compute speed class distribution from per-class averages
-        // Speed ranges: S1(<60) S2(60-80) S3(80-100) S4(100-120) S5(>120)
-        var s1 = 0, s2 = 0, s3 = 0, s4 = 0, s5 = 0;
-        var classes = [
-            { n: iraw.a||0, s: iraw.sa||0 },
-            { n: iraw.b||0, s: iraw.sb||0 },
-            { n: iraw.c||0, s: iraw.sc||0 },
-            { n: iraw.d||0, s: iraw.sd||0 },
-            { n: iraw.e||0, s: iraw.se||0 },
-            { n: iraw.x||0, s: iraw.sx_sum||0 }
-        ];
-        classes.forEach(function (c) {
-            if (c.n === 0) return;
-            var avg = c.s / c.n;
-            if (avg < 60) s1 += c.n;
-            else if (avg < 80) s2 += c.n;
-            else if (avg < 100) s3 += c.n;
-            else if (avg < 120) s4 += c.n;
-            else s5 += c.n;
-        });
+        // Overall average speed (ASP)
+        var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
+        var avgSpeed = Math.round(totalSpeedSum / totalVehicles);
+
+        // Speed violations per class (SO1-SO4, SO5 = null for 5-class)
+        var so1 = iraw.sao||0;
+        var so2 = iraw.sbo||0;
+        var so3 = iraw.sco||0;
+        var so4 = iraw.sdo||0;
+        var so5 = null; // RMTO expects SO5 xsi:nil="true" for 5-class mode
+        var sso = so1 + so2 + so3 + so4 + (iraw.seo||0) + (iraw.sxo||0); // total violations
+
+        // Overtaking (OO) and too-close/headway (ESD)
+        var oo = iraw.overtaking||0;
+        var esd = iraw.tooclose||0;
+
+        // Find route_id (mehvar code) for this device
+        var devInfo = db.prepare("SELECT route FROM devices WHERE device_code = ?").get(code);
+        var routeId = (devInfo && devInfo.route) || code;
 
         // Insert into simple queue (AddData)
         db.prepare(
             "INSERT INTO rmto_queue (device_code, period_start, period_end, total_vehicles, avg_speed) " +
             "VALUES (?, ?, ?, ?, ?)"
-        ).run(code, startStr, endStr, totalVehicles, Math.round(avgSpeed));
+        ).run(code, startStr, endStr, totalVehicles, avgSpeed);
 
-        // Insert into 5-class queue (AddData5)
-        // Classes: a=motorcycle(C1) b=car(C2) c=van(C3) d=bus(C4) e+x=truck(C5)
+        // Insert into 5-class queue (Add5)
         db.prepare(
-            "INSERT INTO rmto_queue_5class (device_code, period_start, period_end, " +
-            "class1_count, class2_count, class3_count, class4_count, class5_count, " +
-            "speed1_count, speed2_count, speed3_count, speed4_count, speed5_count, " +
-            "violations, avg_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(code, startStr, endStr,
-            iraw.a||0, iraw.b||0, iraw.c||0, iraw.d||0, (iraw.e||0) + (iraw.x||0),
-            s1, s2, s3, s4, s5,
-            violations, Math.round(avgSpeed));
+            "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
+            "sso, so1, so2, so3, so4, so5, oo, esd) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).run(code, routeId, startStr, endStr,
+            c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
+            sso, so1, so2, so3, so4, so5, oo, esd);
 
         // Mark irawdata records as read so they won't be aggregated again
         db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ?")
             .run(code, startStr, endStr);
 
-        console.log("[Scheduler] Aggregated device " + code + ": " + totalVehicles + " vehicles, avg " + Math.round(avgSpeed) + " km/h");
+        console.log("[Scheduler] Aggregated device " + code + " (route " + routeId + "): " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd);
     });
 
     // Now send unsent records
@@ -181,23 +185,17 @@ function sendUnsentData(onComplete) {
     });
 
     unsent5.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
-
         rmto.sendAddData5({
-            deviceCode: row.device_code,
-            dateTime: dt,
-            class1Count: row.class1_count,
-            class2Count: row.class2_count,
-            class3Count: row.class3_count,
-            class4Count: row.class4_count,
-            class5Count: row.class5_count,
-            speed1Count: row.speed1_count,
-            speed2Count: row.speed2_count,
-            speed3Count: row.speed3_count,
-            speed4Count: row.speed4_count,
-            speed5Count: row.speed5_count,
-            violations: row.violations,
-            avgSpeed: row.avg_speed
+            RID: row.route_id || row.device_code,
+            ST: row.period_start,
+            ET: row.period_end,
+            C1: row.c1, C2: row.c2, C3: row.c3, C4: row.c4, C5: row.c5,
+            ASP: Math.round(row.avg_speed),
+            S1: row.s1, S2: row.s2, S3: row.s3, S4: row.s4, S5: row.s5,
+            SSO: row.sso,
+            SO1: row.so1, SO2: row.so2, SO3: row.so3, SO4: row.so4, SO5: row.so5,
+            OO: row.oo,
+            ESD: row.esd
         }, function (err, response) {
             var success = !err && response;
             var responseStr = JSON.stringify(response || (err && err.message));
@@ -208,7 +206,7 @@ function sendUnsentData(onComplete) {
             db.prepare(
                 "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
                 "VALUES (?, ?, ?, ?, ?, ?)"
-            ).run("AddData5", row.device_code, JSON.stringify(row),
+            ).run("Add5", row.device_code, JSON.stringify(row),
                 JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
 
             if (success) {
@@ -216,7 +214,7 @@ function sendUnsentData(onComplete) {
             } else {
                 results.failed++;
                 results.errors.push({
-                    method: "AddData5",
+                    method: "Add5",
                     device_code: row.device_code,
                     error: err ? err.message : "پاسخ خالی از RMTO",
                     response: responseStr
