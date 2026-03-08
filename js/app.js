@@ -690,6 +690,15 @@
             try { reqData = JSON.stringify(JSON.parse(data.request_data), null, 2); } catch (e) { reqData = data.request_data || "-"; }
             try { respData = JSON.stringify(JSON.parse(data.response_data), null, 2); } catch (e) { respData = data.response_data || "-"; }
 
+            var soapXmlHtml = "";
+            if (data.soap_xml) {
+                soapXmlHtml =
+                    '<div style="margin-top:12px">' +
+                        '<strong>SOAP XML ارسالی:</strong>' +
+                        '<pre dir="ltr" style="margin:6px 0 0;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:250px;overflow-y:auto;font-family:monospace">' + escapeHtml(data.soap_xml) + '</pre>' +
+                    '</div>';
+            }
+
             $("#modal-title").textContent = "جزئیات ارسال سامانه - " + data.method;
             $("#modal-body").innerHTML =
                 '<div style="margin-bottom:16px">' +
@@ -713,7 +722,8 @@
                 '<div>' +
                     '<strong>پاسخ RMTO (Response):</strong>' +
                     '<pre dir="ltr" style="margin:6px 0 0;background:' + (ok ? '#f0fdf4' : '#fef2f2') + ';border:1px solid ' + (ok ? '#bbf7d0' : '#fecaca') + ';border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-all;font-size:12px;max-height:200px;overflow-y:auto;font-family:monospace">' + escapeHtml(respData) + '</pre>' +
-                '</div>';
+                '</div>' +
+                soapXmlHtml;
             $("#modal-overlay").classList.add("active");
         });
     }
@@ -785,6 +795,40 @@
 
     var rmtoRefreshBtn = $("#btn-rmto-refresh");
     if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
+
+    // WSDL Info button
+    var wsdlInfoBtn = $("#btn-rmto-wsdl-info");
+    if (wsdlInfoBtn) wsdlInfoBtn.addEventListener("click", function () {
+        api("GET", "/api/rmto/wsdl-info", null, function (status, data) {
+            if (status !== 200 || !data) { alert("خطا در بارگذاری اطلاعات"); return; }
+            var content;
+            if (!data.loaded) {
+                content = '<p style="color:#f59e0b">' + escapeHtml(data.message) + '</p>';
+            } else {
+                content = '<pre dir="ltr" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:400px;overflow-y:auto;font-family:monospace">' + escapeHtml(JSON.stringify(data.description, null, 2)) + '</pre>';
+            }
+            $("#modal-title").textContent = "اطلاعات WSDL سامانه";
+            $("#modal-body").innerHTML = content;
+            $("#modal-overlay").classList.add("active");
+        });
+    });
+
+    // Last XML button
+    var lastXmlBtn = $("#btn-rmto-last-xml");
+    if (lastXmlBtn) lastXmlBtn.addEventListener("click", function () {
+        api("GET", "/api/rmto/last-xml", null, function (status, data) {
+            if (status !== 200 || !data) { alert("خطا در بارگذاری اطلاعات"); return; }
+            var content;
+            if (!data.available) {
+                content = '<p style="color:#f59e0b">' + escapeHtml(data.message) + '</p>';
+            } else {
+                content = '<pre dir="ltr" style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:400px;overflow-y:auto;font-family:monospace">' + escapeHtml(data.xml) + '</pre>';
+            }
+            $("#modal-title").textContent = "آخرین SOAP XML ارسالی";
+            $("#modal-body").innerHTML = content;
+            $("#modal-overlay").classList.add("active");
+        });
+    });
 
     // Monitor filter
     var rmtoFilterEl = $("#rmto-log-filter");
