@@ -143,7 +143,7 @@ function initClient(callback) {
 function sendAddData(data, callback) {
     ensureClient(function (err) {
         if (err) return callback(err);
-        var args = { CompanyCode: COMPANY_CODE, UserName: USERNAME, Password: PASSWORD, StationCode: data.deviceCode, DateTime: data.dateTime, Count: data.totalCount, Speed: Math.round(data.avgSpeed) };
+        var args = { CompanyCode: COMPANY_CODE, UserName: USERNAME, Password: PASSWORD, StationCode: data.deviceCode, Direction: data.direction||0, StartDateTime: data.startDateTime, StopDateTime: data.stopDateTime, Count: data.totalCount, Speed: Math.round(data.avgSpeed) };
         console.log("[RMTO] AddData request:", JSON.stringify(args));
         soapClient.AddData(args, function (err, result) {
             if (err) { console.error("[RMTO] AddData error:", err.message); return callback(err, null); }
@@ -157,7 +157,7 @@ function sendAddData(data, callback) {
 function sendAddData5(data, callback) {
     ensureClient(function (err) {
         if (err) return callback(err);
-        var args = { CompanyCode: COMPANY_CODE, UserName: USERNAME, Password: PASSWORD, StationCode: data.deviceCode, DateTime: data.dateTime, C1: data.class1Count||0, C2: data.class2Count||0, C3: data.class3Count||0, C4: data.class4Count||0, C5: data.class5Count||0, S1: data.speed1Count||0, S2: data.speed2Count||0, S3: data.speed3Count||0, S4: data.speed4Count||0, S5: data.speed5Count||0, Violation: data.violations||0, Speed: Math.round(data.avgSpeed||0) };
+        var args = { CompanyCode: COMPANY_CODE, UserName: USERNAME, Password: PASSWORD, StationCode: data.deviceCode, Direction: data.direction||0, StartDateTime: data.startDateTime, StopDateTime: data.stopDateTime, C1: data.class1Count||0, C2: data.class2Count||0, C3: data.class3Count||0, C4: data.class4Count||0, C5: data.class5Count||0, S1: data.speed1Count||0, S2: data.speed2Count||0, S3: data.speed3Count||0, S4: data.speed4Count||0, S5: data.speed5Count||0, Violation: data.violations||0, O3: data.o3||0, Speed: Math.round(data.avgSpeed||0) };
         console.log("[RMTO] AddData5 request:", JSON.stringify(args));
         soapClient.AddData5(args, function (err, result) {
             if (err) { console.error("[RMTO] AddData5 error:", err.message); return callback(err, null); }
@@ -171,7 +171,7 @@ function sendAddData5(data, callback) {
 function sendAddData8(data, callback) {
     ensureClient(function (err) {
         if (err) return callback(err);
-        var args = { CompanyCode: COMPANY_CODE, UserName: USERNAME, Password: PASSWORD, StationCode: data.deviceCode, DateTime: data.dateTime, C1: data.class1Count||0, C2: data.class2Count||0, C3: data.class3Count||0, C4: data.class4Count||0, C5: data.class5Count||0, C6: data.class6Count||0, C7: data.class7Count||0, C8: data.class8Count||0, S1: data.speed1Count||0, S2: data.speed2Count||0, S3: data.speed3Count||0, S4: data.speed4Count||0, S5: data.speed5Count||0, S6: data.speed6Count||0, S7: data.speed7Count||0, S8: data.speed8Count||0, Violation: data.violations||0, Speed: Math.round(data.avgSpeed||0) };
+        var args = { CompanyCode: COMPANY_CODE, UserName: USERNAME, Password: PASSWORD, StationCode: data.deviceCode, Direction: data.direction||0, StartDateTime: data.startDateTime, StopDateTime: data.stopDateTime, C1: data.class1Count||0, C2: data.class2Count||0, C3: data.class3Count||0, C4: data.class4Count||0, C5: data.class5Count||0, C6: data.class6Count||0, C7: data.class7Count||0, C8: data.class8Count||0, S1: data.speed1Count||0, S2: data.speed2Count||0, S3: data.speed3Count||0, S4: data.speed4Count||0, S5: data.speed5Count||0, S6: data.speed6Count||0, S7: data.speed7Count||0, S8: data.speed8Count||0, Violation: data.violations||0, O3: data.o3||0, Speed: Math.round(data.avgSpeed||0) };
         console.log("[RMTO] AddData8 request:", JSON.stringify(args));
         soapClient.AddData8(args, function (err, result) {
             if (err) { console.error("[RMTO] AddData8 error:", err.message); return callback(err, null); }
@@ -233,8 +233,9 @@ function aggregateAndSend() {
 function sendUnsentData() {
     var unsent = db.prepare("SELECT * FROM rmto_queue WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
     unsent.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
-        rmto.sendAddData({ deviceCode: row.device_code, dateTime: dt, totalCount: row.total_vehicles, avgSpeed: row.avg_speed }, function (err, response) {
+        var startDt = formatDateTime(row.period_start);
+        var stopDt = formatDateTime(row.period_end);
+        rmto.sendAddData({ deviceCode: row.device_code, startDateTime: startDt, stopDateTime: stopDt, direction: 0, totalCount: row.total_vehicles, avgSpeed: row.avg_speed }, function (err, response) {
             var success = !err && response;
             db.prepare("UPDATE rmto_queue SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?").run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
             db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) VALUES (?, ?, ?, ?, ?, ?)").run("AddData", row.device_code, JSON.stringify(row), JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
@@ -242,8 +243,9 @@ function sendUnsentData() {
     });
     var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
     unsent5.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
-        rmto.sendAddData5({ deviceCode: row.device_code, dateTime: dt, class1Count: row.class1_count, class2Count: row.class2_count, class3Count: row.class3_count, class4Count: row.class4_count, class5Count: row.class5_count, speed1Count: row.speed1_count, speed2Count: row.speed2_count, speed3Count: row.speed3_count, speed4Count: row.speed4_count, speed5Count: row.speed5_count, violations: row.violations, avgSpeed: row.avg_speed }, function (err, response) {
+        var startDt = formatDateTime(row.period_start);
+        var stopDt = formatDateTime(row.period_end);
+        rmto.sendAddData5({ deviceCode: row.device_code, startDateTime: startDt, stopDateTime: stopDt, direction: 0, class1Count: row.class1_count, class2Count: row.class2_count, class3Count: row.class3_count, class4Count: row.class4_count, class5Count: row.class5_count, speed1Count: row.speed1_count, speed2Count: row.speed2_count, speed3Count: row.speed3_count, speed4Count: row.speed4_count, speed5Count: row.speed5_count, violations: row.violations, o3: 0, avgSpeed: row.avg_speed }, function (err, response) {
             var success = !err && response;
             db.prepare("UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?").run(success ? 1 : 0, JSON.stringify(response || (err && err.message)), row.id);
             db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) VALUES (?, ?, ?, ?, ?, ?)").run("AddData5", row.device_code, JSON.stringify(row), JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
@@ -258,7 +260,8 @@ function formatDateTime(isoStr) {
     var dy = String(d.getDate()).padStart(2, "0");
     var h = String(d.getHours()).padStart(2, "0");
     var mn = String(d.getMinutes()).padStart(2, "0");
-    return y + "/" + m + "/" + dy + " " + h + ":" + mn;
+    var sc = String(d.getSeconds()).padStart(2, "0");
+    return y + "-" + m + "-" + dy + "T" + h + ":" + mn + ":" + sc;
 }
 
 function start() {

@@ -145,11 +145,14 @@ function sendUnsentData(onComplete) {
     }
 
     unsent.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
+        var startDt = formatDateTime(row.period_start);
+        var stopDt = formatDateTime(row.period_end);
 
         rmto.sendAddData({
             deviceCode: row.device_code,
-            dateTime: dt,
+            startDateTime: startDt,
+            stopDateTime: stopDt,
+            direction: 0,
             totalCount: row.total_vehicles,
             avgSpeed: row.avg_speed
         }, function (err, response) {
@@ -181,11 +184,14 @@ function sendUnsentData(onComplete) {
     });
 
     unsent5.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
+        var startDt = formatDateTime(row.period_start);
+        var stopDt = formatDateTime(row.period_end);
 
         rmto.sendAddData5({
             deviceCode: row.device_code,
-            dateTime: dt,
+            startDateTime: startDt,
+            stopDateTime: stopDt,
+            direction: 0,
             class1Count: row.class1_count,
             class2Count: row.class2_count,
             class3Count: row.class3_count,
@@ -197,6 +203,7 @@ function sendUnsentData(onComplete) {
             speed4Count: row.speed4_count,
             speed5Count: row.speed5_count,
             violations: row.violations,
+            o3: 0,
             avgSpeed: row.avg_speed
         }, function (err, response) {
             var success = !err && response;
@@ -228,7 +235,7 @@ function sendUnsentData(onComplete) {
 }
 
 /**
- * Format ISO date to RMTO format: "YYYY/MM/DD HH:mm"
+ * Format ISO date to RMTO format: "YYYY-MM-DDTHH:mm:ss"
  */
 function formatDateTime(isoStr) {
     var d = new Date(isoStr);
@@ -237,7 +244,8 @@ function formatDateTime(isoStr) {
     var dy = String(d.getDate()).padStart(2, "0");
     var h = String(d.getHours()).padStart(2, "0");
     var mn = String(d.getMinutes()).padStart(2, "0");
-    return y + "/" + m + "/" + dy + " " + h + ":" + mn;
+    var sc = String(d.getSeconds()).padStart(2, "0");
+    return y + "-" + m + "-" + dy + "T" + h + ":" + mn + ":" + sc;
 }
 
 /**
