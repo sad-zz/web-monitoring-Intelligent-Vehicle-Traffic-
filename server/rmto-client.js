@@ -109,7 +109,8 @@ function sendAddData(data, callback) {
  * AddData5 (v1.01) - 5-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.dateTime1  - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.dateTime2  - Period end   "YYYY-MM-DDTHH:mm:ss"
  * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
  * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
  * @param {number} data.violations
@@ -124,7 +125,8 @@ function sendAddData5(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            DateTime1: data.dateTime1,
+            DateTime2: data.dateTime2,
             // 5 volume classes
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
@@ -160,7 +162,8 @@ function sendAddData5(data, callback) {
  * AddData8 (v1.00) - 8-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.dateTime1  - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.dateTime2  - Period end   "YYYY-MM-DDTHH:mm:ss"
  * @param {number} data.class1Count .. data.class8Count
  * @param {number} data.speed1Count .. data.speed8Count
  * @param {number} data.violations
@@ -175,7 +178,8 @@ function sendAddData8(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            DateTime1: data.dateTime1,
+            DateTime2: data.dateTime2,
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
             C3: data.class3Count || 0,

@@ -181,11 +181,13 @@ function sendUnsentData(onComplete) {
     });
 
     unsent5.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
+        var dt1 = formatDateTimeISO(row.period_start);
+        var dt2 = formatDateTimeISO(row.period_end);
 
         rmto.sendAddData5({
             deviceCode: row.device_code,
-            dateTime: dt,
+            dateTime1: dt1,
+            dateTime2: dt2,
             class1Count: row.class1_count,
             class2Count: row.class2_count,
             class3Count: row.class3_count,
@@ -229,6 +231,7 @@ function sendUnsentData(onComplete) {
 
 /**
  * Format ISO date to RMTO format: "YYYY/MM/DD HH:mm"
+ * Used by AddData (simple).
  */
 function formatDateTime(isoStr) {
     var d = new Date(isoStr);
@@ -238,6 +241,21 @@ function formatDateTime(isoStr) {
     var h = String(d.getHours()).padStart(2, "0");
     var mn = String(d.getMinutes()).padStart(2, "0");
     return y + "/" + m + "/" + dy + " " + h + ":" + mn;
+}
+
+/**
+ * Format ISO date to RMTO ISO format: "YYYY-MM-DDTHH:mm:ss"
+ * Used by AddData5 / AddData8 (DateTime1 / DateTime2).
+ */
+function formatDateTimeISO(isoStr) {
+    var d = new Date(isoStr);
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var dy = String(d.getDate()).padStart(2, "0");
+    var h = String(d.getHours()).padStart(2, "0");
+    var mn = String(d.getMinutes()).padStart(2, "0");
+    var s = String(d.getSeconds()).padStart(2, "0");
+    return y + "-" + m + "-" + dy + "T" + h + ":" + mn + ":" + s;
 }
 
 /**
