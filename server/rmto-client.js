@@ -73,7 +73,9 @@ function initClient(callback) {
  * AddData (v1.02) - Simple traffic data
  * @param {object} data
  * @param {string} data.deviceCode - 4-digit device code
- * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
+ * @param {string} data.dateTime   - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.endDateTime - Period end "YYYY-MM-DDTHH:mm:ss"
+ * @param {number} data.direction  - Traffic direction (default 0)
  * @param {number} data.totalCount - Total vehicles in period
  * @param {number} data.avgSpeed   - Average speed in period
  */
@@ -86,7 +88,9 @@ function sendAddData(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
+            Direction: data.direction || 0,
             DateTime: data.dateTime,
+            EndDateTime: data.endDateTime || data.dateTime,
             Count: data.totalCount,
             Speed: Math.round(data.avgSpeed)
         };
@@ -109,11 +113,15 @@ function sendAddData(data, callback) {
  * AddData5 (v1.01) - 5-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.dateTime     - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.endDateTime  - Period end "YYYY-MM-DDTHH:mm:ss"
+ * @param {number} data.direction    - Traffic direction (default 0)
  * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
  * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
  * @param {number} data.violations
  * @param {number} data.avgSpeed
+ * @param {number} data.overtaking   - Overtaking count (O3)
+ * @param {number} data.speed85      - 85th percentile speed
  */
 function sendAddData5(data, callback) {
     ensureClient(function (err) {
@@ -124,7 +132,9 @@ function sendAddData5(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
+            Direction: data.direction || 0,
             DateTime: data.dateTime,
+            EndDateTime: data.endDateTime || data.dateTime,
             // 5 volume classes
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
@@ -139,7 +149,9 @@ function sendAddData5(data, callback) {
             S5: data.speed5Count || 0,
             // Violation & speed
             Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
+            Speed: Math.round(data.avgSpeed || 0),
+            O3: data.overtaking || 0,
+            Speed85: Math.round(data.speed85 || 0)
         };
 
         console.log("[RMTO] AddData5 request:", JSON.stringify(args));
@@ -160,11 +172,15 @@ function sendAddData5(data, callback) {
  * AddData8 (v1.00) - 8-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.dateTime     - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.endDateTime  - Period end "YYYY-MM-DDTHH:mm:ss"
+ * @param {number} data.direction    - Traffic direction (default 0)
  * @param {number} data.class1Count .. data.class8Count
  * @param {number} data.speed1Count .. data.speed8Count
  * @param {number} data.violations
  * @param {number} data.avgSpeed
+ * @param {number} data.overtaking   - Overtaking count (O3)
+ * @param {number} data.speed85      - 85th percentile speed
  */
 function sendAddData8(data, callback) {
     ensureClient(function (err) {
@@ -175,7 +191,9 @@ function sendAddData8(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
+            Direction: data.direction || 0,
             DateTime: data.dateTime,
+            EndDateTime: data.endDateTime || data.dateTime,
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
             C3: data.class3Count || 0,
@@ -193,7 +211,9 @@ function sendAddData8(data, callback) {
             S7: data.speed7Count || 0,
             S8: data.speed8Count || 0,
             Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
+            Speed: Math.round(data.avgSpeed || 0),
+            O3: data.overtaking || 0,
+            Speed85: Math.round(data.speed85 || 0)
         };
 
         console.log("[RMTO] AddData8 request:", JSON.stringify(args));

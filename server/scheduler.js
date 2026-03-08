@@ -53,7 +53,8 @@ function aggregateAndSend() {
         var iraw = db.prepare(
             "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
             "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
-            "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo " +
+            "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo, " +
+            "SUM(overtaking) as overtaking " +
             "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0"
         ).get(code, startStr, endStr);
 
@@ -86,11 +87,34 @@ function aggregateAndSend() {
             else s5 += c.n;
         });
 
+        // Compute 85th percentile speed from speed class distribution
+        var speed85 = 0;
+        var threshold85 = 0.85 * totalVehicles;
+        var speedRanges = [
+            { low: 0, high: 60, count: s1 },
+            { low: 60, high: 80, count: s2 },
+            { low: 80, high: 100, count: s3 },
+            { low: 100, high: 120, count: s4 },
+            { low: 120, high: 160, count: s5 }
+        ];
+        var cumSum = 0;
+        for (var i = 0; i < speedRanges.length; i++) {
+            cumSum += speedRanges[i].count;
+            if (cumSum >= threshold85 && speedRanges[i].count > 0) {
+                var prevCum = cumSum - speedRanges[i].count;
+                var fraction = (threshold85 - prevCum) / speedRanges[i].count;
+                speed85 = Math.round(speedRanges[i].low + fraction * (speedRanges[i].high - speedRanges[i].low));
+                break;
+            }
+        }
+
+        var overtakingCount = iraw.overtaking || 0;
+
         // Insert into simple queue (AddData)
         db.prepare(
-            "INSERT INTO rmto_queue (device_code, period_start, period_end, total_vehicles, avg_speed) " +
-            "VALUES (?, ?, ?, ?, ?)"
-        ).run(code, startStr, endStr, totalVehicles, Math.round(avgSpeed));
+            "INSERT INTO rmto_queue (device_code, period_start, period_end, total_vehicles, avg_speed, overtaking_count, speed85) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).run(code, startStr, endStr, totalVehicles, Math.round(avgSpeed), overtakingCount, speed85);
 
         // Insert into 5-class queue (AddData5)
         // Classes: a=motorcycle(C1) b=car(C2) c=van(C3) d=bus(C4) e+x=truck(C5)
@@ -98,11 +122,11 @@ function aggregateAndSend() {
             "INSERT INTO rmto_queue_5class (device_code, period_start, period_end, " +
             "class1_count, class2_count, class3_count, class4_count, class5_count, " +
             "speed1_count, speed2_count, speed3_count, speed4_count, speed5_count, " +
-            "violations, avg_speed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "violations, avg_speed, overtaking_count, speed85) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         ).run(code, startStr, endStr,
             iraw.a||0, iraw.b||0, iraw.c||0, iraw.d||0, (iraw.e||0) + (iraw.x||0),
             s1, s2, s3, s4, s5,
-            violations, Math.round(avgSpeed));
+            violations, Math.round(avgSpeed), overtakingCount, speed85);
 
         // Mark irawdata records as read so they won't be aggregated again
         db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ?")
@@ -146,10 +170,13 @@ function sendUnsentData(onComplete) {
 
     unsent.forEach(function (row) {
         var dt = formatDateTime(row.period_start);
+        var endDt = formatDateTime(row.period_end);
 
         rmto.sendAddData({
             deviceCode: row.device_code,
             dateTime: dt,
+            endDateTime: endDt,
+            direction: row.direction || 0,
             totalCount: row.total_vehicles,
             avgSpeed: row.avg_speed
         }, function (err, response) {
@@ -182,10 +209,13 @@ function sendUnsentData(onComplete) {
 
     unsent5.forEach(function (row) {
         var dt = formatDateTime(row.period_start);
+        var endDt = formatDateTime(row.period_end);
 
         rmto.sendAddData5({
             deviceCode: row.device_code,
             dateTime: dt,
+            endDateTime: endDt,
+            direction: row.direction || 0,
             class1Count: row.class1_count,
             class2Count: row.class2_count,
             class3Count: row.class3_count,
@@ -197,7 +227,9 @@ function sendUnsentData(onComplete) {
             speed4Count: row.speed4_count,
             speed5Count: row.speed5_count,
             violations: row.violations,
-            avgSpeed: row.avg_speed
+            avgSpeed: row.avg_speed,
+            overtaking: row.overtaking_count || 0,
+            speed85: row.speed85 || 0
         }, function (err, response) {
             var success = !err && response;
             var responseStr = JSON.stringify(response || (err && err.message));
@@ -228,7 +260,7 @@ function sendUnsentData(onComplete) {
 }
 
 /**
- * Format ISO date to RMTO format: "YYYY/MM/DD HH:mm"
+ * Format ISO date to RMTO format: "YYYY-MM-DDTHH:mm:ss"
  */
 function formatDateTime(isoStr) {
     var d = new Date(isoStr);
@@ -237,7 +269,8 @@ function formatDateTime(isoStr) {
     var dy = String(d.getDate()).padStart(2, "0");
     var h = String(d.getHours()).padStart(2, "0");
     var mn = String(d.getMinutes()).padStart(2, "0");
-    return y + "/" + m + "/" + dy + " " + h + ":" + mn;
+    var s = String(d.getSeconds()).padStart(2, "0");
+    return y + "-" + m + "-" + dy + "T" + h + ":" + mn + ":" + s;
 }
 
 /**
