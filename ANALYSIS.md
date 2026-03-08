@@ -163,8 +163,60 @@ device_code | period_start | period_end | counts... | avg_speed | sent | sent_at
 ## RMTO Integration
 
 **WSDL:** `http://otf.rmto.ir/Companies/Companies.asmx?WSDL`
+**Namespace:** `xmlns="ITS"`
 **Company Code:** 58
 **Methods:** AddData (simple), AddData5 (5-class), AddData8 (8-class)
+
+### SOAP Request Format (AddData5 example)
+```xml
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <AddData5 xmlns="ITS">
+      <CompanyCode>58</CompanyCode>
+      <UserName>USERNAME</UserName>
+      <Password>PASSWORD</Password>
+      <StationCode>0102</StationCode>
+      <Direction>0</Direction>
+      <StartDateTime>2026-02-24T14:45:00</StartDateTime>
+      <StopDateTime>2026-02-24T15:00:00</StopDateTime>
+      <C1>5</C1>
+      <C2>20</C2>
+      <C3>8</C3>
+      <C4>2</C4>
+      <C5>4</C5>
+      <S1>10</S1>
+      <S2>15</S2>
+      <S3>8</S3>
+      <S4>4</S4>
+      <S5>2</S5>
+      <Violation>6</Violation>
+      <O3>0</O3>
+      <Speed>75</Speed>
+    </AddData5>
+  </soap:Body>
+</soap:Envelope>
+```
+
+### SOAP Parameters
+| Parameter | AddData | AddData5 | AddData8 | Description |
+|-----------|---------|----------|----------|-------------|
+| CompanyCode | ✓ | ✓ | ✓ | Company identifier |
+| UserName | ✓ | ✓ | ✓ | RMTO username |
+| Password | ✓ | ✓ | ✓ | RMTO password |
+| StationCode | ✓ | ✓ | ✓ | 4-digit device code |
+| Direction | ✓ | ✓ | ✓ | 0=total, 1=going, 2=return |
+| StartDateTime | ✓ | ✓ | ✓ | Period start (YYYY-MM-DDTHH:mm:ss) |
+| StopDateTime | ✓ | ✓ | ✓ | Period end (YYYY-MM-DDTHH:mm:ss) |
+| Count | ✓ | | | Total vehicle count |
+| C1-C5 | | ✓ | | Vehicle class counts (5 classes) |
+| C1-C8 | | | ✓ | Vehicle class counts (8 classes) |
+| S1-S5 | | ✓ | | Speed range counts (5 ranges) |
+| S1-S8 | | | ✓ | Speed range counts (8 ranges) |
+| Violation | | ✓ | ✓ | Number of speed violations |
+| O3 | | ✓ | ✓ | Additional metric |
+| Speed | ✓ | ✓ | ✓ | Average speed (km/h) |
 
 ### Scheduler Flow (every 15 min)
 ```

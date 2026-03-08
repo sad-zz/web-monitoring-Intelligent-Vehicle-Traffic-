@@ -72,10 +72,12 @@ function initClient(callback) {
 /**
  * AddData (v1.02) - Simple traffic data
  * @param {object} data
- * @param {string} data.deviceCode - 4-digit device code
- * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
- * @param {number} data.totalCount - Total vehicles in period
- * @param {number} data.avgSpeed   - Average speed in period
+ * @param {string} data.deviceCode      - 4-digit device code
+ * @param {string} data.startDateTime   - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.stopDateTime    - Period end   "YYYY-MM-DDTHH:mm:ss"
+ * @param {number} data.direction       - Direction (0=total, 1=going, 2=return)
+ * @param {number} data.totalCount      - Total vehicles in period
+ * @param {number} data.avgSpeed        - Average speed in period
  */
 function sendAddData(data, callback) {
     ensureClient(function (err) {
@@ -86,7 +88,9 @@ function sendAddData(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            Direction: data.direction || 0,
+            StartDateTime: data.startDateTime,
+            StopDateTime: data.stopDateTime,
             Count: data.totalCount,
             Speed: Math.round(data.avgSpeed)
         };
@@ -109,11 +113,14 @@ function sendAddData(data, callback) {
  * AddData5 (v1.01) - 5-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.startDateTime   - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.stopDateTime    - Period end   "YYYY-MM-DDTHH:mm:ss"
+ * @param {number} data.direction       - Direction (0=total, 1=going, 2=return)
  * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
  * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
  * @param {number} data.violations
  * @param {number} data.avgSpeed
+ * @param {number} data.o3              - Occupancy / additional metric
  */
 function sendAddData5(data, callback) {
     ensureClient(function (err) {
@@ -124,7 +131,9 @@ function sendAddData5(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            Direction: data.direction || 0,
+            StartDateTime: data.startDateTime,
+            StopDateTime: data.stopDateTime,
             // 5 volume classes
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
@@ -139,6 +148,7 @@ function sendAddData5(data, callback) {
             S5: data.speed5Count || 0,
             // Violation & speed
             Violation: data.violations || 0,
+            O3: data.o3 || 0,
             Speed: Math.round(data.avgSpeed || 0)
         };
 
@@ -160,11 +170,14 @@ function sendAddData5(data, callback) {
  * AddData8 (v1.00) - 8-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.startDateTime   - Period start "YYYY-MM-DDTHH:mm:ss"
+ * @param {string} data.stopDateTime    - Period end   "YYYY-MM-DDTHH:mm:ss"
+ * @param {number} data.direction       - Direction (0=total, 1=going, 2=return)
  * @param {number} data.class1Count .. data.class8Count
  * @param {number} data.speed1Count .. data.speed8Count
  * @param {number} data.violations
  * @param {number} data.avgSpeed
+ * @param {number} data.o3              - Occupancy / additional metric
  */
 function sendAddData8(data, callback) {
     ensureClient(function (err) {
@@ -175,7 +188,9 @@ function sendAddData8(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            Direction: data.direction || 0,
+            StartDateTime: data.startDateTime,
+            StopDateTime: data.stopDateTime,
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
             C3: data.class3Count || 0,
@@ -193,6 +208,7 @@ function sendAddData8(data, callback) {
             S7: data.speed7Count || 0,
             S8: data.speed8Count || 0,
             Violation: data.violations || 0,
+            O3: data.o3 || 0,
             Speed: Math.round(data.avgSpeed || 0)
         };
 

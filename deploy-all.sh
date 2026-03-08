@@ -3062,7 +3062,9 @@ function sendAddData(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            Direction: data.direction || 0,
+            StartDateTime: data.startDateTime,
+            StopDateTime: data.stopDateTime,
             Count: data.totalCount,
             Speed: Math.round(data.avgSpeed)
         };
@@ -3085,11 +3087,14 @@ function sendAddData(data, callback) {
  * AddData5 (v1.01) - 5-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.startDateTime
+ * @param {string} data.stopDateTime
+ * @param {number} data.direction
  * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
  * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
  * @param {number} data.violations
  * @param {number} data.avgSpeed
+ * @param {number} data.o3
  */
 function sendAddData5(data, callback) {
     ensureClient(function (err) {
@@ -3100,7 +3105,9 @@ function sendAddData5(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            Direction: data.direction || 0,
+            StartDateTime: data.startDateTime,
+            StopDateTime: data.stopDateTime,
             // 5 volume classes
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
@@ -3115,6 +3122,7 @@ function sendAddData5(data, callback) {
             S5: data.speed5Count || 0,
             // Violation & speed
             Violation: data.violations || 0,
+            O3: data.o3 || 0,
             Speed: Math.round(data.avgSpeed || 0)
         };
 
@@ -3136,11 +3144,14 @@ function sendAddData5(data, callback) {
  * AddData8 (v1.00) - 8-class traffic data
  * @param {object} data
  * @param {string} data.deviceCode
- * @param {string} data.dateTime
+ * @param {string} data.startDateTime
+ * @param {string} data.stopDateTime
+ * @param {number} data.direction
  * @param {number} data.class1Count .. data.class8Count
  * @param {number} data.speed1Count .. data.speed8Count
  * @param {number} data.violations
  * @param {number} data.avgSpeed
+ * @param {number} data.o3
  */
 function sendAddData8(data, callback) {
     ensureClient(function (err) {
@@ -3151,7 +3162,9 @@ function sendAddData8(data, callback) {
             UserName: USERNAME,
             Password: PASSWORD,
             StationCode: data.deviceCode,
-            DateTime: data.dateTime,
+            Direction: data.direction || 0,
+            StartDateTime: data.startDateTime,
+            StopDateTime: data.stopDateTime,
             C1: data.class1Count || 0,
             C2: data.class2Count || 0,
             C3: data.class3Count || 0,
@@ -3169,6 +3182,7 @@ function sendAddData8(data, callback) {
             S7: data.speed7Count || 0,
             S8: data.speed8Count || 0,
             Violation: data.violations || 0,
+            O3: data.o3 || 0,
             Speed: Math.round(data.avgSpeed || 0)
         };
 
@@ -3280,11 +3294,14 @@ function sendUnsentData() {
     var unsent = db.prepare("SELECT * FROM rmto_queue WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
 
     unsent.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
+        var startDt = formatDateTime(row.period_start);
+        var stopDt = formatDateTime(row.period_end);
 
         rmto.sendAddData({
             deviceCode: row.device_code,
-            dateTime: dt,
+            startDateTime: startDt,
+            stopDateTime: stopDt,
+            direction: 0,
             totalCount: row.total_vehicles,
             avgSpeed: row.avg_speed
         }, function (err, response) {
@@ -3305,11 +3322,14 @@ function sendUnsentData() {
     var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
 
     unsent5.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
+        var startDt = formatDateTime(row.period_start);
+        var stopDt = formatDateTime(row.period_end);
 
         rmto.sendAddData5({
             deviceCode: row.device_code,
-            dateTime: dt,
+            startDateTime: startDt,
+            stopDateTime: stopDt,
+            direction: 0,
             class1Count: row.class1_count,
             class2Count: row.class2_count,
             class3Count: row.class3_count,
@@ -3321,6 +3341,7 @@ function sendUnsentData() {
             speed4Count: row.speed4_count,
             speed5Count: row.speed5_count,
             violations: row.violations,
+            o3: 0,
             avgSpeed: row.avg_speed
         }, function (err, response) {
             var success = !err && response;
@@ -3338,7 +3359,7 @@ function sendUnsentData() {
 }
 
 /**
- * Format ISO date to RMTO format: "YYYY/MM/DD HH:mm"
+ * Format ISO date to RMTO format: "YYYY-MM-DDTHH:mm:ss"
  */
 function formatDateTime(isoStr) {
     var d = new Date(isoStr);
@@ -3347,7 +3368,8 @@ function formatDateTime(isoStr) {
     var dy = String(d.getDate()).padStart(2, "0");
     var h = String(d.getHours()).padStart(2, "0");
     var mn = String(d.getMinutes()).padStart(2, "0");
-    return y + "/" + m + "/" + dy + " " + h + ":" + mn;
+    var sc = String(d.getSeconds()).padStart(2, "0");
+    return y + "-" + m + "-" + dy + "T" + h + ":" + mn + ":" + sc;
 }
 
 /**
