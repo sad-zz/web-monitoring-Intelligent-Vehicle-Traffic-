@@ -425,6 +425,31 @@ app.get("/api/rmto/queue", function (req, res) {
     res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
 });
 
+// RMTO WSDL description - show expected parameters from WSDL
+app.get("/api/rmto/wsdl-info", function (req, res) {
+    var desc = rmto.getWsdlDescription();
+    if (!desc) {
+        return res.json({ loaded: false, message: "WSDL هنوز بارگذاری نشده - ابتدا یک ارسال انجام دهید" });
+    }
+    res.json({ loaded: true, description: desc });
+});
+
+// RMTO last sent SOAP XML - for debugging/verification
+app.get("/api/rmto/last-xml", function (req, res) {
+    var xml = rmto.getLastRequestXml();
+    if (!xml) {
+        return res.json({ available: false, message: "هنوز درخواست SOAP ارسال نشده" });
+    }
+    res.json({ available: true, xml: xml });
+});
+
+// RMTO send log detail including SOAP XML
+app.get("/api/rmto/log/:id/xml", function (req, res) {
+    var row = db.prepare("SELECT soap_xml FROM send_log WHERE id = ?").get(parseInt(req.params.id, 10));
+    if (!row) return res.status(404).json({ error: "not found" });
+    res.json({ soap_xml: row.soap_xml || null });
+});
+
 // ============================================================
 // API: Traffic Data Query
 // ============================================================
