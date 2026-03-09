@@ -276,5 +276,7 @@ module.exports = {
     start: start,
     aggregateAndSend: aggregateAndSend,
     sendUnsentData: sendUnsentData,
-    checkOfflineDevices: checkOfflineDevices
+    checkOfflineDevices: checkOfflineDevices,
+    // Alias for backward compatibility with older index.js versions
+    processAndSendIrawdata: aggregateAndSend
 };
