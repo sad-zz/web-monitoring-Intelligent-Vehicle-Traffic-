@@ -3,9 +3,105 @@
 ## پیش‌نیازها
 
 - سرور Ubuntu/Debian با دسترسی root
-- سرور نیاز به اینترنت دارد (برای نصب Node.js و بسته‌ها) — ولی نیازی به دسترسی GitHub ندارد
+- سرور نیاز به اینترنت **داخلی** دارد (برای نصب Node.js و بسته‌ها از مخازن apt/npm) — ولی نیازی به دسترسی GitHub ندارد
 - یک سیستم محلی (لپ‌تاپ/کامپیوتر) با دسترسی به اینترنت و GitHub
 - پورت‌های 80 (وب) و 2022 (TCP دستگاه‌ها) باز باشد
+
+---
+
+## فایل‌های تغییر یافته در این نسخه
+
+فایل‌هایی که تغییر کرده‌اند و باید به سرور منتقل شوند:
+
+| فایل | توضیح |
+|------|-------|
+| `deploy-all.sh` | اسکریپت نصب کامل (شامل تمام کدها — **فقط این یک فایل کافیست**) |
+| `server/deploy-part1-server.sh` | بروزرسانی فایل‌های سرور (db.js, index.js, rmto-client.js, scheduler.js) |
+| `server/deploy-part2-frontend.sh` | بروزرسانی داده‌های نمونه فرانت‌اند |
+| `server/deploy-part3-html.sh` | بروزرسانی index.html |
+| `server/deploy-part4-css-js.sh` | بروزرسانی style.css و app.js |
+| `DEPLOY.md` | همین راهنما (فقط مستندات — نیازی به انتقال به سرور ندارد) |
+
+> **ساده‌ترین روش:** فقط `deploy-all.sh` را به سرور منتقل و اجرا کنید — تمام فایل‌های بالا داخل آن تعبیه شده‌اند.
+
+---
+
+## روش سریع: دانلود، انتقال و اجرا (۳ دستور)
+
+### ۱. دانلود از GitHub به کامپیوتر خودتان
+
+روی **سیستم محلی** (لپ‌تاپ/کامپیوتر خودتان) اجرا کنید:
+
+```bash
+# اگر قبلاً clone نکردید:
+git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+cd web-monitoring-Intelligent-Vehicle-Traffic-
+
+# اگر قبلاً clone کردید — دریافت آخرین تغییرات:
+cd web-monitoring-Intelligent-Vehicle-Traffic-
+git pull
+```
+
+### ۲. انتقال به سرور
+
+```bash
+# SERVER_IP را با آدرس IP سرور جایگزین کنید:
+scp deploy-all.sh root@SERVER_IP:/tmp/
+```
+
+### ۳. اجرا روی سرور
+
+```bash
+ssh root@SERVER_IP "bash /tmp/deploy-all.sh"
+```
+
+**تمام!** 🎉 سرور بروزرسانی شد.
+
+> **برای ویندوز:** از WinSCP یا FileZilla استفاده کنید. فایل `deploy-all.sh` را از پوشه پروژه به مسیر `/tmp/` روی سرور کپی کنید، سپس با PuTTY یا ترمینال SSH دستور `bash /tmp/deploy-all.sh` را اجرا کنید.
+
+---
+
+## بروزرسانی جزئی (فقط بخش‌های تغییر یافته)
+
+اگر سرور قبلاً نصب شده و نمی‌خواهید کل سیستم را مجدد نصب کنید، می‌توانید فقط بخش‌های مورد نیاز را بروزرسانی کنید:
+
+### فقط فایل‌های سرور (SOAP، scheduler، دیتابیس)
+```bash
+# روی سیستم محلی:
+scp server/deploy-part1-server.sh root@SERVER_IP:/opt/tc-manager/
+
+# روی سرور:
+ssh root@SERVER_IP "cd /opt/tc-manager && bash deploy-part1-server.sh && systemctl restart tc-manager"
+```
+
+### فقط HTML
+```bash
+# روی سیستم محلی:
+scp server/deploy-part3-html.sh root@SERVER_IP:/opt/tc-manager/
+
+# روی سرور:
+ssh root@SERVER_IP "cd /opt/tc-manager && bash deploy-part3-html.sh"
+```
+
+### فقط CSS و JavaScript
+```bash
+# روی سیستم محلی:
+scp server/deploy-part4-css-js.sh root@SERVER_IP:/opt/tc-manager/
+
+# روی سرور:
+ssh root@SERVER_IP "cd /opt/tc-manager && bash deploy-part4-css-js.sh && systemctl restart tc-manager"
+```
+
+### همه بخش‌ها — یکجا
+```bash
+# روی سیستم محلی:
+scp server/deploy-part1-server.sh server/deploy-part2-frontend.sh \
+    server/deploy-part3-html.sh server/deploy-part4-css-js.sh \
+    root@SERVER_IP:/opt/tc-manager/
+
+# روی سرور:
+ssh root@SERVER_IP "cd /opt/tc-manager && bash deploy-part1-server.sh && bash deploy-part2-frontend.sh && bash deploy-part3-html.sh && bash deploy-part4-css-js.sh && systemctl restart tc-manager"
+```
 
 ---
 
