@@ -70,10 +70,14 @@ function initClient(callback) {
 }
 
 /**
- * AddData (v1.02) - Simple traffic data
+ * Add (v1.02) - Simple traffic data
+ *
+ * RMTO expects route/mehvar code as FID, NOT device serial number.
+ *
  * @param {object} data
- * @param {string} data.deviceCode - 4-digit device code
- * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
+ * @param {string} data.FID        - Route/mehvar code (e.g. "613151")
+ * @param {string} data.ST         - Start time "YYYY-MM-DDTHH:mm:00"
+ * @param {string} data.ET         - End time "YYYY-MM-DDTHH:mm:00"
  * @param {number} data.totalCount - Total vehicles in period
  * @param {number} data.avgSpeed   - Average speed in period
  */
@@ -82,24 +86,25 @@ function sendAddData(data, callback) {
         if (err) return callback(err);
 
         var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            Count: data.totalCount,
-            Speed: Math.round(data.avgSpeed)
+            CID: parseInt(COMPANY_CODE) || 0,
+            UID: USERNAME,
+            PWD: PASSWORD,
+            FID: parseInt(data.FID) || 0,
+            ST: data.ST,
+            ET: data.ET,
+            Count: data.totalCount || 0,
+            Speed: Math.round(data.avgSpeed || 0)
         };
 
-        console.log("[RMTO] AddData request:", JSON.stringify(args));
+        console.log("[RMTO] Add request:", JSON.stringify(args));
 
-        soapClient.AddData(args, function (err, result) {
+        soapClient.Add(args, function (err, result) {
             if (err) {
-                console.error("[RMTO] AddData error:", err.message);
+                console.error("[RMTO] Add error:", err.message);
                 return callback(err, null);
             }
-            var response = result && result.AddDataResult;
-            console.log("[RMTO] AddData response:", response);
+            var response = result && result.AddResult;
+            console.log("[RMTO] Add response:", response);
             callback(null, response);
         });
     });

@@ -45,6 +45,7 @@ db.exec([
     "CREATE TABLE IF NOT EXISTS rmto_queue (",
     "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
     "  device_code TEXT NOT NULL,",
+    "  route_id TEXT,",
     "  period_start TEXT NOT NULL,",
     "  period_end TEXT NOT NULL,",
     "  total_vehicles INTEGER DEFAULT 0,",
@@ -221,6 +222,19 @@ try {
     }
 } catch(e) {
     // Table doesn't exist yet - will be created by schema above
+}
+
+// Migration: add route_id column to rmto_queue if missing
+try {
+    var qCols = db.prepare("PRAGMA table_info(rmto_queue)").all();
+    var qColNames = qCols.map(function(c) { return c.name; });
+    if (qColNames.length > 0 && qColNames.indexOf("route_id") === -1) {
+        console.log("[DB] Adding route_id column to rmto_queue...");
+        db.exec("ALTER TABLE rmto_queue ADD COLUMN route_id TEXT");
+        console.log("[DB] rmto_queue migrated successfully");
+    }
+} catch(e) {
+    // Table doesn't exist yet
 }
 
 // Insert default settings if not exists

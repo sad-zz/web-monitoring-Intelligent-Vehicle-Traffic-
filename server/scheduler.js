@@ -92,11 +92,11 @@ function aggregateAndSend() {
         var devInfo = db.prepare("SELECT route FROM devices WHERE device_code = ?").get(code);
         var routeId = (devInfo && devInfo.route) || code;
 
-        // Insert into simple queue (AddData)
+        // Insert into simple queue (Add)
         db.prepare(
-            "INSERT INTO rmto_queue (device_code, period_start, period_end, total_vehicles, avg_speed) " +
-            "VALUES (?, ?, ?, ?, ?)"
-        ).run(code, startStr, endStr, totalVehicles, avgSpeed);
+            "INSERT INTO rmto_queue (device_code, route_id, period_start, period_end, total_vehicles, avg_speed) " +
+            "VALUES (?, ?, ?, ?, ?, ?)"
+        ).run(code, routeId, startStr, endStr, totalVehicles, avgSpeed);
 
         // Insert into 5-class queue (Add5)
         db.prepare(
@@ -149,11 +149,10 @@ function sendUnsentData(onComplete) {
     }
 
     unsent.forEach(function (row) {
-        var dt = formatDateTime(row.period_start);
-
         rmto.sendAddData({
-            deviceCode: row.device_code,
-            dateTime: dt,
+            FID: row.route_id || row.device_code,
+            ST: row.period_start,
+            ET: row.period_end,
             totalCount: row.total_vehicles,
             avgSpeed: row.avg_speed
         }, function (err, response) {
@@ -166,7 +165,7 @@ function sendUnsentData(onComplete) {
             db.prepare(
                 "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
                 "VALUES (?, ?, ?, ?, ?, ?)"
-            ).run("AddData", row.device_code, JSON.stringify(row),
+            ).run("Add", row.device_code, JSON.stringify(row),
                 JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
 
             if (success) {
