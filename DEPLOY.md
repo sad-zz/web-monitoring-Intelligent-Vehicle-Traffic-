@@ -249,7 +249,7 @@ curl http://localhost:3000/api/stats
 | خطای better-sqlite3 | `cd /opt/tc-manager/server && npm rebuild better-sqlite3` |
 | خطای npm install | `apt-get install -y build-essential python3` سپس `npm install` |
 | ری‌استارت کامل | `systemctl restart tc-manager && systemctl restart nginx` |
-| بررسی پورت‌ها | `ss -tlnp \| grep -E '3000\|2022\|80'` |
+| بررسی پورت‌ها | `ss -tlnp` سپس فیلتر پورت‌های 3000, 2022, 80 |
 | فضای دیسک | `df -h /opt/tc-manager` |
 
 ---
