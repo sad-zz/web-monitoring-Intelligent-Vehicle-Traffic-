@@ -1295,18 +1295,17 @@ function processRawData(raw, ip) {
         } else {
             var driftMs = Math.abs(serverNow.getTime() - deviceTime.getTime());
             var driftMinutes = Math.round(driftMs / 60000);
-            if (driftMinutes > 5) {
+            if (driftMinutes > 30) {
+                // > 30 min drift in data: Replace timestamp with server time
                 var correctedStr = correctedServerTime();
                 console.log("[TCP] WARNING: Device " + parsed.device_code + " clock drift = " + driftMinutes + " min (device=" + originalCreateAt + " server=" + serverNow.toISOString() + ") -> correcting to " + correctedStr);
                 parsed.create_at = correctedStr;
                 timestampCorrected = true;
                 addLiveLog({ ts: Date.now(), time: serverNow.toISOString(), type: "tcp-ratcx1", ip: ip, device: parsed.device_code, detail: "اختلاف ساعت " + driftMinutes + " دقیقه - زمان اصلاح شد: " + originalCreateAt + " → " + correctedStr });
-                // Force immediate re-sync if drift is large
-                if (driftMinutes > 30) {
-                    var sock = connectedDevices[parsed.device_code];
-                    if (sock && !sock.destroyed) {
-                        syncDeviceTime(parsed.device_code, sock);
-                    }
+                // Force re-sync
+                var sock = connectedDevices[parsed.device_code];
+                if (sock && !sock.destroyed) {
+                    syncDeviceTime(parsed.device_code, sock);
                 }
             }
         }
