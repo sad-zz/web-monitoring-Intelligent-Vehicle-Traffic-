@@ -21,6 +21,20 @@ var PASSWORD = process.env.RMTO_PASSWORD || "";
 var soapClient = null;
 
 /**
+ * Convert local ISO string (e.g. "2026-03-10T08:00:00") to proper SOAP dateTime.
+ * RMTO expects DateTime format like "2026-03-10T08:00:00" (no timezone suffix needed,
+ * as the C# reference sends local DateTime without explicit timezone).
+ */
+function toSoapDateTime(str) {
+    if (!str) return new Date().toISOString();
+    // If already in ISO-like format, ensure it's a proper Date for node-soap serialization
+    var d = new Date(str);
+    if (isNaN(d.getTime())) return str;
+    // Return as Date object - node-soap serializes Date objects to proper xs:dateTime
+    return d;
+}
+
+/**
  * Load RMTO settings from database (overrides env vars).
  */
 function loadDbSettings() {
@@ -67,7 +81,7 @@ function initClient(callback) {
 }
 
 /**
- * Add - Simple traffic data
+ * Add - Simple traffic data (C1-C5 classes + ASP + SO + OO + ESD)
  * callback(err, response, soapXml)
  */
 function sendAddData(data, callback) {
@@ -79,10 +93,18 @@ function sendAddData(data, callback) {
             UID: USERNAME,
             PWD: PASSWORD,
             FID: parseInt(data.FID) || 0,
-            ST: data.ST,
-            ET: data.ET,
-            Count: data.totalCount || 0,
-            Speed: Math.round(data.avgSpeed || 0)
+            RID: parseInt(data.RID) || 0,
+            ST: toSoapDateTime(data.ST),
+            ET: toSoapDateTime(data.ET),
+            C1: data.C1 || 0,
+            C2: data.C2 || 0,
+            C3: data.C3 || 0,
+            C4: data.C4 || 0,
+            C5: data.C5 || 0,
+            ASP: data.ASP || 0,
+            SO: data.SO || 0,
+            OO: data.OO || 0,
+            ESD: data.ESD || 0
         };
 
         console.log("[RMTO] Add request:", JSON.stringify(args));
@@ -125,10 +147,10 @@ function sendAddData5(data, callback) {
             CID: parseInt(COMPANY_CODE) || 0,
             UID: USERNAME,
             PWD: PASSWORD,
-            FID: 0,
+            FID: parseInt(data.FID) || 0,
             RID: parseInt(data.RID) || 0,
-            ST: data.ST,
-            ET: data.ET,
+            ST: toSoapDateTime(data.ST),
+            ET: toSoapDateTime(data.ET),
             C1: data.C1 || 0,
             C2: data.C2 || 0,
             C3: data.C3 || 0,

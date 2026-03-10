@@ -155,13 +155,14 @@ function aggregatePeriod(code, startStr, endStr) {
 function sendUnsentData(onComplete) {
     var results = { total: 0, success: 0, failed: 0, errors: [] };
 
-    // --- Send simple AddData ---
-    var unsent = db.prepare("SELECT * FROM rmto_queue WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+    // Mark simple queue entries as sent (we only send Add5, matching C# reference)
+    // The rmto_queue table lacks C1-C5 columns needed by the WSDL Add method
+    db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
-    // --- Send 5-class AddData5 ---
+    // --- Send 5-class AddData5 (primary method, matching C# reference) ---
     var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
 
-    var pending = unsent.length + unsent5.length;
+    var pending = unsent5.length;
     results.total = pending;
 
     if (pending === 0) {
@@ -176,43 +177,9 @@ function sendUnsentData(onComplete) {
         }
     }
 
-    unsent.forEach(function (row) {
-        rmto.sendAddData({
-            FID: row.route_id || row.device_code,
-            ST: row.period_start,
-            ET: row.period_end,
-            totalCount: row.total_vehicles,
-            avgSpeed: row.avg_speed
-        }, function (err, response, soapXml) {
-            var success = !err && response;
-            var responseStr = JSON.stringify(response || (err && err.message));
-            db.prepare(
-                "UPDATE rmto_queue SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-            ).run(success ? 1 : 0, responseStr, row.id);
-
-            db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)"
-            ).run("Add", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
-
-            if (success) {
-                results.success++;
-            } else {
-                results.failed++;
-                results.errors.push({
-                    method: "Add",
-                    device_code: row.device_code,
-                    error: err ? err.message : "پاسخ خالی از RMTO",
-                    response: responseStr
-                });
-            }
-            checkDone();
-        });
-    });
-
     unsent5.forEach(function (row) {
         rmto.sendAddData5({
+            FID: row.id,
             RID: row.route_id || row.device_code,
             ST: row.period_start,
             ET: row.period_end,
@@ -224,8 +191,14 @@ function sendUnsentData(onComplete) {
             OO: row.oo,
             ESD: row.esd
         }, function (err, response, soapXml) {
-            var success = !err && response;
+            // Match C# reference success check: ID > 0 || CFL == 100
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
             var responseStr = JSON.stringify(response || (err && err.message));
+
+            if (!err && response) {
+                console.log("[Scheduler] Add5 response for device " + row.device_code + ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL + " ERR=" + (response.ERR || "none"));
+            }
+
             db.prepare(
                 "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
             ).run(success ? 1 : 0, responseStr, row.id);
@@ -240,10 +213,11 @@ function sendUnsentData(onComplete) {
                 results.success++;
             } else {
                 results.failed++;
+                var errMsg = err ? err.message : (response && response.ERR ? response.ERR : "پاسخ خالی از RMTO");
                 results.errors.push({
                     method: "Add5",
                     device_code: row.device_code,
-                    error: err ? err.message : "پاسخ خالی از RMTO",
+                    error: errMsg,
                     response: responseStr
                 });
             }
