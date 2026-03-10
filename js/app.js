@@ -690,6 +690,21 @@
             try { reqData = JSON.stringify(JSON.parse(data.request_data), null, 2); } catch (e) { reqData = data.request_data || "-"; }
             try { respData = JSON.stringify(JSON.parse(data.response_data), null, 2); } catch (e) { respData = data.response_data || "-"; }
 
+            // Format SOAP XML nicely
+            var soapXml = data.soap_xml || "";
+            var soapSection = "";
+            if (soapXml) {
+                // Simple XML formatting
+                var formatted = soapXml
+                    .replace(/></g, ">\n<")
+                    .replace(/\n\s*\n/g, "\n");
+                soapSection =
+                    '<div style="margin-bottom:12px">' +
+                        '<strong style="color:#7c3aed">SOAP XML ارسالی:</strong>' +
+                        '<pre dir="ltr" style="margin:6px 0 0;background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-all;font-size:11px;max-height:300px;overflow-y:auto;font-family:monospace;line-height:1.5">' + escapeHtml(formatted) + '</pre>' +
+                    '</div>';
+            }
+
             $("#modal-title").textContent = "جزئیات ارسال سامانه - " + data.method;
             $("#modal-body").innerHTML =
                 '<div style="margin-bottom:16px">' +
@@ -706,6 +721,7 @@
                         '<pre dir="ltr" style="margin:6px 0 0;white-space:pre-wrap;word-break:break-all;font-size:12px;color:#dc2626;font-family:monospace">' + escapeHtml(data.error_message) + '</pre>' +
                     '</div>'
                 : '') +
+                soapSection +
                 '<div style="margin-bottom:12px">' +
                     '<strong>داده‌های ارسالی (Request):</strong>' +
                     '<pre dir="ltr" style="margin:6px 0 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;white-space:pre-wrap;word-break:break-all;font-size:12px;max-height:200px;overflow-y:auto;font-family:monospace">' + escapeHtml(reqData) + '</pre>' +

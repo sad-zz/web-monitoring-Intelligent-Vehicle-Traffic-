@@ -132,6 +132,7 @@ db.exec([
     "  response_data TEXT,",
     "  success INTEGER DEFAULT 0,",
     "  error_message TEXT,",
+    "  soap_xml TEXT,",
     "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
@@ -236,6 +237,16 @@ try {
 } catch(e) {
     // Table doesn't exist yet
 }
+
+// Migration: add soap_xml column to send_log if missing
+try {
+    var slCols = db.prepare("PRAGMA table_info(send_log)").all();
+    var slColNames = slCols.map(function(c) { return c.name; });
+    if (slColNames.length > 0 && slColNames.indexOf("soap_xml") === -1) {
+        console.log("[DB] Adding soap_xml column to send_log...");
+        db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
+    }
+} catch(e) {}
 
 // Insert default settings if not exists
 var defaultSettings = {

@@ -3,9 +3,12 @@
  * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
  *
  * Methods:
- *   - AddData  (v1.02): Simple total count + avg speed per 15-min period
- *   - AddData5 (v1.01): 5-class volume + 5-class speed + violations
- *   - AddData8 (v1.00): 8-class volume + 8-class speed + violations
+ *   - Add   (v1.02): Simple total count + avg speed per period
+ *   - Add5  (v1.01): 5-class volume + 5-class speed + violations
+ *   - Add8  (v1.00): 8-class volume + 8-class speed + violations
+ *
+ * Callback signature: callback(err, response, soapXml)
+ *   soapXml = the raw SOAP XML envelope that was sent to RMTO
  */
 var soap = require("soap");
 var db = require("./db");
@@ -19,7 +22,6 @@ var soapClient = null;
 
 /**
  * Load RMTO settings from database (overrides env vars).
- * Called before each send to pick up UI changes.
  */
 function loadDbSettings() {
     try {
@@ -31,7 +33,7 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_wsdl && s.rmto_wsdl !== WSDL_URL) {
             WSDL_URL = s.rmto_wsdl;
-            soapClient = null; // force re-creation with new URL
+            soapClient = null;
         }
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
@@ -39,7 +41,7 @@ function loadDbSettings() {
 }
 
 /**
- * Initialize SOAP client (called once at startup).
+ * Initialize SOAP client.
  */
 function initClient(callback) {
     if (soapClient) return callback(null, soapClient);
@@ -51,7 +53,6 @@ function initClient(callback) {
         }
         soapClient = client;
         console.log("[RMTO] SOAP client initialized");
-        // Auto-detect binding name (could be CompanySoap, CompaniesSoap, etc.)
         var desc = client.describe();
         var serviceName = Object.keys(desc)[0];
         if (serviceName) {
@@ -59,27 +60,15 @@ function initClient(callback) {
             if (portName) {
                 console.log("[RMTO] Service=" + serviceName + " Port=" + portName);
                 console.log("[RMTO] Available methods:", Object.keys(desc[serviceName][portName]));
-            } else {
-                console.log("[RMTO] WARNING: No SOAP port found in service " + serviceName);
             }
-        } else {
-            console.log("[RMTO] WARNING: No SOAP service found in WSDL - check URL: " + WSDL_URL);
         }
         callback(null, client);
     });
 }
 
 /**
- * Add (v1.02) - Simple traffic data
- *
- * RMTO expects route/mehvar code as FID, NOT device serial number.
- *
- * @param {object} data
- * @param {string} data.FID        - Route/mehvar code (e.g. "613151")
- * @param {string} data.ST         - Start time "YYYY-MM-DDTHH:mm:00"
- * @param {string} data.ET         - End time "YYYY-MM-DDTHH:mm:00"
- * @param {number} data.totalCount - Total vehicles in period
- * @param {number} data.avgSpeed   - Average speed in period
+ * Add - Simple traffic data
+ * callback(err, response, soapXml)
  */
 function sendAddData(data, callback) {
     ensureClient(function (err) {
@@ -99,44 +88,34 @@ function sendAddData(data, callback) {
         console.log("[RMTO] Add request:", JSON.stringify(args));
 
         soapClient.Add(args, function (err, result) {
+            var xml = soapClient.lastRequest || "";
             if (err) {
                 console.error("[RMTO] Add error:", err.message);
-                return callback(err, null);
+                return callback(err, null, xml);
             }
             var response = result && result.AddResult;
-            console.log("[RMTO] Add response:", response);
-            callback(null, response);
+            console.log("[RMTO] Add response:", JSON.stringify(response));
+            callback(null, response, xml);
         });
     });
 }
 
 /**
- * AddData5 → RMTO "Add5" method (v1.01) - 5-class traffic data
+ * Add5 - 5-class traffic data
  *
- * Expected SOAP body by RMTO:
+ * RMTO expected SOAP body:
  *   <Add5 xmlns="ITS">
- *     <CID>companyId</CID> <UID>user</UID> <PWD>pass</PWD>
- *     <FID>0</FID> <RID>routeId</RID>
- *     <ST>startTime</ST> <ET>endTime</ET>
- *     <C1>..</C1> <C2>..</C2> <C3>..</C3> <C4>..</C4> <C5>..</C5>
- *     <ASP>avgSpeed</ASP>
- *     <S1>..</S1> <S2>..</S2> <S3>..</S3> <S4>..</S4> <S5>..</S5>
- *     <SSO>totalViolations</SSO>
- *     <SO1>..</SO1> <SO2>..</SO2> <SO3>..</SO3> <SO4>..</SO4> <SO5 xsi:nil="true"/>
- *     <OO>overtaking</OO> <ESD>tooClose</ESD>
+ *     <CID>80</CID> <UID>user</UID> <PWD>pass</PWD>
+ *     <FID>0</FID> <RID>102030</RID>
+ *     <ST>2009-02-24T14:55:00</ST> <ET>2009-02-24T15:00:00</ET>
+ *     <C1>500</C1><C2>50</C2><C3>0</C3><C4>10</C4><C5>5</C5>
+ *     <ASP>74</ASP>
+ *     <S1>80</S1><S2>70</S2><S3>60</S3><S4>50</S4><S5>40</S5>
+ *     <SSO>50</SSO><SO1>25</SO1><SO2>13</SO2><SO3>7</SO3><SO4>5</SO4><SO5 xsi:nil="true"/>
+ *     <OO>7</OO><ESD>7</ESD>
  *   </Add5>
  *
- * @param {object} data
- * @param {string} data.RID        - Route ID (mehvar code, e.g. "102030")
- * @param {string} data.ST         - Start time "YYYY-MM-DDTHH:mm:00"
- * @param {string} data.ET         - End time "YYYY-MM-DDTHH:mm:00"
- * @param {number} data.C1..C5     - Vehicle counts by class
- * @param {number} data.ASP        - Average speed (all classes)
- * @param {number} data.S1..S5     - Average speed per class
- * @param {number} data.SSO        - Total speed violations
- * @param {number} data.SO1..SO5   - Speed violations per class (SO5 can be null)
- * @param {number} data.OO         - Overtaking count
- * @param {number} data.ESD        - Too-close (headway) count
+ * callback(err, response, soapXml)
  */
 function sendAddData5(data, callback) {
     ensureClient(function (err) {
@@ -174,67 +153,14 @@ function sendAddData5(data, callback) {
         console.log("[RMTO] Add5 request:", JSON.stringify(args));
 
         soapClient.Add5(args, function (err, result) {
+            var xml = soapClient.lastRequest || "";
             if (err) {
                 console.error("[RMTO] Add5 error:", err.message);
-                return callback(err, null);
+                return callback(err, null, xml);
             }
             var response = result && result.Add5Result;
-            console.log("[RMTO] Add5 response:", response);
-            callback(null, response);
-        });
-    });
-}
-
-/**
- * AddData8 (v1.00) - 8-class traffic data
- * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class8Count
- * @param {number} data.speed1Count .. data.speed8Count
- * @param {number} data.violations
- * @param {number} data.avgSpeed
- */
-function sendAddData8(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
-
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            C6: data.class6Count || 0,
-            C7: data.class7Count || 0,
-            C8: data.class8Count || 0,
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            S6: data.speed6Count || 0,
-            S7: data.speed7Count || 0,
-            S8: data.speed8Count || 0,
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
-        };
-
-        console.log("[RMTO] AddData8 request:", JSON.stringify(args));
-
-        soapClient.AddData8(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData8 error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddData8Result;
-            console.log("[RMTO] AddData8 response:", response);
-            callback(null, response);
+            console.log("[RMTO] Add5 response:", JSON.stringify(response));
+            callback(null, response, xml);
         });
     });
 }
@@ -248,6 +174,5 @@ function ensureClient(callback) {
 module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
-    sendAddData5: sendAddData5,
-    sendAddData8: sendAddData8
+    sendAddData5: sendAddData5
 };

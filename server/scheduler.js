@@ -155,7 +155,7 @@ function sendUnsentData(onComplete) {
             ET: row.period_end,
             totalCount: row.total_vehicles,
             avgSpeed: row.avg_speed
-        }, function (err, response) {
+        }, function (err, response, soapXml) {
             var success = !err && response;
             var responseStr = JSON.stringify(response || (err && err.message));
             db.prepare(
@@ -163,17 +163,17 @@ function sendUnsentData(onComplete) {
             ).run(success ? 1 : 0, responseStr, row.id);
 
             db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
-                "VALUES (?, ?, ?, ?, ?, ?)"
+                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)"
             ).run("Add", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
+                JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
 
             if (success) {
                 results.success++;
             } else {
                 results.failed++;
                 results.errors.push({
-                    method: "AddData",
+                    method: "Add",
                     device_code: row.device_code,
                     error: err ? err.message : "پاسخ خالی از RMTO",
                     response: responseStr
@@ -195,7 +195,7 @@ function sendUnsentData(onComplete) {
             SO1: row.so1, SO2: row.so2, SO3: row.so3, SO4: row.so4, SO5: row.so5,
             OO: row.oo,
             ESD: row.esd
-        }, function (err, response) {
+        }, function (err, response, soapXml) {
             var success = !err && response;
             var responseStr = JSON.stringify(response || (err && err.message));
             db.prepare(
@@ -203,10 +203,10 @@ function sendUnsentData(onComplete) {
             ).run(success ? 1 : 0, responseStr, row.id);
 
             db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message) " +
-                "VALUES (?, ?, ?, ?, ?, ?)"
+                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)"
             ).run("Add5", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null);
+                JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
 
             if (success) {
                 results.success++;
