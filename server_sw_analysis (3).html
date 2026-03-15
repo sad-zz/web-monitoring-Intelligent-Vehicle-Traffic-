@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>معماری و روش ارسال اطلاعات — Rahsam TC Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Tahoma, Arial, sans-serif;
+      font-size: 13px;
+      background: #f0f2f5;
+      color: #222;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #1a5276;
+      margin-bottom: 6px;
+      font-size: 20px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #555;
+      margin-bottom: 24px;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    /* ── Cards ──────────────────────────────────────────────────────── */
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 18px 22px;
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      font-size: 15px;
+      color: #1a5276;
+      border-bottom: 2px solid #1a5276;
+      padding-bottom: 7px;
+      margin-bottom: 14px;
+    }
+    .card h3 {
+      font-size: 13px;
+      color: #1f618d;
+      margin: 14px 0 6px;
+    }
+
+    /* ── Flow diagram ────────────────────────────────────────────────── */
+    .flow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0;
+      margin: 16px 0;
+      justify-content: center;
+    }
+    .flow-box {
+      background: #eaf2ff;
+      border: 2px solid #1a5276;
+      border-radius: 8px;
+      padding: 10px 16px;
+      text-align: center;
+      min-width: 130px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .flow-box strong { display: block; color: #1a5276; font-size: 13px; }
+    .flow-arrow {
+      font-size: 22px;
+      color: #1a5276;
+      padding: 0 6px;
+      font-weight: bold;
+    }
+    .flow-label {
+      font-size: 10px;
+      color: #555;
+      display: block;
+      margin-top: 2px;
+    }
+
+    /* ── Tables ──────────────────────────────────────────────────────── */
+    .info-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .info-table th, .info-table td {
+      border: 1px solid #ddd;
+      padding: 5px 10px;
+      text-align: right;
+      vertical-align: top;
+    }
+    .info-table th { background: #eaf2ff; color: #1a5276; font-weight: bold; }
+    .info-table tr:nth-child(even) { background: #f9f9f9; }
+    .info-table td:first-child { font-family: monospace; direction: ltr; text-align: left; white-space: nowrap; }
+    .info-table td code { font-family: monospace; background: #eee; padding: 1px 3px; border-radius: 3px; }
+
+    /* ── Protocol frame table ─────────────────────────────────────────── */
+    .frame-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-top: 8px;
+    }
+    .frame-table th, .frame-table td {
+      border: 1px solid #ccc;
+      padding: 4px 8px;
+      text-align: center;
+    }
+    .frame-table th { background: #1a5276; color: #fff; }
+    .frame-table tr:nth-child(even) { background: #f9f9f9; }
+    .frame-table td:nth-child(2) { font-family: monospace; direction: ltr; }
+
+    /* ── Code blocks ─────────────────────────────────────────────────── */
+    pre.code {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: monospace;
+      font-size: 11.5px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      white-space: pre;
+      overflow-x: auto;
+      direction: ltr;
+      margin-top: 10px;
+      border: 1px solid #30363d;
+      line-height: 1.6;
+    }
+    pre.code .kw  { color: #ff7b72; }
+    pre.code .str { color: #a5d6ff; }
+    pre.code .cm  { color: #8b949e; }
+    pre.code .fn  { color: #d2a8ff; }
+    pre.code .num { color: #79c0ff; }
+    pre.code .var { color: #e3b341; }
+    pre.code .typ { color: #56d364; }
+
+    /* ── Inline badge ─────────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-orange { background: #ffedd5; color: #9a3412; }
+    .badge-purple { background: #ede9fe; color: #4c1d95; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+
+    /* ── Section note ────────────────────────────────────────────────── */
+    .note {
+      background: #fef9e7;
+      border-right: 4px solid #f39c12;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #7d6608;
+      margin: 10px 0;
+      line-height: 1.7;
+    }
+    .note-info {
+      background: #eaf2ff;
+      border-right: 4px solid #1a5276;
+      color: #1a5276;
+    }
+
+    /* ── Interactive test ───────────────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px 16px;
+    }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group label { font-size: 11px; color: #555; margin-bottom: 3px; }
+    .form-group label span.latin { font-family: monospace; color: #1a5276; font-weight: bold; }
+    .form-group input {
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      direction: ltr;
+    }
+    .form-group input:focus { outline: none; border-color: #1a5276; }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    button {
+      padding: 7px 16px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      background: #eaf2ff;
+      color: #1a5276;
+      border: 1px solid #aed6f1;
+    }
+    button:hover { filter: brightness(0.95); }
+
+    .auth-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      border: 1px solid #ddd;
+      background: #f5f5f5;
+      color: #888;
+    }
+    .auth-indicator.ok   { background: #d5f5e3; border-color: #82e0aa; color: #1e8449; }
+    .auth-indicator.err  { background: #fadbd8; border-color: #f1948a; color: #c0392b; }
+    .auth-indicator.wait { background: #fef9e7; border-color: #f9e79f; color: #b7950b; }
+    .status-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+    #testRespBox, #testCurlBox {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: monospace;
+      font-size: 11px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      direction: ltr;
+      max-height: 240px;
+      overflow-y: auto;
+      margin-top: 8px;
+      display: none;
+      border: 1px solid #30363d;
+    }
+    .cors-alert {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 5px;
+      padding: 10px 14px;
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.7;
+      display: none;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .badge-ok   { background: #d5f5e3; color: #1e8449; }
+    .badge-err  { background: #fadbd8; color: #c0392b; }
+    .badge-wait { background: #fef9e7; color: #b7950b; }
+    #testStatusLine { min-height: 24px; margin-bottom: 6px; }
+
+    a.ext { color: #1a5276; font-family: monospace; font-size: 11px; direction: ltr; }
+    ul.info-list { padding-right: 18px; line-height: 2; }
+    ul.info-list li { list-style-type: disc; }
+  </style>
+</head>
+<body>
+
+<h1>🏗 معماری و روش ارسال اطلاعات — <span style="font-family:monospace">Rahsam TC Manager</span></h1>
+<p class="subtitle">
+  تحلیل فایل <code style="background:#eee;padding:2px 6px;border-radius:3px">Server SW.7z</code> —
+  پروژه C# ویندوزی «رهسام TC مدیر ارتباط گستر» (Visual Studio 2017)<br/>
+  سرویس مقصد:
+  <a class="ext" href="http://otf.rmto.ir/Companies/Companies.asmx?WSDL" target="_blank">
+    http://otf.rmto.ir/Companies/Companies.asmx
+  </a>
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 1. OVERVIEW FLOW                                                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>۱. دیاگرام کلی جریان داده</h2>
+  <div class="flow">
+    <div class="flow-box">
+      <strong>🖥 دستگاه شمارنده</strong>
+      TC Device (محور)
+      <span class="flow-label">پروتکل TCP متنی</span>
+    </div>
+    <div class="flow-arrow">←</div>
+    <div class="flow-box">
+      <strong>🌐 TCP Listener</strong>
+      پورت <code>8099</code>
+      <span class="flow-label">رشته ASCII ثابت-عرض</span>
+    </div>
+    <div class="flow-arrow">←</div>
+    <div class="flow-box">
+      <strong>🗄 SQL Server</strong>
+      پایگاه <code>TCs</code>
+      <span class="flow-label">جداول: data, mehvar, device</span>
+    </div>
+    <div class="flow-arrow">←</div>
+    <div class="flow-box">
+      <strong>⚙️ RMTO5Thread</strong>
+      حلقه ارسال
+      <span class="flow-label">هر ۱۰ ثانیه یکبار اجرا</span>
+    </div>
+    <div class="flow-arrow">←</div>
+    <div class="flow-box" style="background:#d5f5e3;border-color:#1e8449;">
+      <strong>☁️ سرویس RMTO</strong>
+      <code>Add5</code> SOAP
+      <span class="flow-label">otf.rmto.ir (یا 5.160.195.56)</span>
+    </div>
+  </div>
+  <div class="note note-info">
+    <strong>خلاصه:</strong>
+    دستگاه‌های شمارنده ترافیکی (TC) از طریق شبکه به پورت ۸۰۹۹ سرور متصل می‌شوند.
+    برنامه داده‌های خام را در SQL Server ذخیره می‌کند، سپس یک تِرد مستقل (<code>RMTO5Thread</code>)
+    این داده‌ها را پردازش و از طریق متد <strong>Add5</strong> به سرویس RMTO ارسال می‌کند.
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 2. TCP PROTOCOL                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>۲. پروتکل ارتباطی دستگاه شمارنده (TCP / ASCII)</h2>
+  <div class="note">
+    <strong>⚡ پروتکل:</strong>
+    پیام‌ها به‌صورت رشته ASCII با طول ثابت ارسال می‌شوند (حدود ۲۸۷ کاراکتر + CR+LF).
+    سرور پس از دریافت اولیه، مُهر زمانی فعلی را پاسخ می‌دهد (<code>"0012" + yyMMddHHmmss</code>).
+  </div>
+  <h3>ساختار فریم داده ارسالی از دستگاه (پیام اصلی — ۲۸۷+ کاراکتر)</h3>
+  <table class="frame-table">
+    <thead>
+      <tr>
+        <th>ردیف</th>
+        <th>محدوده</th>
+        <th>طول</th>
+        <th>فیلد</th>
+        <th>توضیح</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>۱</td><td>0–3</td><td>4</td><td><strong>message_code</strong></td><td>کد نوع پیام (معمولاً ۰۱۹۷)</td></tr>
+      <tr><td>۲</td><td>25–32</td><td>8</td><td><strong>device_code</strong></td><td>کد منحصربه‌فرد دستگاه</td></tr>
+      <tr><td>۳</td><td>39–53</td><td>15</td><td><strong>device_ver</strong></td><td>نسخه firmware؛ کاراکتر ۱۲ = 'A' → بازه ۵ دقیقه‌ای</td></tr>
+      <tr><td>۴</td><td>33–34</td><td>2</td><td>سال (yy)</td><td>۲ رقم سال میلادی (+2000)</td></tr>
+      <tr><td>۵</td><td>35–36</td><td>2</td><td>ماه</td><td rowspan="5">زمان interval</td></tr>
+      <tr><td>۶</td><td>37–38</td><td>2</td><td>روز</td></tr>
+      <tr><td>۷</td><td>39–40</td><td>2</td><td>ساعت</td></tr>
+      <tr><td>۸</td><td>41–42</td><td>2</td><td>دقیقه</td></tr>
+      <tr><td colspan="5"></td></tr>
+      <tr><td>۹</td><td>43–46</td><td>4</td><td><strong>l1acount</strong></td><td>لاین ۱ — تعداد کلاس A (سواری)</td></tr>
+      <tr><td>۱۰</td><td>47–49</td><td>3</td><td>l1avavg</td><td>لاین ۱ — سرعت میانگین A</td></tr>
+      <tr><td>۱۱</td><td>50–53</td><td>4</td><td>l1aspeed</td><td>لاین ۱ — تعداد تخلف سرعت A</td></tr>
+      <tr><td>۱۲</td><td>54–57</td><td>4</td><td>l1agrab</td><td>لاین ۱ — تخلف دوربین A</td></tr>
+      <tr><td>۱۳</td><td>58–61</td><td>4</td><td>l1aheadway</td><td>لاین ۱ — Headway A</td></tr>
+      <tr><td colspan="5" style="text-align:center;color:#888">… به همین ترتیب برای کلاس‌های B، C، D، E، X و لاین ۲ …</td></tr>
+      <tr><td>—</td><td>157–159</td><td>3</td><td>l1occ</td><td>اشغال لاین ۱</td></tr>
+      <tr><td>—</td><td>160–…</td><td>117+</td><td>l2*</td><td>تمام فیلدهای لاین ۲ (به همان ترتیب)</td></tr>
+      <tr><td>—</td><td>277–279</td><td>3</td><td><strong>vbat</strong></td><td>ولتاژ باتری</td></tr>
+      <tr><td>—</td><td>280–282</td><td>3</td><td><strong>vsol</strong></td><td>ولتاژ خورشیدی</td></tr>
+      <tr><td>—</td><td>283–286</td><td>4</td><td><strong>errcode</strong></td><td>کد خطای دستگاه</td></tr>
+    </tbody>
+  </table>
+  <h3>دستور زمان‌بندی (time sync)</h3>
+  <pre class="code"><span class="cm">// سرور ابتدا ارسال می‌کند:</span>
+<span class="str">"0012" + DateTime.Now.ToString("yyMMddHHmmss") + "\r\n"</span>
+
+<span class="cm">// اگر داده قدیمی وجود دارد، سرور درخواست می‌دهد:</span>
+<span class="str">"0197" + cinterval.AddMinutes(-intervalperiod * i).ToString("yyMMddHHmm") + "\r\n"</span></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 3. SQL SCHEMA                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>۳. ساختار پایگاه داده SQL Server — بانک <code>TCs</code></h2>
+
+  <h3>جدول <code>mehvar</code> — تعریف محورهای ترافیکی</h3>
+  <table class="info-table">
+    <thead><tr><th>فیلد</th><th>نوع</th><th>توضیح</th></tr></thead>
+    <tbody>
+      <tr><td>mehvar_code</td><td>varchar(6) PK</td><td>کد یکتای محور (= RID ارسالی به RMTO)</td></tr>
+      <tr><td>cid</td><td>int</td><td>شناسه شرکت CID — از همین فیلد خوانده می‌شود</td></tr>
+      <tr><td>active</td><td>smallint</td><td>اگر <code>0</code> باشد داده null ارسال می‌شود</td></tr>
+      <tr><td>interval_p</td><td>smallint</td><td>بازه گزارش‌دهی: <code>5</code> = ۵ دقیقه، در غیر این صورت <code>intervalperiod</code> (پیش‌فرض ۱۰)</td></tr>
+      <tr><td>grab_count</td><td>smallint</td><td>اگر <code>1</code> باشد فیلد OO از grab پر می‌شود</td></tr>
+      <tr><td>lane_no</td><td>smallint</td><td>تعداد خط (۱ یا ۲)</td></tr>
+      <tr><td>ac, bc, cc, dc, ec</td><td>float</td><td>ضریب تصحیح تعداد برای هر کلاس (پیش‌فرض ۱.۰)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>جدول <code>data</code> — رکوردهای ترافیکی (یک ردیف = یک بازه زمانی یک محور)</h3>
+  <table class="info-table">
+    <thead><tr><th>فیلد</th><th>نوع</th><th>ارتباط با Add5</th></tr></thead>
+    <tbody>
+      <tr><td>id</td><td>bigint IDENTITY</td><td>= FID ارسالی (شناسه رکورد)</td></tr>
+      <tr><td>mehvar_id</td><td>varchar(6)</td><td>= RID (شناسه محور)</td></tr>
+      <tr><td>interval</td><td>datetime</td><td>= ET (زمان پایان بازه)</td></tr>
+      <tr><td>acount…ecount</td><td>int</td><td>= C1…C5 (پس از ضرب در ضرایب ac…ec)</td></tr>
+      <tr><td>avavg…evavg</td><td>int</td><td>= S1…S5 (سرعت میانگین هر کلاس)</td></tr>
+      <tr><td>aspeed…espeed</td><td>int</td><td>= SO1…SO5 (تعداد تخلف سرعت)</td></tr>
+      <tr><td>grab</td><td>int</td><td>= OO (تخلف دوربین)</td></tr>
+      <tr><td>headway</td><td>int</td><td>= ESD (فاصله زمانی)</td></tr>
+      <tr><td>processed</td><td>smallint</td><td><code>0</code>=خام / <code>1</code>=آماده ارسال</td></tr>
+      <tr><td>RMTO_ID</td><td>bigint NULL</td><td>ID برگشتی از سرور؛ <code>NULL</code> = هنوز ارسال نشده</td></tr>
+      <tr><td>RMTO_ERR</td><td>text</td><td>ERR برگشتی از سرور</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>منطق انتخاب رکورد برای ارسال:</strong>
+    <code>WHERE RMTO_ID IS NULL AND processed = 1</code> — رکوردهایی که ضریب تصحیح اعمال شده
+    ولی هنوز پاسخ RMTO دریافت نکرده‌اند. بسته‌های ۵۰۰ تایی (<code>top(500)</code>) ارسال می‌شوند.
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 4. RMTO5Thread                                                  -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>۴. منطق <code>RMTO5Thread</code> — تِرد ارسال به RMTO</h2>
+  <div class="note note-info">
+    این تِرد به‌صورت مستقل و موازی اجرا می‌شود. هر ۱۰ ثانیه یکبار SQL را بررسی و رکوردهای آماده را ارسال می‌کند.
+  </div>
+  <pre class="code"><span class="cm">// ۱. آماده‌سازی endpoint — در کد از IP داخلی استفاده می‌شود:</span>
+<span class="typ">Uri</span> address = <span class="kw">new</span> <span class="typ">Uri</span>(<span class="str">"http://5.160.195.56/Companies/Companies.asmx"</span>);
+<span class="cm">// (در app.config: http://otf.rmto.ir/Companies/Companies.asmx)</span>
+<span class="typ">EndpointAddress</span> endpointAddress = <span class="kw">new</span> <span class="typ">EndpointAddress</span>(address);
+<span class="typ">BasicHttpBinding</span> bind = <span class="kw">new</span> <span class="typ">BasicHttpBinding</span>();
+<span class="kw">var</span> csclient = <span class="kw">new</span> RMTO.<span class="typ">CompaniesSoapClient</span>(bind, endpointAddress);
+
+<span class="cm">// ۲. خواندن رکوردهای ارسال‌نشده از SQL:</span>
+<span class="cm">// SELECT top(500) dt.*, mh.* FROM data dt</span>
+<span class="cm">//   INNER JOIN mehvar mh ON mh.mehvar_code = dt.mehvar_id</span>
+<span class="cm">//   WHERE RMTO_ID IS NULL AND processed = 1</span>
+<span class="cm">//   ORDER BY dt.interval ASC</span>
+
+<span class="cm">// ۳. محاسبه فیلدها:</span>
+rmtodata.<span class="var">CID</span>  = mh.cid;          <span class="cm">// از جدول mehvar</span>
+rmtodata.<span class="var">UID</span>  = <span class="str">"ERGSH"</span>;         <span class="cm">// هاردکد شده</span>
+rmtodata.<span class="var">PWD</span>  = <span class="str">"E2&amp;mi(G*p"</span>;    <span class="cm">// هاردکد شده</span>
+rmtodata.<span class="var">FID</span>  = dt.id;           <span class="cm">// شناسه رکورد محلی</span>
+rmtodata.<span class="var">RID</span>  = dt.mehvar_id;    <span class="cm">// کد محور</span>
+rmtodata.<span class="var">ET</span>   = dt.interval;     <span class="cm">// زمان پایان بازه</span>
+rmtodata.<span class="var">ST</span>   = ET - intervalperiod; <span class="cm">// ۱۰ دقیقه یا ۵ دقیقه قبل</span>
+
+rmtodata.<span class="var">C1</span>...<span class="var">C5</span>  = acount...ecount;  <span class="cm">// تعداد هر کلاس</span>
+rmtodata.<span class="var">S1</span>...<span class="var">S5</span>  = avavg...evavg;     <span class="cm">// سرعت میانگین کلاس</span>
+rmtodata.<span class="var">SO1</span>...<span class="var">SO5</span> = aspeed...espeed;   <span class="cm">// تعداد تخلف سرعت</span>
+
+rmtodata.<span class="var">ASP</span>  = (C1*S1 + C2*S2 + ... + C5*S5) / (C1+...+C5);  <span class="cm">// میانگین وزنی</span>
+rmtodata.<span class="var">SSO</span>  = SO1 + SO2 + ... + SO5;   <span class="cm">// جمع تخلفات</span>
+rmtodata.<span class="var">OO</span>   = grab (اگر grab_count==1);</span>
+rmtodata.<span class="var">ESD</span>  = headway;
+
+<span class="cm">// ۴. ارسال غیرهمزمان:</span>
+<span class="typ">IAsyncResult</span> ar = csclient.<span class="fn">BeginAdd5</span>(
+    rmtodata.CID, rmtodata.UID, rmtodata.PWD,
+    rmtodata.FID, rmtodata.RID,
+    rmtodata.ST, rmtodata.ET,
+    rmtodata.C1, rmtodata.C2, rmtodata.C3, rmtodata.C4, rmtodata.C5,
+    rmtodata.ASP,
+    rmtodata.S1, rmtodata.S2, rmtodata.S3, rmtodata.S4, rmtodata.S5,
+    rmtodata.SSO,
+    rmtodata.SO1, rmtodata.SO2, rmtodata.SO3, rmtodata.SO4, rmtodata.SO5,
+    rmtodata.OO, rmtodata.ESD,
+    callback, csclient);
+
+<span class="cm">// ۵. Callback — پردازش پاسخ:</span>
+RMTO.<span class="typ">Re</span> ans = csclient.<span class="fn">EndAdd5</span>(ar).Add5Result;
+<span class="cm">// اگر ans.ID &gt; 0 یا ans.CFL == 100 → ثبت موفق</span>
+<span class="cm">// UPDATE data SET RMTO_ID=ans.ID, RMTO_FID=ans.FID, RMTO_ERR=ans.ERR ...</span></pre>
+
+  <h3>منطق null کردن داده (isnull)</h3>
+  <table class="info-table">
+    <thead><tr><th>شرط</th><th>عملکرد</th></tr></thead>
+    <tbody>
+      <tr><td>C1=C2=C3=C4=C5=0 و vbat=0</td><td>isnull=1 → تمام فیلدهای ترافیکی = <code>null</code></td></tr>
+      <tr><td>mehvar.active = 0</td><td>isnull=1 → محور غیرفعال، داده null</td></tr>
+      <tr><td>isnull=1</td><td>در SQL: <code>RMTO_ID=1, RMTO_ERR='NULL SENT'</code> (بدون SOAP call)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 5. SOAP REQUEST                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>۵. ساختار درخواست SOAP (متد <code>Add5</code>)</h2>
+  <div class="note note-info">
+    برنامه از <strong>SOAP 1.2</strong> (با <code>BasicHttpBinding</code> و <code>messageEncoding="Text"</code>) استفاده می‌کند.
+    آدرس: <a class="ext" href="http://otf.rmto.ir/Companies/Companies.asmx?op=Add5" target="_blank">http://otf.rmto.ir/Companies/Companies.asmx</a>
+    — namespace: <code>ITS</code>
+  </div>
+  <pre class="code"><span class="cm">&lt;!-- درخواست SOAP 1.2 --&gt;</span>
+&lt;?<span class="kw">xml</span> version=<span class="str">"1.0"</span> encoding=<span class="str">"utf-8"</span>?&gt;
+&lt;<span class="typ">soap12:Envelope</span>
+  xmlns:xsi=<span class="str">"http://www.w3.org/2001/XMLSchema-instance"</span>
+  xmlns:xsd=<span class="str">"http://www.w3.org/2001/XMLSchema"</span>
+  xmlns:soap12=<span class="str">"http://www.w3.org/2003/05/soap-envelope"</span>&gt;
+  &lt;<span class="typ">soap12:Body</span>&gt;
+    &lt;<span class="fn">Add5</span> xmlns=<span class="str">"ITS"</span>&gt;
+      &lt;<span class="var">CID</span>&gt;<span class="num">80</span>&lt;/<span class="var">CID</span>&gt;         <span class="cm">&lt;!-- ushort: شناسه شرکت --&gt;</span>
+      &lt;<span class="var">UID</span>&gt;<span class="str">ERGSH</span>&lt;/<span class="var">UID</span>&gt;       <span class="cm">&lt;!-- string: نام کاربری --&gt;</span>
+      &lt;<span class="var">PWD</span>&gt;<span class="str">E2&amp;mi(G*p</span>&lt;/<span class="var">PWD</span>&gt;   <span class="cm">&lt;!-- string: رمز عبور --&gt;</span>
+      &lt;<span class="var">FID</span>&gt;<span class="num">12345</span>&lt;/<span class="var">FID</span>&gt;       <span class="cm">&lt;!-- uint: شناسه رکورد محلی (data.id) --&gt;</span>
+      &lt;<span class="var">RID</span>&gt;<span class="num">102030</span>&lt;/<span class="var">RID</span>&gt;     <span class="cm">&lt;!-- uint: کد محور (mehvar_code) --&gt;</span>
+      &lt;<span class="var">ST</span>&gt;<span class="num">2024-01-15T10:00:00</span>&lt;/<span class="var">ST</span>&gt; <span class="cm">&lt;!-- dateTime: شروع بازه --&gt;</span>
+      &lt;<span class="var">ET</span>&gt;<span class="num">2024-01-15T10:10:00</span>&lt;/<span class="var">ET</span>&gt; <span class="cm">&lt;!-- dateTime: پایان بازه (= data.interval) --&gt;</span>
+      &lt;<span class="var">C1</span>&gt;<span class="num">45</span>&lt;/<span class="var">C1</span>&gt;           <span class="cm">&lt;!-- ushort?: تعداد سواری و وانت --&gt;</span>
+      &lt;<span class="var">C2</span>&gt;<span class="num">12</span>&lt;/<span class="var">C2</span>&gt;           <span class="cm">&lt;!-- ushort?: تعداد مینی‌بوس/کامیونت --&gt;</span>
+      &lt;<span class="var">C3</span>&gt;<span class="num">8</span>&lt;/<span class="var">C3</span>&gt;            <span class="cm">&lt;!-- ushort?: تعداد اتوبوس --&gt;</span>
+      &lt;<span class="var">C4</span>&gt;<span class="num">3</span>&lt;/<span class="var">C4</span>&gt;            <span class="cm">&lt;!-- ushort?: تعداد کامیون --&gt;</span>
+      &lt;<span class="var">C5</span>&gt;<span class="num">1</span>&lt;/<span class="var">C5</span>&gt;            <span class="cm">&lt;!-- ushort?: تعداد تریلر --&gt;</span>
+      &lt;<span class="var">ASP</span>&gt;<span class="num">62</span>&lt;/<span class="var">ASP</span>&gt;          <span class="cm">&lt;!-- ushort?: میانگین سرعت کل (km/h) --&gt;</span>
+      &lt;<span class="var">S1</span>&gt;<span class="num">68</span>&lt;/<span class="var">S1</span>&gt;           <span class="cm">&lt;!-- ushort?: سرعت میانگین C1 --&gt;</span>
+      &lt;<span class="var">S2</span>&gt;<span class="num">55</span>&lt;/<span class="var">S2</span>&gt;           &lt;!-- ... S3, S4, S5 --&gt;
+      &lt;<span class="var">S3</span>&gt;<span class="num">48</span>&lt;/<span class="var">S3</span>&gt;
+      &lt;<span class="var">S4</span>&gt;<span class="num">52</span>&lt;/<span class="var">S4</span>&gt;
+      &lt;<span class="var">S5</span>&gt;<span class="num">50</span>&lt;/<span class="var">S5</span>&gt;
+      &lt;<span class="var">SSO</span>&gt;<span class="num">7</span>&lt;/<span class="var">SSO</span>&gt;          <span class="cm">&lt;!-- ushort?: جمع کل تخلفات سرعت --&gt;</span>
+      &lt;<span class="var">SO1</span>&gt;<span class="num">5</span>&lt;/<span class="var">SO1</span>&gt;          <span class="cm">&lt;!-- ushort?: تخلف سرعت C1 --&gt;</span>
+      &lt;<span class="var">SO2</span>&gt;<span class="num">1</span>&lt;/<span class="var">SO2</span>&gt;
+      &lt;<span class="var">SO3</span>&gt;<span class="num">1</span>&lt;/<span class="var">SO3</span>&gt;
+      &lt;<span class="var">SO4</span>&gt;<span class="num">0</span>&lt;/<span class="var">SO4</span>&gt;
+      &lt;<span class="var">SO5</span>&gt;<span class="num">0</span>&lt;/<span class="var">SO5</span>&gt;
+      &lt;<span class="var">OO</span>&gt;<span class="num">0</span>&lt;/<span class="var">OO</span>&gt;           <span class="cm">&lt;!-- ushort?: تخلف دوربین (grab) --&gt;</span>
+      &lt;<span class="var">ESD</span>&gt;<span class="num">2400</span>&lt;/<span class="var">ESD</span>&gt;       <span class="cm">&lt;!-- ushort?: headway (ms) --&gt;</span>
+    &lt;/<span class="fn">Add5</span>&gt;
+  &lt;/<span class="typ">soap12:Body</span>&gt;
+&lt;/<span class="typ">soap12:Envelope</span>&gt;</pre>
+
+  <h3>ساختار پاسخ (<code>Add5Result</code> / <code>Re</code>)</h3>
+  <table class="info-table">
+    <thead><tr><th>فیلد</th><th>نوع</th><th>توضیح</th></tr></thead>
+    <tbody>
+      <tr><td>ID</td><td>long</td><td>شناسه اصلی رکورد در پایگاه داده مرکز. اگر <code>&gt;0</code> = ثبت موفق</td></tr>
+      <tr><td>FID</td><td>long</td><td>همان FID ارسالی برمی‌گردد (برای تطبیق)</td></tr>
+      <tr><td>CFL</td><td>long</td><td>تناقض (<code>100</code> = تکراری اما قابل قبول)</td></tr>
+      <tr><td>SRVDT</td><td>dateTime</td><td>زمان ثبت روی سرور RMTO</td></tr>
+      <tr><td>DLY</td><td>long</td><td>تأخیر ارسال (دقیقه)</td></tr>
+      <tr><td>BIL</td><td>int</td><td>مقیاس محاسبه کارکرد</td></tr>
+      <tr><td>ERR</td><td>string</td><td><code>null</code>/<code>0</code> = بدون خطا؛ <code>"Exception"</code> = خطای سرور</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>نکته:</strong> اگر <code>ERR = "Exception"</code> برگردد، برنامه
+    <strong>RMTO_ID</strong> را به‌روز نمی‌کند (رکورد دوباره ارسال خواهد شد).
+    اگر <code>ID=0</code> و <code>ERR != "Exception"</code>، مقدار <code>RMTO_ID = 6735</code> ثبت می‌شود (کد خطای نرم‌افزار).
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 6. ENDPOINTS / app.config                                       -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>۶. تنظیمات اتصال (app.config)</h2>
+  <p style="font-size:12px;margin-bottom:10px;">
+    برنامه دو سرویس خارجی دارد و چندین binding تعریف شده:
+  </p>
+  <table class="info-table">
+    <thead><tr><th>نام Endpoint</th><th>آدرس</th><th>Binding</th><th>کاربرد</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>CompaniesSoap</td>
+        <td><code>http://otf.rmto.ir/Companies/Companies.asmx</code></td>
+        <td>BasicHttpBinding (SOAP 1.1)</td>
+        <td>ارتباط با RMTO</td>
+      </tr>
+      <tr>
+        <td>CompaniesSoap12</td>
+        <td><code>http://otf.rmto.ir/Companies/Companies.asmx</code></td>
+        <td>CustomBinding (SOAP 1.2)</td>
+        <td>ارتباط با RMTO — نسخه ۱.۲</td>
+      </tr>
+      <tr>
+        <td>AddNewRecordSoap</td>
+        <td><code>http://91.98.46.98/addrecordservice/AddNewRecord.asmx</code></td>
+        <td>BasicHttpBinding</td>
+        <td>سرویس جانبی Pouyesh</td>
+      </tr>
+      <tr>
+        <td>WebReference/ttws</td>
+        <td><code>http://185.37.55.32/newbt/ttws.asmx</code></td>
+        <td>ASMX (legacy)</td>
+        <td>سرویس قدیمی tt</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <strong>⚠️ توجه:</strong>
+    در کد <code>RMTO5Thread</code> آدرس به‌صورت hard-code
+    <code>http://5.160.195.56/Companies/Companies.asmx</code> است
+    (IP داخلی سرور RMTO) و با <code>BasicHttpBinding</code> ارسال می‌شود.
+    این ممکن است با آدرس عمومی <code>otf.rmto.ir</code> متفاوت باشد.
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 7. LIVE ADD5 TEST                                               -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card" style="border-top: 3px solid #1e8449;">
+  <h2>۷. 🧪 تست زنده — ارسال Add5 به سرور RMTO</h2>
+  <p class="login-note" style="font-size:11px;color:#666;margin-bottom:12px;line-height:1.7;">
+    درخواست SOAP مستقیماً از مرورگر به سرور ارسال می‌شود.
+    در صورت خطای CORS، دستور <code>curl</code> را کپی کرده و در ترمینال اجرا کنید.
+    مقادیر پیش‌فرض نمونه‌ای از اجرای واقعی برنامه هستند.
+  </p>
+
+  <div class="form-grid">
+    <div class="form-group">
+      <label><span class="latin">CID</span> — شناسه شرکت</label>
+      <input type="number" id="tCID" value="80" min="0" max="65535" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">UID</span> — نام کاربری</label>
+      <input type="text" id="tUID" value="USERNAME" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">PWD</span> — رمز عبور</label>
+      <input type="password" id="tPWD" value="PASSWORD" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">FID</span> — شناسه رکورد (data.id)</label>
+      <input type="number" id="tFID" value="1" min="0" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">RID</span> — کد محور (mehvar_code)</label>
+      <input type="number" id="tRID" value="102030" min="0" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">ST</span> — شروع بازه</label>
+      <input type="datetime-local" id="tST" value="2024-01-15T10:00" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">ET</span> — پایان بازه (data.interval)</label>
+      <input type="datetime-local" id="tET" value="2024-01-15T10:10" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">C1</span> — تعداد سواری</label>
+      <input type="number" id="tC1" value="45" min="0" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">C2…C5</span> — سایر کلاس‌ها (با کاما جدا)</label>
+      <input type="text" id="tC2345" value="12,8,3,1" />
+    </div>
+    <div class="form-group">
+      <label><span class="latin">ASP</span> — میانگین سرعت کل</label>
+      <input type="number" id="tASP" value="62" min="0" />
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button type="button" id="btnTestSend" style="background:#1a5276;color:#fff;">📤 ارسال Add5</button>
+    <button type="button" id="btnTestCopyCurl">📋 کپی curl</button>
+    <button type="button" id="btnTestPreview">👁 پیش‌نمایش SOAP</button>
+    <span id="testCopyConfirm" style="color:#1e8449;font-size:11px;display:none;">✔ کپی شد!</span>
+  </div>
+
+  <div id="testStatusLine"></div>
+
+  <div class="status-row" id="testStatusRow" style="display:none;">
+    <span class="auth-indicator" id="tIndConn">🌐 اتصال: —</span>
+    <span class="auth-indicator" id="tIndAuth">🔑 نتیجه: —</span>
+    <span class="auth-indicator" id="tIndErr">⚙️ ERR: —</span>
+    <span class="auth-indicator" id="tIndID">🆔 ID: —</span>
+  </div>
+
+  <div class="cors-alert" id="testCorsAlert"></div>
+  <pre id="testCurlBox"></pre>
+  <pre id="testRespBox"></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- 8. SUMMARY TABLE                                                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="card">
+  <h2>۸. خلاصه نقشه ارتباطی فیلدها</h2>
+  <table class="info-table">
+    <thead>
+      <tr>
+        <th>پارامتر Add5</th>
+        <th>منبع در برنامه</th>
+        <th>جدول SQL</th>
+        <th>توضیح</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>CID</td><td><code>mh.cid</code></td><td>mehvar</td><td>شناسه شرکت صاحب دستگاه</td></tr>
+      <tr><td>UID</td><td><code>"ERGSH"</code> (هاردکد)</td><td>—</td><td>نام کاربری سازمان در سرور RMTO</td></tr>
+      <tr><td>PWD</td><td><code>"E2&mi(G*p"</code> (هاردکد)</td><td>—</td><td>رمز عبور سازمان</td></tr>
+      <tr><td>FID</td><td><code>dt.id</code></td><td>data.id</td><td>شناسه رکورد محلی — برای تطبیق پاسخ</td></tr>
+      <tr><td>RID</td><td><code>dt.mehvar_id</code></td><td>data.mehvar_id</td><td>کد محور ترافیکی</td></tr>
+      <tr><td>ET</td><td><code>dt.interval</code></td><td>data.interval</td><td>پایان بازه زمانی</td></tr>
+      <tr><td>ST</td><td><code>ET − 10min</code> (یا ۵min)</td><td>—</td><td>شروع بازه؛ از mh.interval_p مشخص می‌شود</td></tr>
+      <tr><td>C1…C5</td><td><code>dt.acount…ecount × ضریب</code></td><td>data + mehvar.ac…ec</td><td>تعداد هر کلاس × ضریب تصحیح</td></tr>
+      <tr><td>ASP</td><td>میانگین وزنی S1…S5</td><td>—</td><td>محاسبه‌شده: (ΣCᵢ×Sᵢ) / ΣCᵢ</td></tr>
+      <tr><td>S1…S5</td><td><code>dt.avavg…evavg</code></td><td>data</td><td>سرعت میانگین هر کلاس از دستگاه</td></tr>
+      <tr><td>SSO</td><td>SO1+…+SO5</td><td>—</td><td>جمع کل تخلفات سرعت</td></tr>
+      <tr><td>SO1…SO5</td><td><code>dt.aspeed…espeed</code></td><td>data</td><td>تعداد تخلف سرعت هر کلاس</td></tr>
+      <tr><td>OO</td><td><code>dt.grab</code> (اگر grab_count=1)</td><td>data</td><td>تخلف دوربین</td></tr>
+      <tr><td>ESD</td><td><code>dt.headway</code></td><td>data</td><td>فاصله زمانی (ms)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* Helpers                                                              */
+/* ------------------------------------------------------------------ */
+const SERVICE_URL = 'http://otf.rmto.ir/Companies/Companies.asmx';
+
+function escXml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function soapEl(tag, value) {
+  if (value === null || value === undefined || value === '') {
+    return `<${tag} xsi:nil="true"/>`;
+  }
+  return `<${tag}>${escXml(String(value))}</${tag}>`;
+}
+
+function toIso(dtLocal) {
+  if (!dtLocal) return null;
+  return dtLocal.length === 16 ? dtLocal + ':00' : dtLocal;
+}
+
+function v(id) {
+  const el = document.getElementById(id);
+  const val = el ? el.value.trim() : '';
+  return val === '' ? null : val;
+}
+
+/* ------------------------------------------------------------------ */
+/* Build SOAP from test inputs                                          */
+/* ------------------------------------------------------------------ */
+function buildTestSoap() {
+  const cid = v('tCID');
+  const uid = v('tUID');
+  const pwd = v('tPWD');
+  const fid = v('tFID');
+  const rid = v('tRID');
+  const st  = toIso(v('tST'));
+  const et  = toIso(v('tET'));
+  const c1  = v('tC1');
+
+  const c2345raw = (v('tC2345') || '0,0,0,0').split(',').map(x => x.trim());
+  const [c2, c3, c4, c5] = [c2345raw[0]||'0', c2345raw[1]||'0', c2345raw[2]||'0', c2345raw[3]||'0'];
+  const asp = v('tASP');
+
+  return `<?xml version="1.0" encoding="utf-8"?>
+<soap12:Envelope
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:soap12="http://www.w3.org/2003/05/soap-envelope">
+  <soap12:Body>
+    <Add5 xmlns="ITS">
+      ${soapEl('CID',  cid)}
+      ${soapEl('UID',  uid)}
+      ${soapEl('PWD',  pwd)}
+      ${soapEl('FID',  fid)}
+      ${soapEl('RID',  rid)}
+      ${soapEl('ST',   st)}
+      ${soapEl('ET',   et)}
+      ${soapEl('C1',   c1)}
+      ${soapEl('C2',   c2)}
+      ${soapEl('C3',   c3)}
+      ${soapEl('C4',   c4)}
+      ${soapEl('C5',   c5)}
+      ${soapEl('ASP',  asp)}
+      <S1 xsi:nil="true"/>
+      <S2 xsi:nil="true"/>
+      <S3 xsi:nil="true"/>
+      <S4 xsi:nil="true"/>
+      <S5 xsi:nil="true"/>
+      <SSO xsi:nil="true"/>
+      <SO1 xsi:nil="true"/>
+      <SO2 xsi:nil="true"/>
+      <SO3 xsi:nil="true"/>
+      <SO4 xsi:nil="true"/>
+      <SO5 xsi:nil="true"/>
+      <OO xsi:nil="true"/>
+      <ESD xsi:nil="true"/>
+    </Add5>
+  </soap12:Body>
+</soap12:Envelope>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Clipboard                                                            */
+/* ------------------------------------------------------------------ */
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+}
+
+function buildCurlCommand(soapBody) {
+  const escaped = soapBody.replace(/'/g, "'\\''");
+  return `curl -X POST "${SERVICE_URL}" \\\n  -H "Content-Type: application/soap+xml; charset=utf-8; action=\\"ITS/Add5\\"" \\\n  -d '${escaped}'`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Status indicators                                                    */
+/* ------------------------------------------------------------------ */
+function setInd(id, state, text) {
+  const el = document.getElementById(id);
+  el.className = 'auth-indicator ' + state;
+  el.textContent = text;
+}
+
+/* ------------------------------------------------------------------ */
+/* Send Add5                                                            */
+/* ------------------------------------------------------------------ */
+document.getElementById('btnTestSend').addEventListener('click', async () => {
+  const soapBody = buildTestSoap();
+
+  document.getElementById('testCurlBox').textContent = buildCurlCommand(soapBody);
+  document.getElementById('testCurlBox').style.display = '';
+  document.getElementById('testStatusRow').style.display = '';
+  document.getElementById('testCorsAlert').style.display = 'none';
+  document.getElementById('testRespBox').style.display = 'none';
+
+  setInd('tIndConn', 'wait', '🌐 اتصال: در حال ارسال…');
+  setInd('tIndAuth', 'wait', '🔑 نتیجه: منتظر…');
+  setInd('tIndErr',  '',     '⚙️ ERR: —');
+  setInd('tIndID',   '',     '🆔 ID: —');
+
+  document.getElementById('testStatusLine').innerHTML =
+    '<span class="status-badge badge-wait">⏳ در حال ارسال…</span>';
+
+  try {
+    const resp = await fetch(SERVICE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/soap+xml; charset=utf-8; action="ITS/Add5"' },
+      body: soapBody,
+    });
+    const xmlText = await resp.text();
+
+    document.getElementById('testStatusLine').innerHTML =
+      `<span class="status-badge ${resp.ok ? 'badge-ok' : 'badge-err'}">${resp.ok ? '✅ موفق' : '❌ خطا'}</span> HTTP ${resp.status}`;
+
+    setInd('tIndConn', 'ok', '🌐 اتصال: ✅ برقرار');
+
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlText, 'text/xml');
+      const result = doc.querySelector('Add5Result') || doc.querySelector('Re');
+      if (result) {
+        const errEl  = result.querySelector('ERR');
+        const idEl   = result.querySelector('ID');
+        const srvEl  = result.querySelector('SRVDT');
+        const errVal = errEl ? (errEl.getAttribute('xsi:nil') === 'true' ? 'null' : errEl.textContent.trim()) : '—';
+        const idVal  = idEl  ? idEl.textContent.trim() : '—';
+        const srvVal = srvEl ? srvEl.textContent.trim() : '';
+
+        const idNum = Number(idVal);
+        if (idNum > 0) {
+          setInd('tIndAuth', 'ok',  '🔑 نتیجه: ✅ ثبت شد');
+        } else if (errVal === '0' || errVal === 'null') {
+          setInd('tIndAuth', 'ok',  '🔑 نتیجه: ✅ بدون خطا');
+        } else {
+          setInd('tIndAuth', 'err', '🔑 نتیجه: ❌ ' + errVal);
+        }
+        setInd('tIndErr', errVal === '0' || errVal === 'null' ? 'ok' : 'err', `⚙️ ERR: ${errVal}`);
+        setInd('tIndID',  idNum > 0 ? 'ok' : '', `🆔 ID: ${idVal}${srvVal ? ' ⏱' + srvVal : ''}`);
+      } else {
+        setInd('tIndAuth', 'wait', '🔑 نتیجه: پاسخ قابل تفسیر نیست');
+      }
+    } catch (_) {
+      setInd('tIndAuth', 'wait', '🔑 تفسیر XML با خطا مواجه شد');
+    }
+
+    const rawBox = document.getElementById('testRespBox');
+    rawBox.textContent = xmlText;
+    rawBox.style.display = '';
+  } catch (err) {
+    document.getElementById('testStatusLine').innerHTML =
+      '<span class="status-badge badge-err">❌ خطای شبکه (CORS)</span>';
+    setInd('tIndConn', 'err', '🌐 اتصال: ❌ خطای شبکه');
+    setInd('tIndAuth', '',    '🔑 نتیجه: —');
+
+    const alertBox = document.getElementById('testCorsAlert');
+    alertBox.style.display = '';
+    alertBox.innerHTML =
+      '<strong>⚠️ CORS:</strong> مرورگر اجازه ارسال مستقیم نمی‌دهد.<br/>' +
+      '<strong>✅ راه‌حل:</strong> دستور curl بالا را در <strong>ترمینال</strong> اجرا کنید.';
+
+    document.getElementById('testRespBox').textContent = 'جزئیات: ' + err.message;
+    document.getElementById('testRespBox').style.display = '';
+  }
+});
+
+/* ------------------------------------------------------------------ */
+/* Preview SOAP only                                                    */
+/* ------------------------------------------------------------------ */
+document.getElementById('btnTestPreview').addEventListener('click', () => {
+  const soapBody = buildTestSoap();
+  const curlBox = document.getElementById('testCurlBox');
+  curlBox.textContent = buildCurlCommand(soapBody);
+  curlBox.style.display = '';
+  document.getElementById('testRespBox').textContent = soapBody;
+  document.getElementById('testRespBox').style.display = '';
+});
+
+/* ------------------------------------------------------------------ */
+/* Copy curl                                                            */
+/* ------------------------------------------------------------------ */
+document.getElementById('btnTestCopyCurl').addEventListener('click', () => {
+  copyText(buildCurlCommand(buildTestSoap()));
+  const confirm = document.getElementById('testCopyConfirm');
+  confirm.style.display = '';
+  setTimeout(() => { confirm.style.display = 'none'; }, 2500);
+});
+</script>
+
+</body>
+</html>
