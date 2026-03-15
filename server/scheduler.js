@@ -1,5 +1,5 @@
 /**
- * Scheduler - Aggregates traffic data every 15 minutes and sends to RMTO.
+ * Scheduler - Aggregates traffic data every 5 minutes and sends to RMTO.
  */
 
 // Ensure Iran timezone (in case scheduler is loaded independently)
@@ -9,7 +9,7 @@ var cron = require("node-cron");
 var db = require("./db");
 var rmto = require("./rmto-client");
 
-var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 15;
+var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 5;
 
 /**
  * Format Date as local ISO string (matching how device data is stored).
@@ -44,7 +44,7 @@ function aggregateAndSend() {
     devices.forEach(function (dev) {
         var code = dev.device_code;
 
-        // Find ALL distinct 15-minute periods with unread data for this device
+        // Find ALL distinct INTERVAL-minute periods with unread data for this device
         // This ensures we never miss older periods that weren't processed before
         var periods = db.prepare(
             "SELECT DISTINCT " +
