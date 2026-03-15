@@ -135,18 +135,19 @@ python3 -m http.server 8000
 ```xml
 <Add5 xmlns="ITS">
   <CID>companyId</CID> <UID>user</UID> <PWD>pass</PWD>
-  <FID>0</FID> <RID>routeCode</RID>
+  <FID>recordId</FID> <RID>routeCode</RID>
   <ST>startTime</ST> <ET>endTime</ET>
   <C1>c1</C1><C2>c2</C2><C3>c3</C3><C4>c4</C4><C5>c5</C5>
   <ASP>avgSpeed</ASP>
   <S1>s1</S1><S2>s2</S2><S3>s3</S3><S4>s4</S4><S5>s5</S5>
   <SSO>totalViolations</SSO>
-  <SO1>so1</SO1><SO2>so2</SO2><SO3>so3</SO3><SO4>so4</SO4><SO5 xsi:nil="true"/>
+  <SO1>so1</SO1><SO2>so2</SO2><SO3>so3</SO3><SO4>so4</SO4><SO5>so5</SO5>
   <OO>overtaking</OO> <ESD>tooClose</ESD>
 </Add5>
 ```
 
 Class mapping: C1=a(motorcycle) C2=b(car) C3=c(van) C4=d(bus) C5=e+x(truck+other)
+Violation mapping: SO1=a SO2=b SO3=c SO4=d SO5=e+x (SSO=SO1+SO2+SO3+SO4+SO5)
 
 ## AI Assistant Guidelines
 

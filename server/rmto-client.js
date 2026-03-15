@@ -225,8 +225,10 @@ function sendAddData(data, callback) {
  *   </Add5>
  *
  * Per PDF: All numeric fields are Nullable<ushort>.
- * null = device did not measure this field.
+ * null = device did not measure this field (all fields null = skip record).
  * 0 = device measured but found no instances.
+ * Per C# reference: SO5 should be numeric (not null) when data exists.
+ * SSO must equal SO1+SO2+SO3+SO4+SO5 (RMTO validates this sum).
  *
  * callback(err, response, soapXml)
  */
@@ -264,7 +266,7 @@ function sendAddData5(data, callback) {
         xmlElement("SO2", valOrNull(data.SO2)) +
         xmlElement("SO3", valOrNull(data.SO3)) +
         xmlElement("SO4", valOrNull(data.SO4)) +
-        xmlElement("SO5", data.SO5 != null ? parseInt(data.SO5) : null) +
+        xmlElement("SO5", valOrNull(data.SO5)) +
         xmlElement("OO", valOrNull(data.OO)) +
         xmlElement("ESD", valOrNull(data.ESD)) +
         '</Add5>';

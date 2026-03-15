@@ -112,15 +112,15 @@ function aggregatePeriod(code, startStr, endStr) {
     var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
     var avgSpeed = Math.round(totalSpeedSum / totalVehicles);
 
-    // Speed violations per class (SO1-SO4, SO5 = null for 5-class)
-    // Since C5=e+x but SO5 must be null, include e+x violations in SO4
-    // so that SSO = SO1+SO2+SO3+SO4 (RMTO validates this sum)
+    // Speed violations per class (SO1-SO5)
+    // Matching C# reference: SO4=d violations, SO5=e+x violations
+    // SSO = SO1+SO2+SO3+SO4+SO5 (RMTO validates this sum)
     var so1 = iraw.sao||0;
     var so2 = iraw.sbo||0;
     var so3 = iraw.sco||0;
-    var so4 = (iraw.sdo||0) + (iraw.seo||0) + (iraw.sxo||0);
-    var so5 = null; // RMTO expects SO5 xsi:nil="true" for 5-class mode
-    var sso = so1 + so2 + so3 + so4; // total violations (must equal SO1+SO2+SO3+SO4)
+    var so4 = iraw.sdo||0;
+    var so5 = (iraw.seo||0) + (iraw.sxo||0);
+    var sso = so1 + so2 + so3 + so4 + so5;
 
     // Overtaking (OO) and too-close/headway (ESD)
     var oo = iraw.overtaking||0;
@@ -181,7 +181,7 @@ function sendUnsentData(onComplete) {
 
     unsent5.forEach(function (row) {
         rmto.sendAddData5({
-            FID: 0,
+            FID: row.id,
             RID: row.route_id || row.device_code,
             ST: row.period_start,
             ET: row.period_end,
