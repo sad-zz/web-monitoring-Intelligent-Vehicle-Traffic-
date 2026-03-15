@@ -181,7 +181,7 @@ function sendUnsentData(onComplete) {
 
     unsent5.forEach(function (row) {
         rmto.sendAddData5({
-            FID: row.id,
+            FID: 0,
             RID: row.route_id || row.device_code,
             ST: row.period_start,
             ET: row.period_end,
