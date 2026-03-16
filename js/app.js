@@ -877,7 +877,10 @@
                         (r.send_enable ? "فعال" : "غیرفعال") + "</span></td>" +
                     '<td style="text-align:center"><span class="status-badge ' + (r.repair ? "error" : "") + '">' +
                         (r.repair ? "بله" : "خیر") + "</span></td>" +
-                    '<td><button class="btn btn-sm btn-danger" data-action="delete-mehvar" data-code="' + escapeHtml(String(r.code)) + '">حذف</button></td>' +
+                    '<td>' +
+                        '<button class="btn btn-sm" data-action="edit-mehvar" data-code="' + escapeHtml(String(r.code)) + '" data-name="' + escapeHtml(r.name) + '" data-ostan="' + escapeHtml(r.ostan || "") + '" data-send="' + (r.send_enable ? 1 : 0) + '" data-repair="' + (r.repair ? 1 : 0) + '">ویرایش</button> ' +
+                        '<button class="btn btn-sm btn-danger" data-action="delete-mehvar" data-code="' + escapeHtml(String(r.code)) + '">حذف</button>' +
+                    '</td>' +
                     "</tr>";
             }).join("");
         });
@@ -886,14 +889,40 @@
     // Event delegation for mehvar table buttons
     var mehvarTableEl = $("#mehvar-table-body");
     if (mehvarTableEl) mehvarTableEl.addEventListener("click", function (e) {
-        var btn = e.target.closest("button[data-action='delete-mehvar']");
-        if (!btn) return;
-        var code = btn.getAttribute("data-code");
-        if (!confirm("محور " + code + " حذف شود؟")) return;
-        api("DELETE", "/api/mehvar/" + encodeURIComponent(code), null, function (status) {
-            if (status === 200) loadMehvar();
-            else alert("خطا در حذف محور");
-        });
+        var deleteBtn = e.target.closest("button[data-action='delete-mehvar']");
+        if (deleteBtn) {
+            var code = deleteBtn.getAttribute("data-code");
+            if (!confirm("محور " + code + " حذف شود؟")) return;
+            api("DELETE", "/api/mehvar/" + encodeURIComponent(code), null, function (status) {
+                if (status === 200) loadMehvar();
+                else alert("خطا در حذف محور");
+            });
+            return;
+        }
+        var editBtn = e.target.closest("button[data-action='edit-mehvar']");
+        if (editBtn) {
+            var ecode = editBtn.getAttribute("data-code");
+            var ename = editBtn.getAttribute("data-name");
+            var eostan = editBtn.getAttribute("data-ostan");
+            var esend = editBtn.getAttribute("data-send");
+            var erepair = editBtn.getAttribute("data-repair");
+            $("#add-modal-title").textContent = "ویرایش محور " + ecode;
+            $("#add-modal-body").innerHTML =
+                '<div class="form-group"><label>کد محور</label><input type="number" id="new-mehvar-code" value="' + escapeHtml(ecode) + '" dir="ltr" disabled style="background:#f1f5f9"></div>' +
+                '<div class="form-group"><label>نام محور</label><input type="text" id="new-mehvar-name" value="' + escapeHtml(ename) + '"></div>' +
+                '<div class="form-group"><label>استان</label><input type="text" id="new-mehvar-ostan" value="' + escapeHtml(eostan) + '"></div>' +
+                '<div class="form-group"><label>ارسال به سامانه</label><select id="new-mehvar-send">' +
+                    '<option value="1"' + (esend === "1" ? " selected" : "") + '>فعال</option>' +
+                    '<option value="0"' + (esend === "0" ? " selected" : "") + '>غیرفعال</option>' +
+                '</select></div>' +
+                '<div class="form-group"><label>تحت تعمیر</label><select id="new-mehvar-repair">' +
+                    '<option value="0"' + (erepair === "0" ? " selected" : "") + '>خیر</option>' +
+                    '<option value="1"' + (erepair === "1" ? " selected" : "") + '>بله</option>' +
+                '</select></div>';
+            currentAddMode = "mehvar-edit";
+            currentEditMehvarCode = ecode;
+            $("#add-modal-overlay").classList.add("active");
+        }
     });
 
     var addMehvarBtn = $("#btn-add-mehvar");
@@ -1054,10 +1083,29 @@
     // Add Modal (shared)
     // ============================================================
     var currentAddMode = "";
+    var currentEditMehvarCode = null;
 
     var addSaveBtn = $("#add-modal-save");
     if (addSaveBtn) addSaveBtn.addEventListener("click", function () {
-        if (currentAddMode === "mehvar") {
+        if (currentAddMode === "mehvar-edit") {
+            var mname = ($("#new-mehvar-name").value || "").trim();
+            if (!mname) { alert("نام محور الزامی است"); return; }
+            api("PUT", "/api/mehvar/" + encodeURIComponent(currentEditMehvarCode), {
+                name: mname,
+                ostan: ($("#new-mehvar-ostan").value || "").trim(),
+                send_enable: parseInt($("#new-mehvar-send").value, 10),
+                repair: parseInt($("#new-mehvar-repair").value, 10)
+            }, function (status) {
+                if (status === 200) {
+                    $("#add-modal-overlay").classList.remove("active");
+                    currentEditMehvarCode = null;
+                    loadMehvar();
+                    fetchMehvarList(function () {});
+                } else {
+                    alert("خطا در ویرایش محور");
+                }
+            });
+        } else if (currentAddMode === "mehvar") {
             var mcode = parseInt($("#new-mehvar-code").value, 10);
             var mname = ($("#new-mehvar-name").value || "").trim();
             if (!mcode || !mname) { alert("کد و نام محور الزامی است"); return; }

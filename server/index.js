@@ -513,6 +513,25 @@ app.post("/api/mehvar", function (req, res) {
     }
 });
 
+app.put("/api/mehvar/:code", function (req, res) {
+    var b = req.body;
+    try {
+        db.prepare(
+            "UPDATE mehvar SET name = COALESCE(?, name), send_enable = COALESCE(?, send_enable), " +
+            "repair = COALESCE(?, repair), ostan = COALESCE(?, ostan) WHERE code = ?"
+        ).run(
+            b.name !== undefined ? b.name : null,
+            b.send_enable !== undefined ? parseInt(b.send_enable) : null,
+            b.repair !== undefined ? parseInt(b.repair) : null,
+            b.ostan !== undefined ? b.ostan : null,
+            parseInt(req.params.code)
+        );
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.delete("/api/mehvar/:code", function (req, res) {
     db.prepare("DELETE FROM mehvar WHERE code = ?").run(parseInt(req.params.code));
     res.json({ success: true });
