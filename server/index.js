@@ -330,14 +330,26 @@ app.put("/api/devices/:code", function (req, res) {
     var b = req.body;
     var route1 = b.route1 !== undefined ? b.route1 : (b.route !== undefined ? b.route : null);
     var route2 = b.route2 !== undefined ? b.route2 : null;
-    db.prepare(
-        "UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), " +
-        "route = COALESCE(?, route), route1 = COALESCE(?, route1), route2 = COALESCE(?, route2), " +
-        "ip = COALESCE(?, ip), firmware = COALESCE(?, firmware), active = COALESCE(?, active) " +
-        "WHERE device_code = ?"
-    ).run(b.name, b.type, route1, route1, route2, b.ip, b.firmware,
-        b.active !== undefined ? (b.active ? 1 : 0) : null, req.params.code);
-    res.json({ success: true });
+    try {
+        db.prepare(
+            "UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), " +
+            "route = COALESCE(?, route), route1 = COALESCE(?, route1), route2 = COALESCE(?, route2), " +
+            "ip = COALESCE(?, ip), firmware = COALESCE(?, firmware), active = COALESCE(?, active) " +
+            "WHERE device_code = ?"
+        ).run(
+            b.name !== undefined ? b.name : null,
+            b.type !== undefined ? b.type : null,
+            route1, route1, route2,
+            b.ip !== undefined ? b.ip : null,
+            b.firmware !== undefined ? b.firmware : null,
+            b.active !== undefined ? (b.active ? 1 : 0) : null,
+            req.params.code
+        );
+        res.json({ success: true });
+    } catch (e) {
+        console.error("[API] PUT /api/devices/" + req.params.code + " error:", e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.delete("/api/devices/:code", function (req, res) {
