@@ -1534,6 +1534,8 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
     }
 });
 
+var httpServer = null;
+
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
 });
@@ -1548,7 +1550,7 @@ tcpServer.on("error", function (err) {
 // ============================================================
 // Start HTTP Server
 // ============================================================
-app.listen(PORT, HOST, function () {
+httpServer = app.listen(PORT, HOST, function () {
     console.log("============================================");
     console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
     console.log("  HTTP: http://" + HOST + ":" + PORT);
@@ -1562,3 +1564,30 @@ app.listen(PORT, HOST, function () {
 
     scheduler.start();
 });
+
+// ============================================================
+// Graceful Shutdown
+// ============================================================
+function gracefulShutdown(signal) {
+    console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
+    scheduler.stop && scheduler.stop();
+    if (httpServer) {
+        httpServer.close(function () {
+            console.log("[SERVER] HTTP server closed");
+        });
+    }
+    tcpServer.close(function () {
+        console.log("[SERVER] TCP server closed");
+    });
+    // Close all active TCP device connections
+    Object.keys(connectedDevices).forEach(function (key) {
+        try { connectedDevices[key].destroy(); } catch (e) {}
+    });
+    setTimeout(function () {
+        console.log("[SERVER] Forcing exit after timeout");
+        process.exit(0);
+    }, 5000);
+}
+
+process.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });
+process.on("SIGINT", function () { gracefulShutdown("SIGINT"); });
