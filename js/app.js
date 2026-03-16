@@ -56,6 +56,36 @@
 
     var PAGE_SIZE = 20;
 
+    // Cached mehvar (route) list for device dropdowns
+    var cachedMehvarList = [];
+
+    function fetchMehvarList(callback) {
+        api("GET", "/api/mehvar", null, function (status, data) {
+            cachedMehvarList = (status === 200 && Array.isArray(data)) ? data : [];
+            callback(cachedMehvarList);
+        });
+    }
+
+    function buildMehvarOptions(selectedCode) {
+        var opts = '<option value="">-----------</option>';
+        cachedMehvarList.forEach(function (m) {
+            var sel = (String(m.code) === String(selectedCode)) ? " selected" : "";
+            opts += '<option value="' + escapeHtml(String(m.code)) + '"' + sel + '>' +
+                escapeHtml(m.name) + '|' + escapeHtml(String(m.code)) + '</option>';
+        });
+        return opts;
+    }
+
+    function getMehvarName(code) {
+        if (!code) return "";
+        for (var i = 0; i < cachedMehvarList.length; i++) {
+            if (String(cachedMehvarList[i].code) === String(code)) {
+                return cachedMehvarList[i].name + "|" + cachedMehvarList[i].code;
+            }
+        }
+        return String(code);
+    }
+
     // ============================================================
     // Authentication
     // ============================================================
@@ -343,14 +373,16 @@
     var deviceState = { page: 1, search: "" };
 
     function loadDevices() {
-        api("GET", "/api/devices", null, function (status, data) {
-            if (status === 200 && data) {
-                allDevices = data;
-            } else {
-                allDevices = [];
-            }
-            deviceState.page = 1;
-            renderDeviceTable();
+        fetchMehvarList(function () {
+            api("GET", "/api/devices", null, function (status, data) {
+                if (status === 200 && data) {
+                    allDevices = data;
+                } else {
+                    allDevices = [];
+                }
+                deviceState.page = 1;
+                renderDeviceTable();
+            });
         });
     }
 
@@ -367,16 +399,21 @@
 
         var tbody = $("#devices-table-body");
         if (!paged.length) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
         } else {
             tbody.innerHTML = paged.map(function (d, i) {
                 var st = d.status || "offline";
+                var r1 = d.route1 || d.route || "";
+                var r2 = d.route2 || "";
+                var r1Name = getMehvarName(r1);
+                var r2Name = getMehvarName(r2);
                 return "<tr>" +
                     "<td>" + (start + i + 1) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
                     "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
                     '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
-                    "<td>" + escapeHtml(d.route || "-") + "</td>" +
+                    "<td>" + escapeHtml(r1Name || "-") + "</td>" +
+                    "<td>" + escapeHtml(r2Name || "-") + "</td>" +
                     '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
                     '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
                     "<td>" +
@@ -425,21 +462,25 @@
     if (addDevBtn) addDevBtn.addEventListener("click", function () {
         currentEditCode = null;
         $("#add-modal-title").textContent = "افزودن دستگاه جدید";
-        $("#add-modal-body").innerHTML =
-            '<form id="add-device-form">' +
-                '<div class="form-group"><label>کد دستگاه (حداکثر ۸ رقم)</label><input type="text" id="new-dev-code" maxlength="8" pattern="\\d{1,8}" dir="ltr" placeholder="مثال: 10010001" required></div>' +
-                '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" required></div>' +
-                '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
-                    '<option value="counter">ترددشمار</option>' +
-                    '<option value="sensor">سنسور</option>' +
-                    '<option value="loop">حلقه القایی</option>' +
-                    '<option value="radar">رادار</option>' +
-                '</select></div>' +
-                '<div class="form-group"><label>محور</label><input type="text" id="new-dev-route" placeholder="نام محور"></div>' +
-                '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
-            '</form>';
-        currentAddMode = "device";
-        $("#add-modal-overlay").classList.add("active");
+        fetchMehvarList(function () {
+            $("#add-modal-body").innerHTML =
+                '<form id="add-device-form">' +
+                    '<div class="form-group"><label>کد دستگاه (حداکثر ۸ رقم)</label><input type="text" id="new-dev-code" maxlength="8" pattern="\\d{1,8}" dir="ltr" placeholder="مثال: 10010001" required></div>' +
+                    '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" required></div>' +
+                    '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
+                        '<option value="counter">ترددشمار</option>' +
+                        '<option value="sensor">سنسور</option>' +
+                        '<option value="loop">حلقه القایی</option>' +
+                        '<option value="radar">رادار</option>' +
+                    '</select></div>' +
+                    '<div class="form-group"><label>وضعیت</label><label style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" id="new-dev-active" checked> فعال</label></div>' +
+                    '<div class="form-group"><label>محور اول (لاین ۱)</label><select id="new-dev-route1">' + buildMehvarOptions("") + '</select></div>' +
+                    '<div class="form-group"><label>محور دوم (لاین ۲)</label><select id="new-dev-route2">' + buildMehvarOptions("") + '</select></div>' +
+                    '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
+                '</form>';
+            currentAddMode = "device";
+            $("#add-modal-overlay").classList.add("active");
+        });
     });
 
     // Edit device modal
@@ -447,22 +488,26 @@
 
     function openDeviceEditModal(dev) {
         $("#add-modal-title").textContent = "ویرایش دستگاه " + dev.device_code;
-        $("#add-modal-body").innerHTML =
-            '<form id="add-device-form">' +
-                '<div class="form-group"><label>کد دستگاه</label><input type="text" id="new-dev-code" value="' + escapeHtml(dev.device_code) + '" dir="ltr" disabled style="background:#f1f5f9"></div>' +
-                '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" value="' + escapeHtml(dev.name) + '" required></div>' +
-                '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
-                    '<option value="counter"' + (dev.type === "counter" ? " selected" : "") + '>ترددشمار</option>' +
-                    '<option value="sensor"' + (dev.type === "sensor" ? " selected" : "") + '>سنسور</option>' +
-                    '<option value="loop"' + (dev.type === "loop" ? " selected" : "") + '>حلقه القایی</option>' +
-                    '<option value="radar"' + (dev.type === "radar" ? " selected" : "") + '>رادار</option>' +
-                '</select></div>' +
-                '<div class="form-group"><label>محور</label><input type="text" id="new-dev-route" value="' + escapeHtml(dev.route || "") + '" placeholder="نام محور"></div>' +
-                '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" value="' + escapeHtml(dev.ip || "") + '" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
-            '</form>';
-        currentAddMode = "device";
-        currentEditCode = dev.device_code;
-        $("#add-modal-overlay").classList.add("active");
+        fetchMehvarList(function () {
+            $("#add-modal-body").innerHTML =
+                '<form id="add-device-form">' +
+                    '<div class="form-group"><label>کد دستگاه</label><input type="text" id="new-dev-code" value="' + escapeHtml(dev.device_code) + '" dir="ltr" disabled style="background:#f1f5f9"></div>' +
+                    '<div class="form-group"><label>نام دستگاه</label><input type="text" id="new-dev-name" value="' + escapeHtml(dev.name) + '" required></div>' +
+                    '<div class="form-group"><label>نوع</label><select id="new-dev-type">' +
+                        '<option value="counter"' + (dev.type === "counter" ? " selected" : "") + '>ترددشمار</option>' +
+                        '<option value="sensor"' + (dev.type === "sensor" ? " selected" : "") + '>سنسور</option>' +
+                        '<option value="loop"' + (dev.type === "loop" ? " selected" : "") + '>حلقه القایی</option>' +
+                        '<option value="radar"' + (dev.type === "radar" ? " selected" : "") + '>رادار</option>' +
+                    '</select></div>' +
+                    '<div class="form-group"><label>وضعیت</label><label style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" id="new-dev-active"' + (dev.active !== false && dev.active !== 0 ? " checked" : "") + '> فعال</label></div>' +
+                    '<div class="form-group"><label>محور اول (لاین ۱)</label><select id="new-dev-route1">' + buildMehvarOptions(dev.route1 || dev.route || "") + '</select></div>' +
+                    '<div class="form-group"><label>محور دوم (لاین ۲)</label><select id="new-dev-route2">' + buildMehvarOptions(dev.route2 || "") + '</select></div>' +
+                    '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" value="' + escapeHtml(dev.ip || "") + '" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
+                '</form>';
+            currentAddMode = "device";
+            currentEditCode = dev.device_code;
+            $("#add-modal-overlay").classList.add("active");
+        });
     }
 
     // Import devices from JSON/CSV file
@@ -482,7 +527,7 @@
                     var parsed = JSON.parse(text);
                     devices = Array.isArray(parsed) ? parsed : (parsed.devices || []);
                 } catch (_) {
-                    // Try CSV: device_code,name,type,route
+                    // Try CSV: device_code,name,type,route1,route2
                     var lines = text.split(/[\r\n]+/).filter(function (l) { return l.trim(); });
                     for (var i = 0; i < lines.length; i++) {
                         var parts = lines[i].split(",");
@@ -491,7 +536,8 @@
                                 device_code: parts[0].trim(),
                                 name: parts[1] ? parts[1].trim() : ("Device " + parts[0].trim()),
                                 type: parts[2] ? parts[2].trim() : "counter",
-                                route: parts[3] ? parts[3].trim() : ""
+                                route1: parts[3] ? parts[3].trim() : "",
+                                route2: parts[4] ? parts[4].trim() : ""
                             });
                         }
                     }
@@ -1034,16 +1080,20 @@
             var dname = ($("#new-dev-name") || {}).value;
             if (!dname || !dname.trim()) { alert("لطفا نام دستگاه را وارد کنید"); return; }
             var dtype = ($("#new-dev-type") || {}).value || "counter";
-            var droute = ($("#new-dev-route") || {}).value || "";
+            var droute1 = ($("#new-dev-route1") || {}).value || "";
+            var droute2 = ($("#new-dev-route2") || {}).value || "";
             var dip = ($("#new-dev-ip") || {}).value || "";
+            var dactive = $("#new-dev-active") ? ($("#new-dev-active").checked ? 1 : 0) : 1;
 
             if (currentEditCode) {
                 // Edit mode - PUT
                 api("PUT", "/api/devices/" + currentEditCode, {
                     name: dname.trim(),
                     type: dtype,
-                    route: droute,
-                    ip: dip
+                    route1: droute1,
+                    route2: droute2,
+                    ip: dip,
+                    active: dactive
                 }, function (status) {
                     if (status === 200) {
                         $("#add-modal-overlay").classList.remove("active");
@@ -1060,8 +1110,10 @@
                     device_code: dcode,
                     name: dname.trim(),
                     type: dtype,
-                    route: droute,
-                    ip: dip
+                    route1: droute1,
+                    route2: droute2,
+                    ip: dip,
+                    active: dactive
                 }, function (status, data) {
                     if (status === 200) {
                         $("#add-modal-overlay").classList.remove("active");
