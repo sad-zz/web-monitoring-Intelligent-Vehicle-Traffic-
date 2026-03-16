@@ -76,77 +76,99 @@ function aggregateAndSend() {
  * Aggregate a single period for a single device.
  */
 function aggregatePeriod(code, startStr, endStr) {
-    // Aggregate from irawdata table (where TCP/HTTP device data is stored)
-    var iraw = db.prepare(
-        "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
-        "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
-        "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo, " +
-        "SUM(overtaking) as overtaking, SUM(tooclose) as tooclose " +
-        "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0"
-    ).get(code, startStr, endStr);
+    // Get device route info (route1 for lane 1, route2 for lane 2)
+    var devInfo = db.prepare("SELECT route, route1, route2 FROM devices WHERE device_code = ?").get(code);
+    var route1 = (devInfo && (devInfo.route1 || devInfo.route)) || "";
+    var route2 = (devInfo && devInfo.route2) || "";
 
-    // RMTO class mapping: C1=a(motorcycle) C2=b(car) C3=c(van) C4=d(bus) C5=e+x(truck+other)
-    var c1 = (iraw && iraw.a)||0, c2 = (iraw && iraw.b)||0, c3 = (iraw && iraw.c)||0;
-    var c4 = (iraw && iraw.d)||0, c5 = ((iraw && iraw.e)||0) + ((iraw && iraw.x)||0);
-    var totalVehicles = c1 + c2 + c3 + c4 + c5;
+    // Find which lanes have data in this period
+    var lanes = db.prepare(
+        "SELECT DISTINCT lane FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0"
+    ).all(code, startStr, endStr);
 
-    // Always mark as read, even if zero vehicles (prevents re-scanning)
-    db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0")
-        .run(code, startStr, endStr);
-
-    if (totalVehicles === 0) {
-        console.log("[Scheduler] Device " + code + " period " + startStr + " - " + endStr + ": 0 vehicles, skipping RMTO queue");
+    if (!lanes.length) {
+        db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0")
+            .run(code, startStr, endStr);
         return;
     }
 
-    // Average speed per class: sa/sb/sc/sd/se/sx are SUM(avgSpeed * count) in irawdata
-    // So per-class average = sa / a (speed-sum / count)
-    var s1 = c1 > 0 ? Math.round((iraw.sa||0) / c1) : 0;
-    var s2 = c2 > 0 ? Math.round((iraw.sb||0) / c2) : 0;
-    var s3 = c3 > 0 ? Math.round((iraw.sc||0) / c3) : 0;
-    var s4 = c4 > 0 ? Math.round((iraw.sd||0) / c4) : 0;
-    var c5count = (iraw.e||0) + (iraw.x||0);
-    var s5 = c5count > 0 ? Math.round(((iraw.se||0) + (iraw.sx_sum||0)) / c5count) : 0;
+    lanes.forEach(function (laneRow) {
+        var lane = laneRow.lane || 1;
+        var routeId = (lane === 2) ? route2 : route1;
 
-    // Overall average speed (ASP)
-    var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
-    var avgSpeed = Math.round(totalSpeedSum / totalVehicles);
+        // Skip lanes without a route assigned - cannot send to RMTO
+        if (!routeId) {
+            console.log("[Scheduler] Device " + code + " lane " + lane + " period " + startStr + ": no route assigned, skipping");
+            db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
+                .run(code, startStr, endStr, lane);
+            return;
+        }
 
-    // Speed violations per class (SO1-SO5)
-    // Matching C# reference: SO4=d violations, SO5=e+x violations
-    // SSO = SO1+SO2+SO3+SO4+SO5 (RMTO validates this sum)
-    var so1 = iraw.sao||0;
-    var so2 = iraw.sbo||0;
-    var so3 = iraw.sco||0;
-    var so4 = iraw.sdo||0;
-    var so5 = (iraw.seo||0) + (iraw.sxo||0);
-    var sso = so1 + so2 + so3 + so4 + so5;
+        // Aggregate from irawdata for this specific lane
+        var iraw = db.prepare(
+            "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
+            "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
+            "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo, " +
+            "SUM(overtaking) as overtaking, SUM(tooclose) as tooclose " +
+            "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?"
+        ).get(code, startStr, endStr, lane);
 
-    // Overtaking (OO) and too-close/headway (ESD)
-    var oo = iraw.overtaking||0;
-    var esd = iraw.tooclose||0;
+        // RMTO class mapping: C1=a(motorcycle) C2=b(car) C3=c(van) C4=d(bus) C5=e+x(truck+other)
+        var c1 = (iraw && iraw.a)||0, c2 = (iraw && iraw.b)||0, c3 = (iraw && iraw.c)||0;
+        var c4 = (iraw && iraw.d)||0, c5 = ((iraw && iraw.e)||0) + ((iraw && iraw.x)||0);
+        var totalVehicles = c1 + c2 + c3 + c4 + c5;
 
-    // Find route_id (mehvar code) for this device
-    var devInfo = db.prepare("SELECT route FROM devices WHERE device_code = ?").get(code);
-    var routeId = (devInfo && devInfo.route) || code;
+        // Mark as read for this lane
+        db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
+            .run(code, startStr, endStr, lane);
 
-    // Insert into simple queue (Add)
-    db.prepare(
-        "INSERT INTO rmto_queue (device_code, route_id, period_start, period_end, total_vehicles, avg_speed) " +
-        "VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(code, routeId, startStr, endStr, totalVehicles, avgSpeed);
+        if (totalVehicles === 0) {
+            console.log("[Scheduler] Device " + code + " lane " + lane + " period " + startStr + " - " + endStr + ": 0 vehicles, skipping RMTO queue");
+            return;
+        }
 
-    // Insert into 5-class queue (Add5)
-    db.prepare(
-        "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
-        "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
-        "sso, so1, so2, so3, so4, so5, oo, esd) " +
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(code, routeId, startStr, endStr,
-        c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
-        sso, so1, so2, so3, so4, so5, oo, esd);
+        // Average speed per class
+        var s1 = c1 > 0 ? Math.round((iraw.sa||0) / c1) : 0;
+        var s2 = c2 > 0 ? Math.round((iraw.sb||0) / c2) : 0;
+        var s3 = c3 > 0 ? Math.round((iraw.sc||0) / c3) : 0;
+        var s4 = c4 > 0 ? Math.round((iraw.sd||0) / c4) : 0;
+        var c5count = (iraw.e||0) + (iraw.x||0);
+        var s5 = c5count > 0 ? Math.round(((iraw.se||0) + (iraw.sx_sum||0)) / c5count) : 0;
 
-    console.log("[Scheduler] Aggregated device " + code + " (route " + routeId + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd);
+        // Overall average speed (ASP)
+        var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
+        var avgSpeed = Math.round(totalSpeedSum / totalVehicles);
+
+        // Speed violations per class (SO1-SO5)
+        var so1 = iraw.sao||0;
+        var so2 = iraw.sbo||0;
+        var so3 = iraw.sco||0;
+        var so4 = iraw.sdo||0;
+        var so5 = (iraw.seo||0) + (iraw.sxo||0);
+        var sso = so1 + so2 + so3 + so4 + so5;
+
+        // Overtaking (OO) and too-close/headway (ESD)
+        var oo = iraw.overtaking||0;
+        var esd = iraw.tooclose||0;
+
+        // Insert into simple queue (Add)
+        db.prepare(
+            "INSERT INTO rmto_queue (device_code, route_id, period_start, period_end, total_vehicles, avg_speed) " +
+            "VALUES (?, ?, ?, ?, ?, ?)"
+        ).run(code, routeId, startStr, endStr, totalVehicles, avgSpeed);
+
+        // Insert into 5-class queue (Add5)
+        db.prepare(
+            "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
+            "sso, so1, so2, so3, so4, so5, oo, esd) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        ).run(code, routeId, startStr, endStr,
+            c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
+            sso, so1, so2, so3, so4, so5, oo, esd);
+
+        console.log("[Scheduler] Aggregated device " + code + " lane " + lane + " (route " + routeId + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd);
+    });
 }
 
 /**

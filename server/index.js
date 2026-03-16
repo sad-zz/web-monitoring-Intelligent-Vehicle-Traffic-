@@ -311,7 +311,14 @@ app.post("/api/devices", function (req, res) {
     if (!b.device_code || !b.name) return res.status(400).json({ error: "device_code and name required" });
     if (!/^\d{1,8}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 1-8 digits" });
     try {
-        db.prepare("INSERT INTO devices (device_code, name, type, route, ip, status, firmware) VALUES (?, ?, ?, ?, ?, ?, ?)").run(b.device_code, b.name, b.type || "sensor", b.route || "", b.ip || "", "offline", b.firmware || "");
+        db.prepare("INSERT INTO devices (device_code, name, type, route, route1, route2, ip, status, firmware, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+            b.device_code, b.name, b.type || "sensor",
+            b.route1 || b.route || "",
+            b.route1 || b.route || "",
+            b.route2 || "",
+            b.ip || "", "offline", b.firmware || "",
+            b.active !== undefined ? (b.active ? 1 : 0) : 1
+        );
         res.json({ success: true, device_code: b.device_code });
     } catch (e) {
         if (e.message.indexOf("UNIQUE") !== -1) return res.status(409).json({ error: "duplicate device_code" });
@@ -321,7 +328,15 @@ app.post("/api/devices", function (req, res) {
 
 app.put("/api/devices/:code", function (req, res) {
     var b = req.body;
-    db.prepare("UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), route = COALESCE(?, route), ip = COALESCE(?, ip), firmware = COALESCE(?, firmware) WHERE device_code = ?").run(b.name, b.type, b.route, b.ip, b.firmware, req.params.code);
+    var route1 = b.route1 !== undefined ? b.route1 : (b.route !== undefined ? b.route : null);
+    var route2 = b.route2 !== undefined ? b.route2 : null;
+    db.prepare(
+        "UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), " +
+        "route = COALESCE(?, route), route1 = COALESCE(?, route1), route2 = COALESCE(?, route2), " +
+        "ip = COALESCE(?, ip), firmware = COALESCE(?, firmware), active = COALESCE(?, active) " +
+        "WHERE device_code = ?"
+    ).run(b.name, b.type, route1, route1, route2, b.ip, b.firmware,
+        b.active !== undefined ? (b.active ? 1 : 0) : null, req.params.code);
     res.json({ success: true });
 });
 
@@ -334,12 +349,14 @@ app.delete("/api/devices/:code", function (req, res) {
 app.post("/api/devices/import", function (req, res) {
     var devices = req.body.devices;
     if (!Array.isArray(devices) || !devices.length) return res.status(400).json({ error: "devices array required" });
-    var insert = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, route, status) VALUES (?, ?, ?, ?, 'offline')");
+    var insert = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, route, route1, route2, status) VALUES (?, ?, ?, ?, ?, ?, 'offline')");
     var imported = 0;
     var tx = db.transaction(function () {
         devices.forEach(function (d) {
             if (!d.device_code || !/^\d{1,8}$/.test(String(d.device_code))) return;
-            insert.run(String(d.device_code), d.name || ("Device " + d.device_code), d.type || "counter", d.route || "");
+            var r1 = d.route1 || d.route || "";
+            var r2 = d.route2 || "";
+            insert.run(String(d.device_code), d.name || ("Device " + d.device_code), d.type || "counter", r1, r1, r2);
             imported++;
         });
     });

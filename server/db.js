@@ -248,6 +248,28 @@ try {
     }
 } catch(e) {}
 
+// Migration: add route1, route2, active columns to devices (replace single route column)
+try {
+    var devCols = db.prepare("PRAGMA table_info(devices)").all();
+    var devColNames = devCols.map(function(c) { return c.name; });
+    if (devColNames.indexOf("route1") === -1) {
+        console.log("[DB] Adding route1, route2, active columns to devices...");
+        db.exec("ALTER TABLE devices ADD COLUMN route1 TEXT DEFAULT ''");
+        db.exec("ALTER TABLE devices ADD COLUMN route2 TEXT DEFAULT ''");
+        // Copy existing route value to route1
+        if (devColNames.indexOf("route") !== -1) {
+            db.exec("UPDATE devices SET route1 = route WHERE route IS NOT NULL AND route != ''");
+        }
+        console.log("[DB] devices route1/route2 migration done");
+    }
+    if (devColNames.indexOf("active") === -1) {
+        db.exec("ALTER TABLE devices ADD COLUMN active INTEGER DEFAULT 1");
+        console.log("[DB] devices active column added");
+    }
+} catch(e) {
+    console.error("[DB] devices migration error:", e.message);
+}
+
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
