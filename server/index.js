@@ -1536,13 +1536,22 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
 
 var httpServer = null;
 
+var TCP_RETRY_COUNT = 0;
+var TCP_MAX_RETRIES = 5;
+
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
+    TCP_RETRY_COUNT = 0;
     console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
 });
 
 tcpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
-        console.error("[TCP] Port " + TCP_PORT + " already in use, will retry in 5s");
+        TCP_RETRY_COUNT++;
+        if (TCP_RETRY_COUNT > TCP_MAX_RETRIES) {
+            console.error("[TCP] Port " + TCP_PORT + " still in use after " + TCP_MAX_RETRIES + " retries, giving up");
+            return;
+        }
+        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES + " in 5s");
         setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
     }
 });
@@ -1565,28 +1574,56 @@ httpServer = app.listen(PORT, HOST, function () {
     scheduler.start();
 });
 
+httpServer.on("error", function (err) {
+    if (err.code === "EADDRINUSE") {
+        console.error("[HTTP] Port " + PORT + " already in use. Exiting so PM2 can retry.");
+        process.exit(1);
+    }
+});
+
 // ============================================================
 // Graceful Shutdown
 // ============================================================
+var isShuttingDown = false;
 function gracefulShutdown(signal) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
     scheduler.stop && scheduler.stop();
-    if (httpServer) {
-        httpServer.close(function () {
-            console.log("[SERVER] HTTP server closed");
-        });
-    }
-    tcpServer.close(function () {
-        console.log("[SERVER] TCP server closed");
-    });
-    // Close all active TCP device connections
+
+    // Close all active TCP device connections first
     Object.keys(connectedDevices).forEach(function (key) {
         try { connectedDevices[key].destroy(); } catch (e) {}
     });
+
+    var closed = 0;
+    var total = 2;
+    function checkDone() {
+        closed++;
+        if (closed >= total) {
+            console.log("[SERVER] All servers closed, exiting");
+            process.exit(0);
+        }
+    }
+
+    if (httpServer) {
+        httpServer.close(function () {
+            console.log("[SERVER] HTTP server closed");
+            checkDone();
+        });
+    } else {
+        checkDone();
+    }
+
+    tcpServer.close(function () {
+        console.log("[SERVER] TCP server closed");
+        checkDone();
+    });
+
     setTimeout(function () {
         console.log("[SERVER] Forcing exit after timeout");
         process.exit(0);
-    }, 5000);
+    }, 4000);
 }
 
 process.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });
