@@ -104,6 +104,21 @@ function aggregatePeriod(code, startStr, endStr) {
             return;
         }
 
+        // Validate route exists in mehvar table and has send_enable = 1
+        var mehvar = db.prepare("SELECT code, send_enable FROM mehvar WHERE code = ?").get(parseInt(routeId));
+        if (!mehvar) {
+            console.log("[Scheduler] Device " + code + " lane " + lane + " route " + routeId + ": route not found in mehvar table, skipping");
+            db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
+                .run(code, startStr, endStr, lane);
+            return;
+        }
+        if (!mehvar.send_enable) {
+            console.log("[Scheduler] Device " + code + " lane " + lane + " route " + routeId + ": send_enable is off, skipping");
+            db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
+                .run(code, startStr, endStr, lane);
+            return;
+        }
+
         // Aggregate from irawdata for this specific lane
         var iraw = db.prepare(
             "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
@@ -202,9 +217,17 @@ function sendUnsentData(onComplete) {
     }
 
     unsent5.forEach(function (row) {
+        // Skip records without a valid route_id (never fall back to device_code)
+        if (!row.route_id) {
+            console.log("[Scheduler] Skipping Add5 for device " + row.device_code + " id=" + row.id + ": no route_id");
+            db.prepare("UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?")
+                .run('{"skipped":"no route_id"}', row.id);
+            checkDone();
+            return;
+        }
         rmto.sendAddData5({
             FID: row.id,
-            RID: row.route_id || row.device_code,
+            RID: row.route_id,
             ST: row.period_start,
             ET: row.period_end,
             C1: row.c1, C2: row.c2, C3: row.c3, C4: row.c4, C5: row.c5,
