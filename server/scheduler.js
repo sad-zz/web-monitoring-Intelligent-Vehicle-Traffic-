@@ -76,10 +76,13 @@ function aggregateAndSend() {
  * Aggregate a single period for a single device.
  */
 function aggregatePeriod(code, startStr, endStr) {
-    // Get device route info (route1 for lane 1, route2 for lane 2)
-    var devInfo = db.prepare("SELECT route, route1, route2 FROM devices WHERE device_code = ?").get(code);
+    // Get device route info and RID (RMTO route number per lane)
+    var devInfo = db.prepare("SELECT route, route1, route2, rid1, rid2 FROM devices WHERE device_code = ?").get(code);
     var route1 = (devInfo && (devInfo.route1 || devInfo.route)) || "";
     var route2 = (devInfo && devInfo.route2) || "";
+    // Use rid1/rid2 as the RMTO route ID if set, otherwise fall back to route1/route2 (mehvar code)
+    var rmtoRid1 = (devInfo && devInfo.rid1) || route1;
+    var rmtoRid2 = (devInfo && devInfo.rid2) || route2;
 
     // Find which lanes have data in this period
     var lanes = db.prepare(
@@ -94,7 +97,8 @@ function aggregatePeriod(code, startStr, endStr) {
 
     lanes.forEach(function (laneRow) {
         var lane = laneRow.lane || 1;
-        var routeId = (lane === 2) ? route2 : route1;
+        // Use rid1/rid2 (RMTO route number) if set, otherwise fall back to route1/route2
+        var routeId = (lane === 2) ? rmtoRid2 : rmtoRid1;
 
         // Skip lanes without a route assigned - cannot send to RMTO
         if (!routeId) {

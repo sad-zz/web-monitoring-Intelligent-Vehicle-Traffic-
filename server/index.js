@@ -315,10 +315,12 @@ app.post("/api/devices", function (req, res) {
     var r2 = b.route2 || "";
     if (r1 && isNaN(parseInt(r1, 10))) r1 = "";
     if (r2 && isNaN(parseInt(r2, 10))) r2 = "";
+    var rid1 = b.rid1 || "";
+    var rid2 = b.rid2 || "";
     try {
-        db.prepare("INSERT INTO devices (device_code, name, type, route, route1, route2, ip, status, firmware, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+        db.prepare("INSERT INTO devices (device_code, name, type, route, route1, route2, rid1, rid2, ip, status, firmware, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
             b.device_code, b.name, b.type || "sensor",
-            r1, r1, r2,
+            r1, r1, r2, rid1, rid2,
             b.ip || "", "offline", b.firmware || "",
             b.active !== undefined ? (b.active ? 1 : 0) : 1
         );
@@ -333,6 +335,8 @@ app.put("/api/devices/:code", function (req, res) {
     var b = req.body;
     var route1 = b.route1 !== undefined ? b.route1 : (b.route !== undefined ? b.route : null);
     var route2 = b.route2 !== undefined ? b.route2 : null;
+    var rid1 = b.rid1 !== undefined ? b.rid1 : null;
+    var rid2 = b.rid2 !== undefined ? b.rid2 : null;
     // Sanitize route values - must be numeric (mehvar code) or empty
     if (route1 !== null && route1 !== "" && isNaN(parseInt(route1, 10))) route1 = "";
     if (route2 !== null && route2 !== "" && isNaN(parseInt(route2, 10))) route2 = "";
@@ -340,12 +344,14 @@ app.put("/api/devices/:code", function (req, res) {
         db.prepare(
             "UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), " +
             "route = COALESCE(?, route), route1 = COALESCE(?, route1), route2 = COALESCE(?, route2), " +
+            "rid1 = COALESCE(?, rid1), rid2 = COALESCE(?, rid2), " +
             "ip = COALESCE(?, ip), firmware = COALESCE(?, firmware), active = COALESCE(?, active) " +
             "WHERE device_code = ?"
         ).run(
             b.name !== undefined ? b.name : null,
             b.type !== undefined ? b.type : null,
             route1, route1, route2,
+            rid1, rid2,
             b.ip !== undefined ? b.ip : null,
             b.firmware !== undefined ? b.firmware : null,
             b.active !== undefined ? (b.active ? 1 : 0) : null,
@@ -367,14 +373,14 @@ app.delete("/api/devices/:code", function (req, res) {
 app.post("/api/devices/import", function (req, res) {
     var devices = req.body.devices;
     if (!Array.isArray(devices) || !devices.length) return res.status(400).json({ error: "devices array required" });
-    var insert = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, route, route1, route2, status) VALUES (?, ?, ?, ?, ?, ?, 'offline')");
+    var insert = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, route, route1, route2, rid1, rid2, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'offline')");
     var imported = 0;
     var tx = db.transaction(function () {
         devices.forEach(function (d) {
             if (!d.device_code || !/^\d{1,8}$/.test(String(d.device_code))) return;
             var r1 = d.route1 || d.route || "";
             var r2 = d.route2 || "";
-            insert.run(String(d.device_code), d.name || ("Device " + d.device_code), d.type || "counter", r1, r1, r2);
+            insert.run(String(d.device_code), d.name || ("Device " + d.device_code), d.type || "counter", r1, r1, r2, d.rid1 || "", d.rid2 || "");
             imported++;
         });
     });

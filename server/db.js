@@ -266,6 +266,13 @@ try {
         db.exec("ALTER TABLE devices ADD COLUMN active INTEGER DEFAULT 1");
         console.log("[DB] devices active column added");
     }
+    // Migration: add rid1, rid2 columns for RMTO route ID per lane
+    if (devColNames.indexOf("rid1") === -1) {
+        console.log("[DB] Adding rid1, rid2 columns to devices (RMTO route ID per lane)...");
+        db.exec("ALTER TABLE devices ADD COLUMN rid1 TEXT DEFAULT ''");
+        db.exec("ALTER TABLE devices ADD COLUMN rid2 TEXT DEFAULT ''");
+        console.log("[DB] devices rid1/rid2 migration done");
+    }
 } catch(e) {
     console.error("[DB] devices migration error:", e.message);
 }
