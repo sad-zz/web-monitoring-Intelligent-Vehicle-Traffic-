@@ -475,7 +475,9 @@
                     '</select></div>' +
                     '<div class="form-group"><label>وضعیت</label><label style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" id="new-dev-active" checked> فعال</label></div>' +
                     '<div class="form-group"><label>محور اول (لاین ۱)</label><select id="new-dev-route1">' + buildMehvarOptions("") + '</select></div>' +
+                    '<div class="form-group"><label>شماره محور RMTO لاین ۱ (RID)</label><input type="text" id="new-dev-rid1" dir="ltr" placeholder="مثال: 405060"><small style="color:#94a3b8;display:block;margin-top:2px">این شماره هنگام ارسال داده لاین ۱ به RMTO استفاده می‌شود</small></div>' +
                     '<div class="form-group"><label>محور دوم (لاین ۲)</label><select id="new-dev-route2">' + buildMehvarOptions("") + '</select></div>' +
+                    '<div class="form-group"><label>شماره محور RMTO لاین ۲ (RID)</label><input type="text" id="new-dev-rid2" dir="ltr" placeholder="مثال: 405061"><small style="color:#94a3b8;display:block;margin-top:2px">این شماره هنگام ارسال داده لاین ۲ به RMTO استفاده می‌شود</small></div>' +
                     '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
                 '</form>';
             currentAddMode = "device";
@@ -501,7 +503,9 @@
                     '</select></div>' +
                     '<div class="form-group"><label>وضعیت</label><label style="display:flex;align-items:center;gap:6px;margin-top:4px"><input type="checkbox" id="new-dev-active"' + (dev.active !== false && dev.active !== 0 ? " checked" : "") + '> فعال</label></div>' +
                     '<div class="form-group"><label>محور اول (لاین ۱)</label><select id="new-dev-route1">' + buildMehvarOptions(dev.route1 || dev.route || "") + '</select></div>' +
+                    '<div class="form-group"><label>شماره محور RMTO لاین ۱ (RID)</label><input type="text" id="new-dev-rid1" value="' + escapeHtml(dev.rid1 || "") + '" dir="ltr" placeholder="مثال: 405060"><small style="color:#94a3b8;display:block;margin-top:2px">این شماره هنگام ارسال داده لاین ۱ به RMTO استفاده می‌شود</small></div>' +
                     '<div class="form-group"><label>محور دوم (لاین ۲)</label><select id="new-dev-route2">' + buildMehvarOptions(dev.route2 || "") + '</select></div>' +
+                    '<div class="form-group"><label>شماره محور RMTO لاین ۲ (RID)</label><input type="text" id="new-dev-rid2" value="' + escapeHtml(dev.rid2 || "") + '" dir="ltr" placeholder="مثال: 405061"><small style="color:#94a3b8;display:block;margin-top:2px">این شماره هنگام ارسال داده لاین ۲ به RMTO استفاده می‌شود</small></div>' +
                     '<div class="form-group"><label>آدرس IP</label><input type="text" id="new-dev-ip" value="' + escapeHtml(dev.ip || "") + '" dir="ltr" placeholder="مثال: 192.168.1.1"></div>' +
                 '</form>';
             currentAddMode = "device";
@@ -1131,6 +1135,8 @@
             var dtype = ($("#new-dev-type") || {}).value || "counter";
             var droute1 = ($("#new-dev-route1") || {}).value || "";
             var droute2 = ($("#new-dev-route2") || {}).value || "";
+            var drid1 = ($("#new-dev-rid1") || {}).value || "";
+            var drid2 = ($("#new-dev-rid2") || {}).value || "";
             var dip = ($("#new-dev-ip") || {}).value || "";
             var dactive = $("#new-dev-active") ? ($("#new-dev-active").checked ? 1 : 0) : 1;
             // Ensure route values are numeric (mehvar code)
@@ -1144,6 +1150,8 @@
                     type: dtype,
                     route1: droute1,
                     route2: droute2,
+                    rid1: drid1,
+                    rid2: drid2,
                     ip: dip,
                     active: dactive
                 }, function (status) {
@@ -1164,6 +1172,8 @@
                     type: dtype,
                     route1: droute1,
                     route2: droute2,
+                    rid1: drid1,
+                    rid2: drid2,
                     ip: dip,
                     active: dactive
                 }, function (status, data) {
