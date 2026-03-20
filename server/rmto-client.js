@@ -177,11 +177,16 @@ function parseReResponse(xml) {
 function sendAddData(data, callback) {
     loadDbSettings();
 
-    var cid = parseInt(COMPANY_CODE) || 0;
-    var fid = parseInt(data.FID) || 0;
-    var rid = parseInt(data.RID) || 0;
+    var cid = parseInt(COMPANY_CODE, 10) || 0;
+    var fid = parseInt(data.FID, 10) || 0;
+    var rid = parseInt(data.RID, 10) || 0;
     var st = formatDateTime(data.ST);
     var et = formatDateTime(data.ET);
+
+    // Validate RID - must be a positive integer (RMTO route code)
+    if (!rid || rid <= 0) {
+        return callback(new Error("RID نامعتبر: '" + data.RID + "' - کد محور باید عدد مثبت باشد. لطفا محور دستگاه را بررسی کنید"), null, null);
+    }
 
     var bodyXml =
         '<Add xmlns="ITS">' +
@@ -235,11 +240,16 @@ function sendAddData(data, callback) {
 function sendAddData5(data, callback) {
     loadDbSettings();
 
-    var cid = parseInt(COMPANY_CODE) || 0;
-    var fid = parseInt(data.FID) || 0;
-    var rid = parseInt(data.RID) || 0;
+    var cid = parseInt(COMPANY_CODE, 10) || 0;
+    var fid = parseInt(data.FID, 10) || 0;
+    var rid = parseInt(data.RID, 10) || 0;
     var st = formatDateTime(data.ST);
     var et = formatDateTime(data.ET);
+
+    // Validate RID - must be a positive integer (RMTO route code)
+    if (!rid || rid <= 0) {
+        return callback(new Error("RID نامعتبر: '" + data.RID + "' - کد محور باید عدد مثبت باشد. لطفا محور دستگاه را بررسی کنید"), null, null);
+    }
 
     var bodyXml =
         '<Add5 xmlns="ITS">' +

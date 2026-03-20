@@ -932,7 +932,7 @@
         if (!addBody || !addTitle) return;
         addTitle.textContent = "افزودن محور جدید";
         addBody.innerHTML =
-            '<div class="form-group"><label>کد محور</label><input type="number" id="new-mehvar-code" placeholder="مثال: 101" dir="ltr"></div>' +
+            '<div class="form-group"><label>کد محور (کد عددی RMTO)</label><input type="number" id="new-mehvar-code" min="1" placeholder="مثال: 405060" dir="ltr"><small style="color:#94a3b8;display:block;margin-top:2px">این کد باید همان کد محور در سامانه RMTO باشد</small></div>' +
             '<div class="form-group"><label>نام محور</label><input type="text" id="new-mehvar-name" placeholder="مثال: تهران - مشهد"></div>' +
             '<div class="form-group"><label>استان</label><input type="text" id="new-mehvar-ostan" placeholder="مثال: تهران"></div>' +
             '<div class="form-group"><label>ارسال به سامانه</label><select id="new-mehvar-send">' +
@@ -1108,7 +1108,8 @@
         } else if (currentAddMode === "mehvar") {
             var mcode = parseInt($("#new-mehvar-code").value, 10);
             var mname = ($("#new-mehvar-name").value || "").trim();
-            if (!mcode || !mname) { alert("کد و نام محور الزامی است"); return; }
+            if (!mcode || isNaN(mcode) || mcode <= 0) { alert("کد محور باید عدد مثبت باشد (کد RMTO)"); return; }
+            if (!mname) { alert("نام محور الزامی است"); return; }
             api("POST", "/api/mehvar", {
                 code: mcode,
                 name: mname,
@@ -1132,6 +1133,9 @@
             var droute2 = ($("#new-dev-route2") || {}).value || "";
             var dip = ($("#new-dev-ip") || {}).value || "";
             var dactive = $("#new-dev-active") ? ($("#new-dev-active").checked ? 1 : 0) : 1;
+            // Ensure route values are numeric (mehvar code)
+            if (droute1 && isNaN(parseInt(droute1, 10))) droute1 = "";
+            if (droute2 && isNaN(parseInt(droute2, 10))) droute2 = "";
 
             if (currentEditCode) {
                 // Edit mode - PUT

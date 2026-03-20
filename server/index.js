@@ -310,12 +310,15 @@ app.post("/api/devices", function (req, res) {
     var b = req.body;
     if (!b.device_code || !b.name) return res.status(400).json({ error: "device_code and name required" });
     if (!/^\d{1,8}$/.test(b.device_code)) return res.status(400).json({ error: "device_code must be 1-8 digits" });
+    // Sanitize route values - must be numeric (mehvar code) or empty
+    var r1 = b.route1 || b.route || "";
+    var r2 = b.route2 || "";
+    if (r1 && isNaN(parseInt(r1, 10))) r1 = "";
+    if (r2 && isNaN(parseInt(r2, 10))) r2 = "";
     try {
         db.prepare("INSERT INTO devices (device_code, name, type, route, route1, route2, ip, status, firmware, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(
             b.device_code, b.name, b.type || "sensor",
-            b.route1 || b.route || "",
-            b.route1 || b.route || "",
-            b.route2 || "",
+            r1, r1, r2,
             b.ip || "", "offline", b.firmware || "",
             b.active !== undefined ? (b.active ? 1 : 0) : 1
         );
@@ -330,6 +333,9 @@ app.put("/api/devices/:code", function (req, res) {
     var b = req.body;
     var route1 = b.route1 !== undefined ? b.route1 : (b.route !== undefined ? b.route : null);
     var route2 = b.route2 !== undefined ? b.route2 : null;
+    // Sanitize route values - must be numeric (mehvar code) or empty
+    if (route1 !== null && route1 !== "" && isNaN(parseInt(route1, 10))) route1 = "";
+    if (route2 !== null && route2 !== "" && isNaN(parseInt(route2, 10))) route2 = "";
     try {
         db.prepare(
             "UPDATE devices SET name = COALESCE(?, name), type = COALESCE(?, type), " +
@@ -504,8 +510,12 @@ app.get("/api/mehvar", function (req, res) {
 app.post("/api/mehvar", function (req, res) {
     var b = req.body;
     if (!b.code || !b.name) return res.status(400).json({ error: "code and name required" });
+    var codeNum = parseInt(b.code, 10);
+    if (isNaN(codeNum) || codeNum <= 0) {
+        return res.status(400).json({ error: "کد محور باید عدد مثبت باشد (کد RMTO)" });
+    }
     try {
-        db.prepare("INSERT INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)").run(parseInt(b.code), b.name, b.send_enable !== undefined ? parseInt(b.send_enable) : 1, b.repair ? parseInt(b.repair) : 0, b.ostan || "");
+        db.prepare("INSERT INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)").run(codeNum, b.name, b.send_enable !== undefined ? parseInt(b.send_enable, 10) : 1, b.repair ? parseInt(b.repair, 10) : 0, b.ostan || "");
         res.json({ success: true });
     } catch (e) {
         if (e.message.indexOf("UNIQUE") !== -1) return res.status(409).json({ error: "duplicate code" });

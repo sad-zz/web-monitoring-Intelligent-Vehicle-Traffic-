@@ -104,8 +104,17 @@ function aggregatePeriod(code, startStr, endStr) {
             return;
         }
 
+        // Validate route_id is a valid positive integer (RMTO RID must be numeric)
+        var routeIdNum = parseInt(routeId, 10);
+        if (isNaN(routeIdNum) || routeIdNum <= 0) {
+            console.log("[Scheduler] Device " + code + " lane " + lane + " route '" + routeId + "': invalid route_id (not a positive number), skipping");
+            db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
+                .run(code, startStr, endStr, lane);
+            return;
+        }
+
         // Validate route exists in mehvar table and has send_enable = 1
-        var mehvar = db.prepare("SELECT code, send_enable FROM mehvar WHERE code = ?").get(parseInt(routeId));
+        var mehvar = db.prepare("SELECT code, send_enable FROM mehvar WHERE code = ?").get(routeIdNum);
         if (!mehvar) {
             console.log("[Scheduler] Device " + code + " lane " + lane + " route " + routeId + ": route not found in mehvar table, skipping");
             db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
@@ -166,23 +175,23 @@ function aggregatePeriod(code, startStr, endStr) {
         var oo = iraw.overtaking||0;
         var esd = iraw.tooclose||0;
 
-        // Insert into simple queue (Add)
+        // Insert into simple queue (Add) - always store numeric route code
         db.prepare(
             "INSERT INTO rmto_queue (device_code, route_id, period_start, period_end, total_vehicles, avg_speed) " +
             "VALUES (?, ?, ?, ?, ?, ?)"
-        ).run(code, routeId, startStr, endStr, totalVehicles, avgSpeed);
+        ).run(code, String(routeIdNum), startStr, endStr, totalVehicles, avgSpeed);
 
-        // Insert into 5-class queue (Add5)
+        // Insert into 5-class queue (Add5) - always store numeric route code
         db.prepare(
             "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
             "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
             "sso, so1, so2, so3, so4, so5, oo, esd) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(code, routeId, startStr, endStr,
+        ).run(code, String(routeIdNum), startStr, endStr,
             c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
             sso, so1, so2, so3, so4, so5, oo, esd);
 
-        console.log("[Scheduler] Aggregated device " + code + " lane " + lane + " (route " + routeId + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd);
+        console.log("[Scheduler] Aggregated device " + code + " lane " + lane + " (route " + routeIdNum + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd);
     });
 }
 
