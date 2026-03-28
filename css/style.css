@@ -679,9 +679,280 @@ body {
     border-radius: 50%;
 }
 
+/* === View Tabs === */
+.view-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+    background: var(--white);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+.view-tab {
+    flex: 1;
+    padding: 12px 16px;
+    border: none;
+    background: var(--white);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text-light);
+    border-bottom: 3px solid transparent;
+    transition: all .15s;
+    text-align: center;
+}
+
+.view-tab:hover { color: var(--primary); background: #f8fafc; }
+.view-tab.active { color: var(--primary); border-bottom-color: var(--primary); background: #eff6ff; }
+
+.view-tab-content { display: none; }
+.view-tab-content.active { display: block; }
+
+/* === Device Cards Grid === */
+.device-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.device-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: all .2s;
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.device-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.device-card:active {
+    transform: translateY(0);
+}
+
+.device-card-status {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.device-card-status.online { background: var(--success); box-shadow: 0 0 6px rgba(34,197,94,.5); }
+.device-card-status.offline { background: var(--text-light); }
+.device-card-status.warning { background: var(--warning); box-shadow: 0 0 6px rgba(245,158,11,.5); }
+.device-card-status.error { background: var(--error); box-shadow: 0 0 6px rgba(239,68,68,.5); }
+
+.device-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: #eff6ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.device-card-icon svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--primary);
+}
+
+.device-card-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.device-card-code {
+    font-size: 12px;
+    color: var(--text-light);
+    direction: ltr;
+    text-align: right;
+    margin-bottom: 8px;
+}
+
+.device-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+/* === Device Detail Panel === */
+.device-detail-panel {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.device-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.device-detail-back {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text);
+    transition: all .15s;
+}
+
+.device-detail-back:hover {
+    background: var(--bg);
+}
+
+.device-detail-body {
+    padding: 20px;
+}
+
+.device-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.device-detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.device-detail-item .label {
+    font-size: 11px;
+    color: var(--text-light);
+    font-weight: 600;
+}
+
+.device-detail-item .value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.device-detail-actions {
+    display: flex;
+    gap: 8px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    flex-wrap: wrap;
+}
+
+/* === Test Send Form === */
+.test-send-form {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+}
+
+.test-send-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.test-send-result {
+    margin-top: 16px;
+    padding: 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+}
+
+.test-send-result.success {
+    background: rgba(34,197,94,.08);
+    border: 1px solid rgba(34,197,94,.2);
+    color: #16a34a;
+}
+
+.test-send-result.error {
+    background: rgba(239,68,68,.08);
+    border: 1px solid rgba(239,68,68,.2);
+    color: #dc2626;
+}
+
+/* === Bottom Navigation (Mobile) === */
+.bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--white);
+    border-top: 1px solid var(--border);
+    z-index: 90;
+    padding: 4px 0;
+    padding-bottom: env(safe-area-inset-bottom, 4px);
+    box-shadow: 0 -2px 10px rgba(0,0,0,.08);
+}
+
+.bottom-nav-items {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+}
+
+.bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 8px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--text-light);
+    font-size: 10px;
+    transition: color .15s;
+    min-width: 56px;
+}
+
+.bottom-nav-item svg {
+    width: 22px;
+    height: 22px;
+    fill: currentColor;
+}
+
+.bottom-nav-item.active {
+    color: var(--primary);
+}
+
+.bottom-nav-item:hover {
+    color: var(--primary);
+}
+
 /* === Responsive === */
 @media (max-width: 1024px) {
     .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .device-cards { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 }
 
 @media (max-width: 768px) {
@@ -692,7 +963,7 @@ body {
 
     .topbar-toggle { display: block; }
 
-    .stats-row { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
 
     .panel-header { flex-direction: column; align-items: flex-start; }
 
@@ -701,6 +972,67 @@ body {
     .detail-grid { grid-template-columns: 1fr; }
 
     .report-filters { flex-direction: column; align-items: stretch; }
+
+    /* Bottom navigation for mobile */
+    .bottom-nav { display: block; }
+    .footer { display: none; }
+    .content { padding: 12px; padding-bottom: 72px; }
+    .topbar { padding: 0 12px; }
+
+    /* Fix table overflow on mobile */
+    .table-wrapper { 
+        overflow-x: auto; 
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -12px;
+        padding: 0 12px;
+    }
+
+    .data-table { font-size: 12px; min-width: 600px; }
+    .data-table th, .data-table td { padding: 8px 10px; }
+
+    /* Cards adapt to mobile */
+    .device-cards { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .device-card { padding: 12px; }
+    .device-card-icon { width: 40px; height: 40px; margin-bottom: 8px; }
+    .device-card-icon svg { width: 20px; height: 20px; }
+    .device-card-name { font-size: 13px; }
+
+    /* Device detail responsive */
+    .device-detail-grid { grid-template-columns: 1fr; }
+    .device-detail-header { flex-wrap: wrap; padding: 12px; }
+
+    /* Test send form responsive */
+    .test-send-form .form-row { grid-template-columns: 1fr; }
+    .test-send-form { padding: 16px; }
+
+    /* Stat cards compact on mobile */
+    .stat-card { padding: 12px; gap: 10px; }
+    .stat-icon { width: 40px; height: 40px; border-radius: 10px; }
+    .stat-icon svg { width: 20px; height: 20px; }
+    .stat-value { font-size: 20px; }
+    .stat-label { font-size: 11px; }
+
+    /* Panel tools on mobile */
+    .panel-tools { width: 100%; }
+    .search-box { width: 100%; }
+    .search-input { width: 100% !important; }
+
+    /* Buttons full width on mobile */
+    .panel-tools .btn { font-size: 12px; padding: 8px 12px; }
+
+    /* Modal full screen on mobile */
+    .modal { width: 96%; max-width: none; max-height: 92vh; border-radius: 12px; }
+    .modal-body { padding: 16px; }
+    .modal-header { padding: 14px 16px; }
+    .modal-footer { padding: 12px 16px; }
+}
+
+@media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr; gap: 8px; }
+    .device-cards { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .device-card { padding: 10px; }
+    .content { padding: 8px; padding-bottom: 72px; }
+    .topbar-title { font-size: 14px; }
 }
 
 /* === Login Page === */
