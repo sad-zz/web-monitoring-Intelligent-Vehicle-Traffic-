@@ -57,15 +57,15 @@
 
     var PAGE_SIZE = 20;
 
-    // Vehicle class distribution percentages for test data
-    var VEHICLE_DIST = { c1: 0.05, c2: 0.60, c3: 0.15, c4: 0.05 }; // c5 = remainder
+    // c1=motorcycle, c2=car, c3=van, c4=bus, c5=truck+other (remainder)
+    var VEHICLE_DIST = { c1: 0.05, c2: 0.60, c3: 0.15, c4: 0.05 };
 
     function calcVehicleDist(total) {
         var c1 = Math.round(total * VEHICLE_DIST.c1);
         var c2 = Math.round(total * VEHICLE_DIST.c2);
         var c3 = Math.round(total * VEHICLE_DIST.c3);
         var c4 = Math.round(total * VEHICLE_DIST.c4);
-        var c5 = total - c1 - c2 - c3 - c4;
+        var c5 = Math.max(0, total - c1 - c2 - c3 - c4);
         return { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5 };
     }
 
