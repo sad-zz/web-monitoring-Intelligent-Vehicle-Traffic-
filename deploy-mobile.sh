@@ -1,81 +1,174 @@
 #!/bin/bash
 # =============================================================
-# TC Manager – Mobile UI Deployment
+# TC Manager – Mobile UI Deployment  (SELF-CONTAINED)
+#
+# This single script contains ALL files needed for mobile UI.
+# No other files need to be uploaded — just this one script.
+#
 # Deploys the mobile-optimised web interface on a SEPARATE port
 # while proxying all API calls to the main TC Manager server.
-#
 # The main system (tc-manager on port 3000) is NOT touched.
 #
 # Usage:
-#   bash deploy-mobile.sh
+#   scp deploy-mobile.sh root@SERVER_IP:/tmp/
+#   ssh root@SERVER_IP 'bash /tmp/deploy-mobile.sh'
 #
 # Result:
-#   - Mobile UI available on port 8080 (via nginx) or port 3001 direct
+#   - Mobile UI: http://SERVER_IP:8080
 #   - API calls proxied to main server at 127.0.0.1:3000
 #   - Same database, same TCP data, same RMTO – nothing duplicated
+#   - Main system: UNCHANGED and keeps running
 # =============================================================
 set -e
 
 APP_DIR="/opt/tc-manager-mobile"
+MAIN_DIR="/opt/tc-manager"
 MAIN_PORT=3000
 MOBILE_PORT=3001
 NGINX_PORT=8080
 
 echo "========================================"
 echo "  TC Manager – Mobile UI Deployment"
+echo "  (self-contained – no other files needed)"
 echo "========================================"
 
 # ----------------------------------------------------------
-# 1. Create directories
+# Pre-check: main system must be deployed
 # ----------------------------------------------------------
-echo "[1/6] Creating directories..."
-mkdir -p "$APP_DIR/public/css" "$APP_DIR/public/js" "$APP_DIR/public/data"
-
-# ----------------------------------------------------------
-# 2. Copy frontend files from main installation
-# ----------------------------------------------------------
-echo "[2/6] Copying frontend files..."
-MAIN_DIR="/opt/tc-manager"
-
-if [ -d "$MAIN_DIR" ]; then
-    # Copy from the deployed main installation
-    cp -f "$MAIN_DIR/index.html"     "$APP_DIR/public/index.html"
-    cp -f "$MAIN_DIR/css/style.css"  "$APP_DIR/public/css/style.css"
-    cp -f "$MAIN_DIR/js/app.js"      "$APP_DIR/public/js/app.js"
-    [ -f "$MAIN_DIR/data/devices.js" ] && cp -f "$MAIN_DIR/data/devices.js" "$APP_DIR/public/data/devices.js"
-    echo "    Copied from $MAIN_DIR"
-else
-    # Fallback: copy from repo source (first-time deploy before main)
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    cp -f "$SCRIPT_DIR/index.html"     "$APP_DIR/public/index.html"
-    cp -f "$SCRIPT_DIR/css/style.css"  "$APP_DIR/public/css/style.css"
-    cp -f "$SCRIPT_DIR/js/app.js"      "$APP_DIR/public/js/app.js"
-    [ -f "$SCRIPT_DIR/data/devices.js" ] && cp -f "$SCRIPT_DIR/data/devices.js" "$APP_DIR/public/data/devices.js"
-    echo "    Copied from repo source ($SCRIPT_DIR)"
+if [ ! -d "$MAIN_DIR" ]; then
+    echo "[ERROR] Main TC Manager not found at $MAIN_DIR"
+    echo "        Deploy the main system first with deploy-all.sh"
+    exit 1
 fi
 
 # ----------------------------------------------------------
-# 3. Copy mobile server files
+# 1. Stop mobile service if already running
 # ----------------------------------------------------------
-echo "[3/6] Installing mobile server..."
-cp -f "$(cd "$(dirname "$0")" && pwd)/mobile/server.js"    "$APP_DIR/server.js"
-cp -f "$(cd "$(dirname "$0")" && pwd)/mobile/package.json"  "$APP_DIR/package.json"
+systemctl stop tc-manager-mobile 2>/dev/null || true
 
+# ----------------------------------------------------------
+# 2. Create directories
+# ----------------------------------------------------------
+echo "[1/7] Creating directories..."
+mkdir -p "$APP_DIR/public/css" "$APP_DIR/public/js" "$APP_DIR/public/data"
+
+# ----------------------------------------------------------
+# 3. Copy frontend files from main installation
+# ----------------------------------------------------------
+echo "[2/7] Copying frontend files from main system..."
+cp -f "$MAIN_DIR/index.html"     "$APP_DIR/public/index.html"
+cp -f "$MAIN_DIR/css/style.css"  "$APP_DIR/public/css/style.css"
+cp -f "$MAIN_DIR/js/app.js"      "$APP_DIR/public/js/app.js"
+[ -f "$MAIN_DIR/data/devices.js" ] && cp -f "$MAIN_DIR/data/devices.js" "$APP_DIR/public/data/devices.js"
+echo "    Copied from $MAIN_DIR"
+
+# ----------------------------------------------------------
+# 4. Write mobile proxy server (embedded – no external files needed)
+# ----------------------------------------------------------
+echo "[3/7] Writing mobile proxy server..."
+
+cat > "$APP_DIR/package.json" << 'ENDOFFILE_PACKAGE_JSON'
+{
+  "name": "tc-manager-mobile",
+  "version": "1.0.0",
+  "description": "TC Manager - Mobile Web UI proxy (connects to main server API)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.7"
+  }
+}
+ENDOFFILE_PACKAGE_JSON
+
+cat > "$APP_DIR/server.js" << 'ENDOFFILE_SERVER_JS'
+/**
+ * TC Manager - Mobile Web UI Proxy
+ *
+ * A lightweight server that:
+ *  1. Serves the mobile-optimised frontend (index.html, css/, js/)
+ *  2. Proxies every /api/* request to the main TC Manager server
+ *     so that the mobile UI reads the SAME data (TCP port 2022,
+ *     database, RMTO queue) without duplicating anything.
+ *
+ * Usage:
+ *   MAIN_SERVER=http://127.0.0.1:3000 PORT=3001 node server.js
+ *
+ * Environment variables:
+ *   PORT         – port for this mobile server   (default 3001)
+ *   MAIN_SERVER  – main TC Manager origin        (default http://127.0.0.1:3000)
+ */
+
+var express = require("express");
+var path = require("path");
+var { createProxyMiddleware } = require("http-proxy-middleware");
+
+var app = express();
+var PORT = parseInt(process.env.PORT, 10);
+if (isNaN(PORT)) PORT = 3001;
+var MAIN_SERVER = process.env.MAIN_SERVER || "http://127.0.0.1:3000";
+
+// ------------------------------------------------------------------
+// 1. Proxy all API calls to the main server (preserves cookies/session)
+// ------------------------------------------------------------------
+app.use(
+    "/api",
+    createProxyMiddleware({
+        target: MAIN_SERVER,
+        changeOrigin: true,
+        cookieDomainRewrite: "",
+        onProxyReq: function (proxyReq, req) {
+            // Forward the original cookie header so sessions work
+            if (req.headers.cookie) {
+                proxyReq.setHeader("Cookie", req.headers.cookie);
+            }
+        },
+        onProxyRes: function (proxyRes) {
+            // Allow credentials from the mobile origin
+            proxyRes.headers["access-control-allow-credentials"] = "true";
+        },
+        onError: function (err, req, res) {
+            console.error("[Proxy] Error connecting to main server:", err.message);
+            res.status(502).json({ error: "Main server unreachable" });
+        }
+    })
+);
+
+// ------------------------------------------------------------------
+// 2. Serve mobile frontend static files
+// ------------------------------------------------------------------
+app.use(express.static(path.join(__dirname, "public")));
+
+// Fallback: serve index.html for any non-API, non-file route (SPA)
+app.get("*", function (req, res) {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// ------------------------------------------------------------------
+// 3. Start
+// ------------------------------------------------------------------
+app.listen(PORT, "0.0.0.0", function () {
+    console.log("============================================");
+    console.log("  TC Manager – Mobile UI");
+    console.log("  Listening: http://0.0.0.0:" + PORT);
+    console.log("  API proxy: " + MAIN_SERVER + "/api/*");
+    console.log("============================================");
+});
+ENDOFFILE_SERVER_JS
+
+# ----------------------------------------------------------
+# 5. Install npm dependencies
+# ----------------------------------------------------------
+echo "[4/7] Installing npm dependencies..."
 cd "$APP_DIR"
 npm install --production 2>&1 | tail -5 || { echo "ERROR: npm install failed"; exit 1; }
 
 # ----------------------------------------------------------
-# 4. Create .env
+# 6. Create systemd service
 # ----------------------------------------------------------
-cat > "$APP_DIR/.env" << EOF
-PORT=$MOBILE_PORT
-MAIN_SERVER=http://127.0.0.1:$MAIN_PORT
-EOF
-
-# ----------------------------------------------------------
-# 5. Create systemd service
-# ----------------------------------------------------------
-echo "[4/6] Creating systemd service..."
+echo "[5/7] Creating systemd service..."
 cat > /etc/systemd/system/tc-manager-mobile.service << ENDSVC
 [Unit]
 Description=TC Manager – Mobile UI (port $MOBILE_PORT)
@@ -101,9 +194,9 @@ systemctl daemon-reload
 systemctl enable tc-manager-mobile
 
 # ----------------------------------------------------------
-# 6. Add nginx server block for mobile (port 8080)
+# 7. Add nginx server block for mobile (port 8080)
 # ----------------------------------------------------------
-echo "[5/6] Configuring nginx for mobile (port $NGINX_PORT)..."
+echo "[6/7] Configuring nginx for mobile (port $NGINX_PORT)..."
 cat > /etc/nginx/sites-available/tc-manager-mobile << ENDNGINX
 # TC Manager – Mobile UI
 server {
@@ -129,26 +222,28 @@ ln -sf /etc/nginx/sites-available/tc-manager-mobile /etc/nginx/sites-enabled/tc-
 nginx -t && systemctl reload nginx
 
 # ----------------------------------------------------------
-# 7. Open firewall port
+# 8. Open firewall port
 # ----------------------------------------------------------
 ufw allow $NGINX_PORT/tcp 2>/dev/null || true
 
 # ----------------------------------------------------------
-# 8. Start
+# 9. Start
 # ----------------------------------------------------------
-echo "[6/6] Starting mobile service..."
+echo "[7/7] Starting mobile service..."
 systemctl restart tc-manager-mobile
 sleep 2
 
 if systemctl is-active --quiet tc-manager-mobile; then
+    SERVER_IP=$(hostname -I | awk '{print $1}')
     echo ""
     echo "========================================"
-    echo "  OK! Mobile UI running"
-    echo "  URL:  http://<SERVER_IP>:$NGINX_PORT"
-    echo "  Direct: http://127.0.0.1:$MOBILE_PORT"
-    echo "  API proxy → http://127.0.0.1:$MAIN_PORT"
+    echo "  ✅  Mobile UI running!"
     echo ""
-    echo "  Same login as main system."
+    echo "  Mobile URL:  http://$SERVER_IP:$NGINX_PORT"
+    echo "  Direct:      http://127.0.0.1:$MOBILE_PORT"
+    echo "  API proxy →  http://127.0.0.1:$MAIN_PORT"
+    echo ""
+    echo "  Same login as main system (admin)."
     echo "  Main system is NOT affected."
     echo "========================================"
 else
