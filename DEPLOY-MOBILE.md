@@ -9,7 +9,7 @@
 - ✅ رابط موبایل روی **پورت 8080** نمایش داده می‌شود
 - ✅ داده‌ها از **همان دیتابیس و پورت TCP 2022** استفاده می‌شود
 - ✅ ارسال به سامانه RMTO از **سیستم اصلی** انجام می‌شود
-- ✅ فقط **یک فایل** نیاز به آپلود دارد
+- ✅ **نیاز به اینترنت روی سرور ندارد** (حالت آفلاین)
 
 ### معماری:
 
@@ -27,39 +27,38 @@
 
 ---
 
-## روش نصب (فقط 2 دستور)
+## روش نصب آفلاین (سرور بدون اینترنت) ⭐
 
-### پیش‌نیاز
+> **این روش مناسب سرور `5.159.49.246` است که به اینترنت دسترسی ندارد.**
+
+### پیش‌نیازها
 - سیستم اصلی TC Manager باید قبلاً روی سرور نصب شده باشد (با `deploy-all.sh`)
+- Node.js روی **کامپیوتر شما** (که اینترنت دارد) نصب باشد
 - دسترسی SSH به سرور با کاربر root
 
-### مرحله ۱: دانلود فایل
+### مرحله ۱: آماده‌سازی بسته روی کامپیوتر خودتان
 
-از مخزن GitHub فایل `deploy-mobile.sh` را دانلود کنید:
-
-**روش الف - دانلود مستقیم از GitHub:**
 ```bash
-# روی کامپیوتر خودتان:
-wget https://raw.githubusercontent.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-/copilot/fix-mobile-layout-issues/deploy-mobile.sh
+# روی کامپیوتر خودتان (که اینترنت دارد):
+bash prepare-mobile-offline.sh
 ```
 
-**روش ب - کپی دستی:**
-فایل `deploy-mobile.sh` را از مخزن GitHub کپی کنید و در یک فایل متنی ذخیره کنید.
+این اسکریپت یک پوشه `mobile-offline/` می‌سازد که شامل:
+- `deploy-mobile.sh` — اسکریپت نصب
+- `mobile-node-modules.tar.gz` — کتابخانه‌های Node.js (حدود ۱.۳ مگابایت)
 
-### مرحله ۲: آپلود و اجرا روی سرور
+### مرحله ۲: انتقال فایل‌ها به سرور
 
 ```bash
-# آپلود فایل به سرور:
-scp deploy-mobile.sh root@5.159.49.246:/tmp/
+# هر دو فایل را به سرور منتقل کنید:
+scp mobile-offline/* root@5.159.49.246:/tmp/
+```
 
+### مرحله ۳: اجرا روی سرور
+
+```bash
 # اتصال به سرور و اجرا:
 ssh root@5.159.49.246 'bash /tmp/deploy-mobile.sh'
-```
-
-**یا اگر قبلاً به سرور SSH زده‌اید:**
-```bash
-# روی سرور:
-bash /tmp/deploy-mobile.sh
 ```
 
 ### خروجی مورد انتظار:
@@ -73,6 +72,8 @@ bash /tmp/deploy-mobile.sh
     Copied from /opt/tc-manager
 [3/7] Writing mobile proxy server...
 [4/7] Installing npm dependencies...
+    📦 Offline mode: extracting from /tmp/mobile-node-modules.tar.gz
+    ✅ node_modules extracted (8.2M)
 [5/7] Creating systemd service...
 [6/7] Configuring nginx for mobile (port 8080)...
 [7/7] Starting mobile service...
@@ -87,6 +88,27 @@ bash /tmp/deploy-mobile.sh
   Same login as main system (admin).
   Main system is NOT affected.
 ========================================
+```
+
+---
+
+## خلاصه فایل‌ها
+
+| فایل | کجا اجرا می‌شود | توضیح |
+|------|-----------------|-------|
+| `prepare-mobile-offline.sh` | کامپیوتر شما (با اینترنت) | بسته آفلاین را می‌سازد |
+| `deploy-mobile.sh` | سرور | نصب و راه‌اندازی |
+| `mobile-node-modules.tar.gz` | سرور (خودکار استفاده می‌شود) | کتابخانه‌های Node.js |
+
+---
+
+## روش نصب آنلاین (سرور با اینترنت)
+
+اگر سرور به اینترنت دسترسی دارد، فقط یک فایل کافیست:
+
+```bash
+scp deploy-mobile.sh root@5.159.49.246:/tmp/
+ssh root@5.159.49.246 'bash /tmp/deploy-mobile.sh'
 ```
 
 ---
@@ -137,11 +159,15 @@ nginx -t && systemctl reload nginx
 اگر فرانت‌اند سیستم اصلی تغییر کرد (مثلاً با `deploy-all.sh` جدید):
 
 ```bash
-# فقط دوباره deploy-mobile.sh را اجرا کنید:
-bash /tmp/deploy-mobile.sh
-```
+# روی کامپیوتر خودتان (بسته جدید بسازید):
+bash prepare-mobile-offline.sh
 
-این اسکریپت خودکار فایل‌های جدید را از `/opt/tc-manager` کپی می‌کند.
+# فایل‌ها را دوباره به سرور منتقل کنید:
+scp mobile-offline/* root@5.159.49.246:/tmp/
+
+# روی سرور اجرا کنید:
+ssh root@5.159.49.246 'bash /tmp/deploy-mobile.sh'
+```
 
 ---
 
@@ -153,14 +179,17 @@ bash /tmp/deploy-mobile.sh
 ```
 **راه‌حل:** ابتدا سیستم اصلی را نصب کنید: `bash deploy-all.sh`
 
-### خطا: npm install failed
+### خطا: npm install failed (سرور بدون اینترنت)
 ```
-ERROR: npm install failed
+ERROR: npm install failed!
+اگر سرور به اینترنت دسترسی ندارد، از حالت آفلاین استفاده کنید
 ```
-**راه‌حل:** Node.js نصب نیست. نصب کنید:
+**راه‌حل:** از روش آفلاین استفاده کنید:
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-apt-get install -y nodejs
+# روی کامپیوتر خودتان:
+bash prepare-mobile-offline.sh
+scp mobile-offline/* root@5.159.49.246:/tmp/
+ssh root@5.159.49.246 'bash /tmp/deploy-mobile.sh'
 ```
 
 ### پورت 8080 باز نیست

@@ -4,4 +4,6 @@ server/data.db-shm
 server/data.db-wal
 server/uploads/
 mobile/public/
+mobile-offline/
+mobile-node-modules.tar.gz
 .env

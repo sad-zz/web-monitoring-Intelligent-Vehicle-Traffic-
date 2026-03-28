@@ -2,16 +2,19 @@
 # =============================================================
 # TC Manager – Mobile UI Deployment  (SELF-CONTAINED)
 #
-# This single script contains ALL files needed for mobile UI.
-# No other files need to be uploaded — just this one script.
+# Works in TWO modes:
 #
-# Deploys the mobile-optimised web interface on a SEPARATE port
-# while proxying all API calls to the main TC Manager server.
-# The main system (tc-manager on port 3000) is NOT touched.
-#
-# Usage:
+# ▶ ONLINE (server has internet):
 #   scp deploy-mobile.sh root@SERVER_IP:/tmp/
 #   ssh root@SERVER_IP 'bash /tmp/deploy-mobile.sh'
+#
+# ▶ OFFLINE (server has NO internet):
+#   1. On YOUR computer (with internet):
+#      bash prepare-mobile-offline.sh
+#   2. Transfer to server:
+#      scp mobile-offline/* root@SERVER_IP:/tmp/
+#   3. Run on server:
+#      ssh root@SERVER_IP 'bash /tmp/deploy-mobile.sh'
 #
 # Result:
 #   - Mobile UI: http://SERVER_IP:8080
@@ -159,11 +162,57 @@ app.listen(PORT, "0.0.0.0", function () {
 ENDOFFILE_SERVER_JS
 
 # ----------------------------------------------------------
-# 5. Install npm dependencies
+# 5. Install npm dependencies (offline or online)
 # ----------------------------------------------------------
 echo "[4/7] Installing npm dependencies..."
 cd "$APP_DIR"
-npm install --production 2>&1 | tail -5 || { echo "ERROR: npm install failed"; exit 1; }
+
+# Look for pre-bundled node_modules tarball (for offline servers)
+BUNDLE_LOCATIONS=(
+    "/tmp/mobile-node-modules.tar.gz"
+    "$(dirname "$0")/mobile-node-modules.tar.gz"
+    "$APP_DIR/mobile-node-modules.tar.gz"
+)
+
+BUNDLE_FOUND=""
+for loc in "${BUNDLE_LOCATIONS[@]}"; do
+    if [ -f "$loc" ]; then
+        BUNDLE_FOUND="$loc"
+        break
+    fi
+done
+
+if [ -n "$BUNDLE_FOUND" ]; then
+    # OFFLINE mode: extract pre-bundled node_modules
+    echo "    📦 Offline mode: extracting from $BUNDLE_FOUND"
+    rm -rf "$APP_DIR/node_modules"
+    tar xzf "$BUNDLE_FOUND" -C "$APP_DIR/"
+    echo "    ✅ node_modules extracted ($(du -sh "$APP_DIR/node_modules/" | cut -f1))"
+elif command -v npm &> /dev/null; then
+    # ONLINE mode: npm install (requires internet)
+    echo "    🌐 Online mode: running npm install..."
+    npm install --production 2>&1 | tail -5 || {
+        echo ""
+        echo "  [ERROR] npm install failed!"
+        echo "  اگر سرور به اینترنت دسترسی ندارد، از حالت آفلاین استفاده کنید:"
+        echo "  If the server has no internet, use offline mode:"
+        echo ""
+        echo "  On your computer (with internet):"
+        echo "    bash prepare-mobile-offline.sh"
+        echo "    scp mobile-offline/* root@SERVER_IP:/tmp/"
+        echo "    ssh root@SERVER_IP 'bash /tmp/deploy-mobile.sh'"
+        exit 1
+    }
+else
+    echo ""
+    echo "  [ERROR] npm not found and no offline bundle available!"
+    echo "  روی کامپیوتر خودتان (که اینترنت دارد) اجرا کنید:"
+    echo "    bash prepare-mobile-offline.sh"
+    echo "  سپس فایل‌ها را به سرور منتقل کنید:"
+    echo "    scp mobile-offline/* root@SERVER_IP:/tmp/"
+    echo "    ssh root@SERVER_IP 'bash /tmp/deploy-mobile.sh'"
+    exit 1
+fi
 
 # ----------------------------------------------------------
 # 6. Create systemd service
