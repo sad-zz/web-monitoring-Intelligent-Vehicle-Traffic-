@@ -987,7 +987,7 @@ body {
         padding: 0 12px;
     }
 
-    .data-table { font-size: 12px; min-width: 600px; }
+    .data-table { font-size: 12px; min-width: 540px; }
     .data-table th, .data-table td { padding: 8px 10px; }
 
     /* Cards adapt to mobile */

@@ -57,6 +57,18 @@
 
     var PAGE_SIZE = 20;
 
+    // Vehicle class distribution percentages for test data
+    var VEHICLE_DIST = { c1: 0.05, c2: 0.60, c3: 0.15, c4: 0.05 }; // c5 = remainder
+
+    function calcVehicleDist(total) {
+        var c1 = Math.round(total * VEHICLE_DIST.c1);
+        var c2 = Math.round(total * VEHICLE_DIST.c2);
+        var c3 = Math.round(total * VEHICLE_DIST.c3);
+        var c4 = Math.round(total * VEHICLE_DIST.c4);
+        var c5 = total - c1 - c2 - c3 - c4;
+        return { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5 };
+    }
+
     // Cached mehvar (route) list for device dropdowns
     var cachedMehvarList = [];
 
@@ -1185,19 +1197,14 @@
             resultEl.textContent = "در حال ارسال داده تست به سامانه...";
         }
 
-        // Distribute vehicles evenly across classes
-        var c1 = Math.round(vehicles * 0.05); // motorcycle
-        var c2 = Math.round(vehicles * 0.60); // car
-        var c3 = Math.round(vehicles * 0.15); // van
-        var c4 = Math.round(vehicles * 0.05); // bus
-        var c5 = vehicles - c1 - c2 - c3 - c4; // truck+other
+        var dist = calcVehicleDist(vehicles);
 
         var body = {
             device_code: device,
             route_code: route,
             start_time: new Date(start).toISOString(),
             end_time: new Date(end).toISOString(),
-            c1: c1, c2: c2, c3: c3, c4: c4, c5: c5,
+            c1: dist.c1, c2: dist.c2, c3: dist.c3, c4: dist.c4, c5: dist.c5,
             avg_speed: speed,
             total_vehicles: vehicles
         };
@@ -1261,11 +1268,7 @@
             return;
         }
 
-        var c1 = Math.round(vehicles * 0.05);
-        var c2 = Math.round(vehicles * 0.60);
-        var c3 = Math.round(vehicles * 0.15);
-        var c4 = Math.round(vehicles * 0.05);
-        var c5 = vehicles - c1 - c2 - c3 - c4;
+        var dist = calcVehicleDist(vehicles);
 
         var resultEl = $("#test-send-result");
         if (resultEl) {
@@ -1278,11 +1281,11 @@
                     'Device Code: ' + escapeHtml(device) + '\n' +
                     'Start: ' + escapeHtml(new Date(start).toISOString()) + '\n' +
                     'End: ' + escapeHtml(new Date(end).toISOString()) + '\n' +
-                    'C1 (Motorcycle): ' + c1 + '\n' +
-                    'C2 (Car): ' + c2 + '\n' +
-                    'C3 (Van): ' + c3 + '\n' +
-                    'C4 (Bus): ' + c4 + '\n' +
-                    'C5 (Truck+Other): ' + c5 + '\n' +
+                    'C1 (Motorcycle): ' + dist.c1 + '\n' +
+                    'C2 (Car): ' + dist.c2 + '\n' +
+                    'C3 (Van): ' + dist.c3 + '\n' +
+                    'C4 (Bus): ' + dist.c4 + '\n' +
+                    'C5 (Truck+Other): ' + dist.c5 + '\n' +
                     'Total: ' + vehicles + '\n' +
                     'Avg Speed: ' + speed + ' km/h' +
                 '</pre>';
