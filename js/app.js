@@ -51,6 +51,7 @@
         reception: "دریافت داده",
         rmto: "ارسال به سامانه",
         mehvar: "محورها",
+        "test-sender": "ارسال تست",
         settings: "تنظیمات"
     };
 
@@ -180,6 +181,7 @@
         else if (view === "reception") loadReception();
         else if (view === "rmto") loadRMTO();
         else if (view === "mehvar") loadMehvar();
+        else if (view === "test-sender") initTestSender();
         else if (view === "settings") loadSettings();
     }
 
@@ -970,6 +972,11 @@
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+            // Bale
+            var tokenEl = $("#setting-bale-token");
+            var chatEl = $("#setting-bale-chat");
+            if (tokenEl && data.bale_bot_token !== undefined) tokenEl.value = data.bale_bot_token;
+            if (chatEl && data.bale_chat_id !== undefined) chatEl.value = data.bale_chat_id;
         });
     }
 
@@ -1247,6 +1254,226 @@
             });
         });
     }
+
+    // ============================================================
+    // Auto-refresh every 30s
+    // ============================================================
+    setInterval(function () {
+        var activeView = document.querySelector(".view.active");
+        if (!activeView) return;
+        var id = activeView.id;
+        if (id === "view-dashboard") loadDashboard();
+        else if (id === "view-reception") loadReception();
+    }, 30000);
+
+    // ============================================================
+    // Test Sender
+    // ============================================================
+    var testSenderInited = false;
+    function initTestSender() {
+        if (testSenderInited) return;
+        testSenderInited = true;
+
+        // Populate default times: last completed 5-min period
+        function defaultPeriod() {
+            var now = new Date();
+            var end = new Date(now);
+            end.setMinutes(Math.floor(end.getMinutes() / 5) * 5, 0, 0);
+            var start = new Date(end.getTime() - 5 * 60 * 1000);
+            function toLocalInput(d) {
+                return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" +
+                    String(d.getDate()).padStart(2,"0") + "T" +
+                    String(d.getHours()).padStart(2,"0") + ":" +
+                    String(d.getMinutes()).padStart(2,"0");
+            }
+            var stEl = $("#test-st"), etEl = $("#test-et");
+            if (stEl && !stEl.value) stEl.value = toLocalInput(start);
+            if (etEl && !etEl.value) etEl.value = toLocalInput(end);
+        }
+        defaultPeriod();
+
+        var sendBtn = $("#btn-test-send");
+        if (sendBtn) sendBtn.addEventListener("click", function () {
+            var rid = parseInt($("#test-rid").value, 10);
+            if (!rid || rid <= 0) { alert("کد محور (RID) الزامی است"); return; }
+
+            var stVal = $("#test-st").value || "";
+            var etVal = $("#test-et").value || "";
+            var st = stVal ? stVal + ":00" : "";
+            var et = etVal ? etVal + ":00" : "";
+
+            var body = {
+                rid: rid,
+                fid: parseInt($("#test-fid").value, 10) || 0,
+                c1: parseInt($("#test-c1").value, 10) || 0,
+                c2: parseInt($("#test-c2").value, 10) || 0,
+                c3: parseInt($("#test-c3").value, 10) || 0,
+                c4: parseInt($("#test-c4").value, 10) || 0,
+                c5: parseInt($("#test-c5").value, 10) || 0,
+                asp: parseInt($("#test-asp").value, 10) || 60
+            };
+            if (st) body.st = st;
+            if (et) body.et = et;
+
+            sendBtn.disabled = true;
+            sendBtn.textContent = "در حال ارسال...";
+
+            var resultEl = $("#test-send-result");
+            var detailEl = $("#test-send-detail");
+
+            api("POST", "/api/rmto/test-send", body, function (status, data) {
+                sendBtn.disabled = false;
+                sendBtn.textContent = "📤 ارسال به سامانه";
+
+                if (!data) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">خطا: عدم ارتباط با سرور</div>';
+                    return;
+                }
+
+                var isOk = data.success;
+                var resp = data.response || {};
+                var errMsg = data.error || (resp.ERR ? resp.ERR : "");
+
+                resultEl.style.display = "block";
+                if (isOk) {
+                    resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ارسال موفق! ID=' + escapeHtml(String(resp.ID || "-")) + ' CFL=' + escapeHtml(String(resp.CFL || "-")) + '</div>';
+                } else {
+                    resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا: ' + escapeHtml(errMsg || "پاسخ نامعتبر") + '</div>';
+                }
+
+                if (detailEl) {
+                    detailEl.textContent = JSON.stringify(data, null, 2);
+                }
+            });
+        });
+    }
+
+    // ============================================================
+    // Settings: Bale, Server Restart, Log Monitor
+    // ============================================================
+
+    var saveBaleBtn = $("#btn-save-bale");
+    if (saveBaleBtn) saveBaleBtn.addEventListener("click", function () {
+        var token = ($("#setting-bale-token").value || "").trim();
+        var chat = ($("#setting-bale-chat").value || "").trim();
+        api("POST", "/api/settings", { bale_bot_token: token, bale_chat_id: chat }, function (status, data) {
+            var statusEl = $("#bale-test-status");
+            if (status === 200) {
+                statusEl.textContent = "✅ تنظیمات بله ذخیره شد";
+                statusEl.style.color = "#22c55e";
+            } else {
+                statusEl.textContent = "❌ خطا در ذخیره";
+                statusEl.style.color = "#ef4444";
+            }
+        });
+    });
+
+    var testBaleBtn = $("#btn-test-bale");
+    if (testBaleBtn) testBaleBtn.addEventListener("click", function () {
+        var statusEl = $("#bale-test-status");
+        statusEl.textContent = "در حال ارسال...";
+        statusEl.style.color = "#475569";
+        api("POST", "/api/bale/test", { text: "🔔 پیام آزمایشی از TC Manager - سامانه مدیریت ترددشمار" }, function (status, data) {
+            if (status === 200) {
+                statusEl.textContent = "✅ درخواست ارسال شد (اگر توکن معتبر باشد پیام می‌رسد)";
+                statusEl.style.color = "#22c55e";
+            } else {
+                statusEl.textContent = "❌ خطا در ارسال";
+                statusEl.style.color = "#ef4444";
+            }
+        });
+    });
+
+    var restartBtn = $("#btn-server-restart");
+    if (restartBtn) restartBtn.addEventListener("click", function () {
+        if (!confirm("آیا مطمئنید؟ سرور ریستارت خواهد شد و اتصال موقتاً قطع می‌شود.")) return;
+        var statusEl = $("#restart-status");
+        statusEl.textContent = "در حال ریستارت...";
+        statusEl.style.color = "#f59e0b";
+        api("POST", "/api/server/restart", {}, function (status, data) {
+            if (status === 200) {
+                statusEl.textContent = "✅ سرور ریستارت شد. صفحه را پس از چند ثانیه رفرش کنید.";
+                statusEl.style.color = "#22c55e";
+                setTimeout(function () { location.reload(); }, 5000);
+            } else {
+                statusEl.textContent = "❌ خطا در ریستارت";
+                statusEl.style.color = "#ef4444";
+            }
+        });
+    });
+
+    // Live Log Monitor
+    var logMonitorTimer = null;
+    var logLastTs = 0;
+    var logMonitorActive = false;
+
+    var logToggleBtn = $("#btn-log-toggle");
+    var logClearBtn = $("#btn-log-clear");
+    var logContainer = $("#live-log-monitor");
+
+    function appendLogLine(entry) {
+        if (!logContainer) return;
+        var line = document.createElement("div");
+        var time = entry.time ? entry.time.replace("T", " ").substring(0, 19) : "";
+        var color = "#94a3b8";
+        if (entry.type === "tcp-ratcx1") color = "#34d399";
+        else if (entry.type === "irawdata") color = "#60a5fa";
+        else if (entry.type === "data") color = "#a78bfa";
+        else if (entry.type === "tcp-raw") color = "#f87171";
+        var total = (entry.total !== undefined) ? " total=" + entry.total : "";
+        var text = "[" + escapeHtml(time) + "] [" + escapeHtml(entry.type || "-") + "] " +
+            (entry.device ? "dev=" + escapeHtml(entry.device) + " " : "") +
+            (entry.ip ? "ip=" + escapeHtml(entry.ip) + " " : "") +
+            total +
+            (entry.detail ? " " + escapeHtml(entry.detail) : "");
+        line.style.color = color;
+        line.style.borderBottom = "1px solid #1e293b";
+        line.style.padding = "2px 0";
+        line.textContent = text;
+        logContainer.insertBefore(line, logContainer.firstChild);
+        // Keep max 200 lines
+        while (logContainer.children.length > 200) {
+            logContainer.removeChild(logContainer.lastChild);
+        }
+    }
+
+    function pollLiveLogs() {
+        api("GET", "/api/live?since=" + logLastTs + "&limit=50", null, function (status, data) {
+            if (status !== 200 || !Array.isArray(data)) return;
+            if (data.length > 0) {
+                logLastTs = data[0].ts;
+                data.forEach(function (entry) { appendLogLine(entry); });
+            }
+        });
+    }
+
+    if (logToggleBtn) logToggleBtn.addEventListener("click", function () {
+        logMonitorActive = !logMonitorActive;
+        if (logMonitorActive) {
+            logToggleBtn.textContent = "⏸ توقف مانیتور";
+            logToggleBtn.classList.remove("btn-secondary");
+            logToggleBtn.classList.add("btn-primary");
+            if (logContainer) {
+                logContainer.innerHTML = "";
+                logLastTs = 0;
+            }
+            pollLiveLogs();
+            logMonitorTimer = setInterval(pollLiveLogs, 3000);
+        } else {
+            logToggleBtn.textContent = "▶ شروع مانیتور";
+            logToggleBtn.classList.remove("btn-primary");
+            logToggleBtn.classList.add("btn-secondary");
+            if (logMonitorTimer) { clearInterval(logMonitorTimer); logMonitorTimer = null; }
+        }
+    });
+
+    if (logClearBtn) logClearBtn.addEventListener("click", function () {
+        if (logContainer) {
+            logContainer.innerHTML = '<span style="color:#64748b">— پاک شد —</span>';
+            logLastTs = 0;
+        }
+    });
 
     // ============================================================
     // Auto-refresh every 30s

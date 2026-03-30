@@ -6,10 +6,49 @@
 if (!process.env.TZ) process.env.TZ = "Asia/Tehran";
 
 var cron = require("node-cron");
+var http = require("http");
+var https = require("https");
 var db = require("./db");
 var rmto = require("./rmto-client");
 
 var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 5;
+
+/**
+ * Send a notification message via Bale messenger bot.
+ * Settings: bale_bot_token, bale_chat_id (stored in DB settings table)
+ */
+function sendBaleNotification(text) {
+    try {
+        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('bale_bot_token','bale_chat_id')").all();
+        var s = {};
+        rows.forEach(function (r) { s[r.key] = r.value; });
+        var token = s.bale_bot_token || "";
+        var chatId = s.bale_chat_id || "";
+        if (!token || !chatId) return; // Bale not configured
+        var body = JSON.stringify({ chat_id: chatId, text: text });
+        var options = {
+            hostname: "tapi.bale.ai",
+            port: 443,
+            path: "/bot" + token + "/sendMessage",
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }
+        };
+        var req = https.request(options, function (res) {
+            var data = "";
+            res.on("data", function (c) { data += c; });
+            res.on("end", function () {
+                if (res.statusCode !== 200) console.error("[Bale] sendMessage failed: " + res.statusCode + " " + data.substring(0, 200));
+                else console.log("[Bale] Notification sent: " + text.substring(0, 80));
+            });
+        });
+        req.on("error", function (e) { console.error("[Bale] Request error:", e.message); });
+        req.setTimeout(10000, function () { req.destroy(); console.error("[Bale] Notification request timed out"); });
+        req.write(body);
+        req.end();
+    } catch (e) {
+        console.error("[Bale] sendBaleNotification error:", e.message);
+    }
+}
 
 /**
  * Format Date as local ISO string (matching how device data is stored).
@@ -95,12 +134,15 @@ function aggregatePeriod(code, startStr, endStr) {
         return;
     }
 
+    // Group lanes by their RMTO route_id.
+    // When multiple lanes share the same route_id (e.g. bidirectional on one big road)
+    // their data must be SUMMED into a single RMTO record to avoid duplicate errors.
+    var routeGroups = {}; // key: String(routeIdNum) -> { routeIdNum, lanes: [] }
+
     lanes.forEach(function (laneRow) {
         var lane = laneRow.lane || 1;
-        // Use rid1/rid2 (RMTO route number) if set, otherwise fall back to route1/route2
         var routeId = (lane === 2) ? rmtoRid2 : rmtoRid1;
 
-        // Skip lanes without a route assigned - cannot send to RMTO
         if (!routeId) {
             console.log("[Scheduler] Device " + code + " lane " + lane + " period " + startStr + ": no route assigned, skipping");
             db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
@@ -108,50 +150,68 @@ function aggregatePeriod(code, startStr, endStr) {
             return;
         }
 
-        // Validate route_id is a valid positive integer (RMTO RID must be numeric)
         var routeIdNum = parseInt(routeId, 10);
         if (isNaN(routeIdNum) || routeIdNum <= 0) {
-            console.log("[Scheduler] Device " + code + " lane " + lane + " route '" + routeId + "': invalid route_id (not a positive number), skipping");
+            console.log("[Scheduler] Device " + code + " lane " + lane + " route '" + routeId + "': invalid route_id, skipping");
             db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
                 .run(code, startStr, endStr, lane);
             return;
         }
 
-        // Validate route exists in mehvar table and has send_enable = 1
         var mehvar = db.prepare("SELECT code, send_enable FROM mehvar WHERE code = ?").get(routeIdNum);
         if (!mehvar) {
-            console.log("[Scheduler] Device " + code + " lane " + lane + " route " + routeId + ": route not found in mehvar table, skipping");
+            console.log("[Scheduler] Device " + code + " lane " + lane + " route " + routeId + ": not in mehvar table, skipping");
             db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
                 .run(code, startStr, endStr, lane);
             return;
         }
         if (!mehvar.send_enable) {
-            console.log("[Scheduler] Device " + code + " lane " + lane + " route " + routeId + ": send_enable is off, skipping");
+            console.log("[Scheduler] Device " + code + " lane " + lane + " route " + routeId + ": send_enable off, skipping");
             db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
                 .run(code, startStr, endStr, lane);
             return;
         }
 
-        // Aggregate from irawdata for this specific lane
-        var iraw = db.prepare(
+        var key = String(routeIdNum);
+        if (!routeGroups[key]) routeGroups[key] = { routeIdNum: routeIdNum, lanes: [] };
+        routeGroups[key].lanes.push(lane);
+    });
+
+    // For each unique route, aggregate ALL its lanes and insert ONE RMTO record.
+    // This prevents RMTO duplicate errors when two lanes share the same route code.
+    Object.keys(routeGroups).forEach(function (key) {
+        var group = routeGroups[key];
+        var routeIdNum = group.routeIdNum;
+        var groupLanes = group.lanes;
+        var merged = groupLanes.length > 1;
+
+        // Build IN clause for querying multiple lanes at once
+        var lanePlaceholders = groupLanes.map(function () { return "?"; }).join(",");
+        var queryParams = [code, startStr, endStr].concat(groupLanes);
+
+        var aggStmt = db.prepare(
             "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
             "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
             "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo, " +
             "SUM(overtaking) as overtaking, SUM(tooclose) as tooclose " +
-            "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?"
-        ).get(code, startStr, endStr, lane);
+            "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 " +
+            "AND lane IN (" + lanePlaceholders + ")"
+        );
+        var iraw = aggStmt.get.apply(aggStmt, queryParams);
 
-        // RMTO class mapping: C1=a(motorcycle) C2=b(car) C3=c(van) C4=d(bus) C5=e+x(truck+other)
+        // RMTO class mapping: C1=a C2=b C3=c C4=d C5=e+x
         var c1 = (iraw && iraw.a)||0, c2 = (iraw && iraw.b)||0, c3 = (iraw && iraw.c)||0;
         var c4 = (iraw && iraw.d)||0, c5 = ((iraw && iraw.e)||0) + ((iraw && iraw.x)||0);
         var totalVehicles = c1 + c2 + c3 + c4 + c5;
 
-        // Mark as read for this lane
-        db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
-            .run(code, startStr, endStr, lane);
+        // Mark all lanes in this group as read
+        groupLanes.forEach(function (lane) {
+            db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
+                .run(code, startStr, endStr, lane);
+        });
 
         if (totalVehicles === 0) {
-            console.log("[Scheduler] Device " + code + " lane " + lane + " period " + startStr + " - " + endStr + ": 0 vehicles, skipping RMTO queue");
+            console.log("[Scheduler] Device " + code + " route " + routeIdNum + " period " + startStr + ": 0 vehicles, skipping");
             return;
         }
 
@@ -163,29 +223,23 @@ function aggregatePeriod(code, startStr, endStr) {
         var c5count = (iraw.e||0) + (iraw.x||0);
         var s5 = c5count > 0 ? Math.round(((iraw.se||0) + (iraw.sx_sum||0)) / c5count) : 0;
 
-        // Overall average speed (ASP)
         var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
         var avgSpeed = Math.round(totalSpeedSum / totalVehicles);
 
-        // Speed violations per class (SO1-SO5)
-        var so1 = iraw.sao||0;
-        var so2 = iraw.sbo||0;
-        var so3 = iraw.sco||0;
-        var so4 = iraw.sdo||0;
-        var so5 = (iraw.seo||0) + (iraw.sxo||0);
+        var so1 = iraw.sao||0, so2 = iraw.sbo||0, so3 = iraw.sco||0;
+        var so4 = iraw.sdo||0, so5 = (iraw.seo||0) + (iraw.sxo||0);
         var sso = so1 + so2 + so3 + so4 + so5;
 
-        // Overtaking (OO) and too-close/headway (ESD)
         var oo = iraw.overtaking||0;
         var esd = iraw.tooclose||0;
 
-        // Insert into simple queue (Add) - always store numeric route code
+        var lanesLabel = merged ? " lanes[" + groupLanes.join("+") + "](merged)" : " lane " + groupLanes[0];
+
         db.prepare(
             "INSERT INTO rmto_queue (device_code, route_id, period_start, period_end, total_vehicles, avg_speed) " +
             "VALUES (?, ?, ?, ?, ?, ?)"
         ).run(code, String(routeIdNum), startStr, endStr, totalVehicles, avgSpeed);
 
-        // Insert into 5-class queue (Add5) - always store numeric route code
         db.prepare(
             "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
             "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
@@ -195,7 +249,7 @@ function aggregatePeriod(code, startStr, endStr) {
             c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
             sso, so1, so2, so3, so4, so5, oo, esd);
 
-        console.log("[Scheduler] Aggregated device " + code + " lane " + lane + " (route " + routeIdNum + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd);
+        console.log("[Scheduler] Aggregated device " + code + lanesLabel + " (route " + routeIdNum + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd + (merged ? " [MERGED " + groupLanes.length + " lanes]" : ""));
     });
 }
 
@@ -308,12 +362,13 @@ function formatDateTime(isoStr) {
 function checkOfflineDevices() {
     var cutoff = toLocalISOString(new Date(Date.now() - 15 * 60 * 1000));
     var stale = db.prepare(
-        "SELECT device_code FROM devices WHERE status = 'online' AND last_seen < ?"
+        "SELECT device_code, name FROM devices WHERE status = 'online' AND last_seen < ?"
     ).all(cutoff);
 
     stale.forEach(function (d) {
         db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(d.device_code);
         console.log("[Scheduler] Device " + d.device_code + " marked offline (last_seen < " + cutoff + ")");
+        sendBaleNotification("🔴 دستگاه آفلاین شد\nکد: " + d.device_code + "\nنام: " + (d.name || d.device_code));
     });
 }
 
@@ -340,6 +395,7 @@ module.exports = {
     aggregatePeriod: aggregatePeriod,
     sendUnsentData: sendUnsentData,
     checkOfflineDevices: checkOfflineDevices,
+    sendBaleNotification: sendBaleNotification,
     // Alias for backward compatibility with older index.js versions
     processAndSendIrawdata: aggregateAndSend
 };

@@ -292,7 +292,9 @@ var defaultSettings = {
     rmto_company_code: "58",
     rmto_username: "",
     rmto_password: "",
-    rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL"
+    rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
+    bale_bot_token: "",
+    bale_chat_id: ""
 };
 var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
 Object.keys(defaultSettings).forEach(function (k) {
