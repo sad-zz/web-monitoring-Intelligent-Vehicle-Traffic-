@@ -231,9 +231,14 @@ app.post("/api/irawdata", function (req, res) {
 
 // Auto-register unknown devices
 function autoRegisterDevice(code) {
-    var existing = db.prepare("SELECT device_code FROM devices WHERE device_code = ?").get(code);
+    var existing = db.prepare("SELECT device_code, status, name FROM devices WHERE device_code = ?").get(code);
     if (!existing) {
         try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "Device " + code); } catch(e){}
+        // Notify: new device connected for first time
+        scheduler.sendBaleNotification && scheduler.sendBaleNotification("🟢 دستگاه جدید متصل شد\nکد: " + code);
+    } else if (existing.status !== "online") {
+        // Device was offline, now coming back online
+        scheduler.sendBaleNotification && scheduler.sendBaleNotification("🟢 دستگاه آنلاین شد\nکد: " + code + "\nنام: " + (existing.name || code));
     }
     db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(code);
 }
@@ -269,7 +274,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -290,6 +295,82 @@ app.get("/api/server/time", requireAuth, function (req, res) {
         local: now.toLocaleString("fa-IR", { timeZone: process.env.TZ || "Asia/Tehran" }),
         timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tehran",
         uptime: process.uptime()
+    });
+});
+
+// ============================================================
+// API: Server Restart (PM2 will auto-restart after process.exit)
+// ============================================================
+app.post("/api/server/restart", requireAuth, function (req, res) {
+    res.json({ success: true, message: "سرور در حال ریستارت است..." });
+    console.log("[SERVER] Restart requested by user:", req.session.user && req.session.user.username);
+    setTimeout(function () { process.exit(0); }, 1500);
+});
+
+// ============================================================
+// API: Bale notification test
+// ============================================================
+app.post("/api/bale/test", requireAuth, function (req, res) {
+    var text = req.body.text || "🔔 تست اطلاع‌رسانی از TC Manager";
+    scheduler.sendBaleNotification(text);
+    res.json({ success: true, message: "پیام ارسال شد (در صورت تنظیم توکن)" });
+});
+
+// ============================================================
+// API: RMTO Test Send - send configurable test data directly to RMTO
+// ============================================================
+app.post("/api/rmto/test-send", requireAuth, function (req, res) {
+    var b = req.body;
+    var rid = parseInt(b.rid, 10) || 0;
+    if (!rid) return res.status(400).json({ error: "کد محور (RID) الزامی است" });
+
+    var now = new Date();
+    var periodEnd = new Date(now);
+    periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
+    var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+
+    function localISO(d) {
+        return d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0") + "T" +
+            String(d.getHours()).padStart(2, "0") + ":" +
+            String(d.getMinutes()).padStart(2, "0") + ":00";
+    }
+
+    var c1 = parseInt(b.c1) || 0;
+    var c2 = parseInt(b.c2) || 0;
+    var c3 = parseInt(b.c3) || 0;
+    var c4 = parseInt(b.c4) || 0;
+    var c5 = parseInt(b.c5) || 0;
+    var asp = parseInt(b.asp) || 60;
+    var fid = parseInt(b.fid) || 0;
+    var st = b.st || localISO(periodStart);
+    var et = b.et || localISO(periodEnd);
+
+    rmto.sendAddData5({
+        FID: fid,
+        RID: rid,
+        ST: st,
+        ET: et,
+        C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
+        ASP: asp,
+        S1: asp, S2: asp, S3: asp, S4: asp, S5: asp,
+        SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
+        OO: 0, ESD: 0
+    }, function (err, response, soapXml) {
+        var success = !err && response && (response.ID > 0 || response.CFL === 100);
+        db.prepare(
+            "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+        ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
+        res.json({
+            success: success,
+            response: response,
+            error: err ? err.message : null,
+            soapXml: soapXml,
+            sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }
+        });
     });
 });
 
