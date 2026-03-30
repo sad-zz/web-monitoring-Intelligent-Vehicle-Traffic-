@@ -31,20 +31,27 @@ ssh root@SERVER_IP
 ```bash
 mkdir -p ~/tc-deploy
 cd ~/tc-deploy
-# اینجا فایل‌ها را دانلود یا کپی کنید
+# پیشنهاد: کل پروژه را همان‌جا بگیرید تا مسیرها درست بماند
+git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+# توجه: نام ریپو عمدا با خط تیره پایانی است
+cd web-monitoring-Intelligent-Vehicle-Traffic-
+# چک سریع وجود فایل‌ها
+ls server/scheduler.js server/index.js server/db.js js/app.js index.html
 ```
 
 ### مرحله B: VPN را خاموش کنید، سپس انتقال به سرور
-بعد از خاموش‌کردن VPN، از همان فایل‌های ذخیره‌شده در Termux به سرور کپی کنید:
+بعد از خاموش‌کردن VPN، از داخل پوشه پروژه دستورهای انتقال را بزنید:
 
 ```bash
-cd ~/tc-deploy
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
 scp server/scheduler.js server/index.js server/db.js root@SERVER_IP:/opt/tc-manager/server/
 scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
 scp index.html root@SERVER_IP:/opt/tc-manager/
 ssh root@SERVER_IP 'systemctl restart tc-manager && systemctl status tc-manager --no-pager -l'
 ```
 
+اگر خطای `No such file or directory` گرفتید، یعنی داخل پوشه اشتباه هستید؛
+اول `pwd` و بعد `ls server js` را چک کنید (مسیر `pwd` باید شامل `web-monitoring-Intelligent-Vehicle-Traffic-` باشد، مثلا `/data/data/com.termux/files/home/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-`) و دوباره `scp` بزنید.
 این کار باعث می‌شود لازم نباشد هنگام انتقال به سرور، VPN روشن باشد.
 
 ## 3) آپدیت کامل (فقط وقتی سرور پیش‌نیازها را دارد)
@@ -72,6 +79,13 @@ ssh root@SERVER_IP 'systemctl restart tc-manager && systemctl status tc-manager 
 
 ### نکته مسیر فایل‌ها
 - چون مقصد یک پوشه است (`/opt/tc-manager/`)، بهتر است مسیرها را دقیق بزنید یا از داخل ریشه پروژه دستور را اجرا کنید.
+- قبل از `scp` این دستور را بزنید تا مطمئن شوید مسیرها درست هستند:
+
+```bash
+pwd
+ls server/scheduler.js server/index.js server/db.js js/app.js index.html
+```
+
 - اگر خواستید ساختار پوشه‌ها ۱۰۰٪ حفظ شود، از `rsync` استفاده کنید:
 
 ```bash
