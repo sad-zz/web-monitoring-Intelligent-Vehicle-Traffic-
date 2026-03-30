@@ -1,0 +1,13 @@
+{
+  "name": "tc-manager-mobile",
+  "version": "1.0.0",
+  "description": "TC Manager - Mobile Web UI proxy (connects to main server API)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.7"
+  }
+}
