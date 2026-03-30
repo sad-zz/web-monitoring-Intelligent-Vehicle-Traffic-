@@ -30,12 +30,12 @@ scp deploy-all.sh root@SERVER_IP:/tmp/
 ssh root@SERVER_IP 'bash /tmp/deploy-all.sh'
 ```
 
-⚠️ نکته مهم: `deploy-all.sh` برای نصب Node.js/NPM dependency ممکن است به اینترنت روی خود سرور نیاز داشته باشد.  
-اگر سرور اینترنت ندارد و dependency جدید لازم باشد، این روش ممکن است Fail شود.
+⚠️ نکته مهم: `deploy-all.sh` برای نصب Node.js/NPM و وابستگی‌ها ممکن است به اینترنت روی خود سرور نیاز داشته باشد.  
+اگر سرور اینترنت ندارد و وابستگی جدید لازم باشد، این روش ممکن است ناموفق شود.
 
 ## 4) آپدیت فقط کد (مناسب سرور بدون اینترنت)
 
-این روش برای وقتی است که فقط فایل‌های کد عوض شده‌اند و dependency جدید اضافه نشده:
+این روش برای وقتی است که فقط فایل‌های کد عوض شده‌اند و وابستگی جدید اضافه نشده:
 
 ```bash
 scp server/scheduler.js server/index.js server/db.js root@SERVER_IP:/opt/tc-manager/server/
