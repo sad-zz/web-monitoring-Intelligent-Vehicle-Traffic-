@@ -21,6 +21,32 @@ ssh root@SERVER_IP
 
 اگر اولین بار وصل می‌شوید، `yes` بزنید و پسورد را وارد کنید.
 
+## 2.1) سناریوی VPN (دانلود با VPN، انتقال بدون VPN)
+
+اگر روی موبایل برای دانلود نیاز به VPN دارید ولی برای ارتباط با سرور باید VPN خاموش باشد، این ترتیب را انجام دهید:
+
+### مرحله A: با VPN روشن فقط دانلود/دریافت فایل
+فایل‌های لازم را داخل حافظه Termux ذخیره کنید (مثلاً مسیر Home):
+
+```bash
+mkdir -p ~/tc-deploy
+cd ~/tc-deploy
+# اینجا فایل‌ها را دانلود یا کپی کنید
+```
+
+### مرحله B: VPN را خاموش کنید، سپس انتقال به سرور
+بعد از خاموش‌کردن VPN، از همان فایل‌های ذخیره‌شده در Termux به سرور کپی کنید:
+
+```bash
+cd ~/tc-deploy
+scp server/scheduler.js server/index.js server/db.js root@SERVER_IP:/opt/tc-manager/server/
+scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
+scp index.html root@SERVER_IP:/opt/tc-manager/
+ssh root@SERVER_IP 'systemctl restart tc-manager && systemctl status tc-manager --no-pager -l'
+```
+
+این کار باعث می‌شود لازم نباشد هنگام انتقال به سرور، VPN روشن باشد.
+
 ## 3) آپدیت کامل (فقط وقتی سرور پیش‌نیازها را دارد)
 
 دستور کامل:
@@ -82,7 +108,9 @@ ssh root@SERVER_IP 'cp /opt/tc-manager/server/index.js.bak /opt/tc-manager/serve
 ## چک‌لیست کوتاه برای موبایل
 
 1. ورود به Termux  
-2. تست `ssh root@SERVER_IP`  
-3. اجرای `scp` برای فایل‌های تغییرکرده  
-4. `systemctl restart tc-manager`  
-5. بررسی `systemctl status` و `journalctl`
+2. (در صورت نیاز) دانلود فایل‌ها با VPN روشن داخل `~/tc-deploy`  
+3. خاموش‌کردن VPN  
+4. تست `ssh root@SERVER_IP`  
+5. اجرای `scp` برای فایل‌های تغییرکرده  
+6. `systemctl restart tc-manager`  
+7. بررسی `systemctl status` و `journalctl`
