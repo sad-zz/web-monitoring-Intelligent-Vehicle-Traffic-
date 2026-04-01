@@ -26,20 +26,32 @@
 mkdir -p ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
 ```
 
-#### A-2) از سیستم اصلی، فایل دیپلوی را به Termux بفرستید
+#### A-2) روی سیستم اصلی مسیر پروژه را در متغیر قرار دهید
+```bash
+REPO_PATH="/path/to/web-monitoring-Intelligent-Vehicle-Traffic-"
+```
+> خط فاصله انتهای نام (`...Traffic-`) بخشی از نام همین ریپازیتوری است.
+
+#### A-3) روی Termux نام کاربری دقیق را پیدا کنید
+```bash
+whoami
+```
+> خروجی معمولاً شکلی مثل `u0_a123` دارد. همان را به‌جای `TERMUX_USER` قرار دهید.
+
+#### A-4) از سیستم اصلی، فایل دیپلوی را به Termux بفرستید
 > IP و پورت SSH Termux را با مقدار واقعی خودتان جایگزین کنید.
 ```bash
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/deploy-all.sh u0_aXXX@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
+scp "$REPO_PATH/deploy-all.sh" TERMUX_USER@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
 ```
 
-#### A-3) (اختیاری) برای آپدیت سریع، اسکریپت‌های part را هم بفرستید
+#### A-5) (اختیاری) برای آپدیت سریع، اسکریپت‌های part را هم بفرستید
 ```bash
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/server/deploy-part1-server.sh u0_aXXX@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/server/deploy-part2-frontend.sh u0_aXXX@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/server/deploy-part4-css-js.sh u0_aXXX@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
+scp "$REPO_PATH/server/deploy-part1-server.sh" TERMUX_USER@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
+scp "$REPO_PATH/server/deploy-part2-frontend.sh" TERMUX_USER@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
+scp "$REPO_PATH/server/deploy-part4-css-js.sh" TERMUX_USER@TERMUX_IP:~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/
 ```
 
-#### A-4) روی خود Termux چک کنید فایل‌ها رسیده باشند
+#### A-6) روی خود Termux چک کنید فایل‌ها رسیده باشند
 ```bash
 cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
 pwd
@@ -74,10 +86,10 @@ ssh root@SERVER_IP "nginx -t"
 
 ## 3) بررسی اولیه در سیستم خودتان
 
-از داخل مسیر پروژه:
+اگر `REPO_PATH` را در مراحل قبل تنظیم کرده‌اید:
 
 ```bash
-cd /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-
+cd "$REPO_PATH"
 ```
 
 بررسی صحت سینتکس (قبل از آپلود):
@@ -98,13 +110,13 @@ node --check server/db.js
 
 ## 4) روش اصلی و ساده (دیپلوی کامل)
 
-### مرحله 3-1) ارسال اسکریپت به سرور
+### مرحله 4-1) ارسال اسکریپت به سرور
 
 ```bash
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/deploy-all.sh root@SERVER_IP:/tmp/
+scp "$REPO_PATH/deploy-all.sh" root@SERVER_IP:/tmp/
 ```
 
-### مرحله 3-2) اجرای اسکریپت روی سرور
+### مرحله 4-2) اجرای اسکریپت روی سرور
 
 ```bash
 ssh root@SERVER_IP "bash /tmp/deploy-all.sh"
@@ -117,7 +129,7 @@ ssh root@SERVER_IP "bash /tmp/deploy-all.sh"
 > - nginx را تنظیم می‌کند
 > - سرویس را بالا می‌آورد
 
-### مرحله 3-3) بررسی وضعیت بعد از آپلود
+### مرحله 4-3) بررسی وضعیت بعد از آپلود
 
 ```bash
 ssh root@SERVER_IP "systemctl status tc-manager --no-pager"
@@ -145,19 +157,19 @@ ssh root@SERVER_IP "bash /tmp/deploy-all.sh --fresh"
 
 ### فقط بک‌اند
 ```bash
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/server/deploy-part1-server.sh root@SERVER_IP:/tmp/
+scp "$REPO_PATH/server/deploy-part1-server.sh" root@SERVER_IP:/tmp/
 ssh root@SERVER_IP "bash /tmp/deploy-part1-server.sh && systemctl restart tc-manager"
 ```
 
 ### فقط فرانت‌اند
 ```bash
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/server/deploy-part2-frontend.sh root@SERVER_IP:/tmp/
+scp "$REPO_PATH/server/deploy-part2-frontend.sh" root@SERVER_IP:/tmp/
 ssh root@SERVER_IP "bash /tmp/deploy-part2-frontend.sh && systemctl restart tc-manager"
 ```
 
 ### فقط CSS/JS
 ```bash
-scp /home/runner/work/web-monitoring-Intelligent-Vehicle-Traffic-/web-monitoring-Intelligent-Vehicle-Traffic-/server/deploy-part4-css-js.sh root@SERVER_IP:/tmp/
+scp "$REPO_PATH/server/deploy-part4-css-js.sh" root@SERVER_IP:/tmp/
 ssh root@SERVER_IP "bash /tmp/deploy-part4-css-js.sh && systemctl restart tc-manager"
 ```
 
