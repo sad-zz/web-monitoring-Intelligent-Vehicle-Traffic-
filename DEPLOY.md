@@ -21,6 +21,17 @@
 
 ### فاز A) زمانی که VPN روشن است (انتقال به Termux)
 
+#### A-0) (روش مستقیم) اگر می‌خواهید از خود GitHub روی Termux بگیرید
+```bash
+pkg install -y git openssh
+mkdir -p ~/tc-deploy
+cd ~/tc-deploy
+git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+git pull
+```
+> اگر این روش را انجام دادید، دیگر نیازی به `scp` از سیستم اصلی به Termux ندارید و می‌توانید مستقیم به فاز B بروید.
+
 #### A-1) روی Termux یک پوشه ثابت بسازید
 ```bash
 mkdir -p ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
