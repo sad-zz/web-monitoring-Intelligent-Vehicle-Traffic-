@@ -610,7 +610,7 @@ cat > index.html << 'ENDFILE'
                             </div>
                             <div class="form-group">
                                 <label>آدرس IP سرور</label>
-                                <input type="text" id="setting-server" value="0.0.0.0" dir="ltr">
+                                <input type="text" id="setting-server" value="5.159.49.246" dir="ltr">
                             </div>
                             <div class="form-group">
                                 <label>پورت HTTP سرور</label>

@@ -274,7 +274,12 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "bale_bot_token", "bale_chat_id"];
+    var allowed = [
+        "system_name", "server_ip", "server_port", "tcp_port", "refresh_interval",
+        "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout",
+        "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl",
+        "rmto_live_source_ip", "rmto_backlog_source_ip", "bale_bot_token", "bale_chat_id"
+    ];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
