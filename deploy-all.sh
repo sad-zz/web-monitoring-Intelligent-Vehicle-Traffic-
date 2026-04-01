@@ -629,7 +629,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             </div>
                             <div class="form-group">
                                 <label>آدرس IP سرور</label>
-                                <input type="text" id="setting-server" value="0.0.0.0" dir="ltr">
+                                <input type="text" id="setting-server" value="5.159.49.246" dir="ltr">
                             </div>
                             <div class="form-group">
                                 <label>پورت HTTP سرور</label>
@@ -5053,7 +5053,7 @@ try {
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
-    server_ip: "0.0.0.0",
+    server_ip: "5.159.49.246",
     server_port: "3000",
     tcp_port: "2022",
     refresh_interval: "30",
@@ -5066,6 +5066,8 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
+    rmto_live_source_ip: "5.159.49.154",
+    rmto_backlog_source_ip: "5.159.49.110",
     bale_bot_token: "",
     bale_chat_id: ""
 };
