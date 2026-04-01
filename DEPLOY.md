@@ -231,7 +231,7 @@ ssh root@SERVER_IP "ss -lntp | grep -E ':80|:3000|:2022' || true"
 
 ## 9) دستور دقیق «تک‌تک فایل‌های تغییرکرده» با IPهای جدید شما
 
-برای سناریوی شما:
+برای سناریوی شما (این مقادیر را در صورت تغییر شبکه/سرور جایگزین کنید):
 - **Termux IP:** `5.159.49.11`
 - **Server IP:** `5.159.49.154`
 
@@ -245,7 +245,7 @@ git diff --name-only origin/main...HEAD
 ### 9-2) روی سیستم اصلی: هر فایل تغییرکرده را جداگانه به Termux بفرستید
 ```bash
 cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
-TERMUX_USER="u0_a123" # با خروجی whoami در Termux جایگزین کنید
+TERMUX_USER="YOUR_TERMUX_USER" # با خروجی whoami در Termux جایگزین کنید
 TERMUX_IP="5.159.49.11"
 TERMUX_BASE="~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-"
 
