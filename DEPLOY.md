@@ -226,3 +226,59 @@ ssh root@SERVER_IP "ss -lntp | grep -E ':80|:3000|:2022' || true"
   ssh root@SERVER_IP "nginx -t && systemctl reload nginx"
   ```
 - اگر فقط کد عوض شده و deploy کامل طولانی است، از روش «آپدیت سریع فقط کد» استفاده کنید.
+
+---
+
+## 9) دستور دقیق «تک‌تک فایل‌های تغییرکرده» با IPهای جدید شما
+
+برای سناریوی شما:
+- **Termux IP:** `5.159.49.11`
+- **Server IP:** `5.159.49.154`
+
+### 9-1) روی سیستم اصلی: لیست فایل‌های تغییرکرده را بگیرید
+```bash
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+git fetch origin main:refs/remotes/origin/main
+git diff --name-only origin/main...HEAD
+```
+
+### 9-2) روی سیستم اصلی: هر فایل تغییرکرده را جداگانه به Termux بفرستید
+```bash
+cd /path/to/web-monitoring-Intelligent-Vehicle-Traffic-
+TERMUX_USER="u0_a123" # با خروجی whoami در Termux جایگزین کنید
+TERMUX_IP="5.159.49.11"
+TERMUX_BASE="~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-"
+
+git diff --name-only origin/main...HEAD | while read -r f; do
+  [ -z "$f" ] && continue
+  ssh "${TERMUX_USER}@${TERMUX_IP}" "mkdir -p ${TERMUX_BASE}/$(dirname "$f")"
+  scp "$f" "${TERMUX_USER}@${TERMUX_IP}:${TERMUX_BASE}/$f"
+done
+```
+
+### 9-3) داخل Termux: همان فایل‌ها را تک‌تک به سرور بفرستید
+```bash
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+git fetch origin main:refs/remotes/origin/main
+SERVER_IP="5.159.49.154"
+APP_DIR="/opt/tc-manager"
+
+git diff --name-only origin/main...HEAD | while read -r f; do
+  [ -z "$f" ] && continue
+  ssh root@"$SERVER_IP" "mkdir -p ${APP_DIR}/$(dirname "$f")"
+  scp "$f" root@"$SERVER_IP":"${APP_DIR}/$f"
+done
+```
+
+### 9-4) اجرای سرویس بعد از کپی فایل‌ها
+```bash
+ssh root@5.159.49.154 "systemctl restart tc-manager && systemctl status tc-manager --no-pager"
+```
+
+### 9-5) اگر فایل‌های اسکریپت deploy تغییر کرده باشند، همان‌ها را اجرا کنید
+```bash
+scp server/deploy-part1-server.sh root@5.159.49.154:/tmp/
+scp server/deploy-part2-frontend.sh root@5.159.49.154:/tmp/
+scp server/deploy-part4-css-js.sh root@5.159.49.154:/tmp/
+ssh root@5.159.49.154 "bash /tmp/deploy-part1-server.sh && bash /tmp/deploy-part2-frontend.sh && bash /tmp/deploy-part4-css-js.sh && systemctl restart tc-manager"
+```
