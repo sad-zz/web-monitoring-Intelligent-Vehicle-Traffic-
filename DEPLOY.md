@@ -26,9 +26,14 @@
 pkg install -y git openssh
 mkdir -p ~/tc-deploy
 cd ~/tc-deploy
-git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
-cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
-git pull
+if [ -d ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-/.git ]; then
+  cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+  git fetch --all
+  git pull
+else
+  git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
+  cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+fi
 ```
 > اگر این روش را انجام دادید، دیگر نیازی به `scp` از سیستم اصلی به Termux ندارید و می‌توانید مستقیم به فاز B بروید.
 
@@ -84,6 +89,16 @@ scp deploy-all.sh root@SERVER_IP:/tmp/
 #### B-3) اجرای دیپلوی روی سرور
 ```bash
 ssh root@SERVER_IP "bash /tmp/deploy-all.sh"
+```
+
+> اگر اتصال SSH وسط کار قطع شد (مثلاً روی `npm install`)، از اجرای پس‌زمینه استفاده کنید تا دیپلوی روی سرور ادامه پیدا کند:
+```bash
+ssh root@SERVER_IP "nohup bash /tmp/deploy-all.sh > /tmp/tc-deploy.log 2>&1 < /dev/null &"
+ssh root@SERVER_IP "tail -n 50 /tmp/tc-deploy.log"
+```
+> برای چک لحظه‌ای لاگ:
+```bash
+ssh root@SERVER_IP "tail -f /tmp/tc-deploy.log"
 ```
 
 #### B-4) بررسی سرویس پس از دیپلوی
