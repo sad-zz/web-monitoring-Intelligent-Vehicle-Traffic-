@@ -233,7 +233,9 @@ ssh root@SERVER_IP "ss -lntp | grep -E ':80|:3000|:2022' || true"
 
 برای سناریوی شما (این مقادیر را در صورت تغییر شبکه/سرور جایگزین کنید):
 - **Termux IP:** `5.159.49.11`
-- **Server IP:** `5.159.49.154`
+- **Server IP (TC Manager):** `5.159.49.246`
+- **RMTO Live Source IP:** `5.159.49.154`
+- **RMTO Backlog Source IP:** `5.159.49.110`
 
 ### 9-1) روی سیستم اصلی: لیست فایل‌های تغییرکرده را بگیرید
 ```bash
@@ -260,7 +262,7 @@ done
 ```bash
 cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
 git fetch origin main:refs/remotes/origin/main
-SERVER_IP="5.159.49.154"
+SERVER_IP="5.159.49.246"
 APP_DIR="/opt/tc-manager"
 
 git diff --name-only origin/main...HEAD | while read -r f; do
@@ -272,13 +274,13 @@ done
 
 ### 9-4) اجرای سرویس بعد از کپی فایل‌ها
 ```bash
-ssh root@5.159.49.154 "systemctl restart tc-manager && systemctl status tc-manager --no-pager"
+ssh root@5.159.49.246 "systemctl restart tc-manager && systemctl status tc-manager --no-pager"
 ```
 
 ### 9-5) اگر فایل‌های اسکریپت deploy تغییر کرده باشند، همان‌ها را اجرا کنید
 ```bash
-scp server/deploy-part1-server.sh root@5.159.49.154:/tmp/
-scp server/deploy-part2-frontend.sh root@5.159.49.154:/tmp/
-scp server/deploy-part4-css-js.sh root@5.159.49.154:/tmp/
-ssh root@5.159.49.154 "bash /tmp/deploy-part1-server.sh && bash /tmp/deploy-part2-frontend.sh && bash /tmp/deploy-part4-css-js.sh && systemctl restart tc-manager"
+scp server/deploy-part1-server.sh root@5.159.49.246:/tmp/
+scp server/deploy-part2-frontend.sh root@5.159.49.246:/tmp/
+scp server/deploy-part4-css-js.sh root@5.159.49.246:/tmp/
+ssh root@5.159.49.246 "bash /tmp/deploy-part1-server.sh && bash /tmp/deploy-part2-frontend.sh && bash /tmp/deploy-part4-css-js.sh && systemctl restart tc-manager"
 ```
