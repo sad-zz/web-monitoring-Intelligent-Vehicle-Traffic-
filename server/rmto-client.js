@@ -9,19 +9,27 @@
  * Callback signature: callback(err, response, soapXml)
  */
 var http = require("http");
+var net = require("net");
 var db = require("./db");
 
 var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.asmx";
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
+var RMTO_LIVE_SOURCE_IP = process.env.RMTO_LIVE_SOURCE_IP || "";
+var RMTO_BACKLOG_SOURCE_IP = process.env.RMTO_BACKLOG_SOURCE_IP || "";
 
 /**
  * Load RMTO settings from database (overrides env vars).
  */
 function loadDbSettings() {
     try {
-        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url')").all();
+        var rows = db.prepare(
+            "SELECT key, value FROM settings WHERE key IN (" +
+            "'rmto_company_code','rmto_username','rmto_password'," +
+            "'rmto_wsdl','rmto_url','rmto_live_source_ip','rmto_backlog_source_ip'" +
+            ")"
+        ).all();
         var s = {};
         rows.forEach(function (r) { s[r.key] = r.value; });
         if (s.rmto_company_code) COMPANY_CODE = s.rmto_company_code;
@@ -29,6 +37,8 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_url) RMTO_URL = s.rmto_url;
         else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
+        RMTO_LIVE_SOURCE_IP = s.rmto_live_source_ip || "";
+        RMTO_BACKLOG_SOURCE_IP = s.rmto_backlog_source_ip || "";
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
     }
@@ -70,7 +80,7 @@ function xmlElement(name, value) {
  * @param {string} bodyXml - the inner SOAP body XML
  * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
  */
-function sendSoapRequest(soapAction, bodyXml, callback) {
+function sendSoapRequest(soapAction, bodyXml, callback, optionsExtra) {
     var soapEnvelope =
         '<?xml version="1.0" encoding="utf-8"?>' +
         '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
@@ -91,6 +101,9 @@ function sendSoapRequest(soapAction, bodyXml, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
+    if (optionsExtra && optionsExtra.localAddress) {
+        options.localAddress = optionsExtra.localAddress;
+    }
 
     console.log("[RMTO] SOAP " + soapAction + " to " + RMTO_URL);
     console.log("[RMTO] Request XML:\n" + bodyXml.substring(0, 500));
@@ -210,7 +223,8 @@ function sendAddData(data, callback) {
 
     console.log("[RMTO] Add request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et);
 
-    sendSoapRequest("ITS/Add", bodyXml, callback);
+    var sourceIp = getValidSourceIp(data && data.sourceIp);
+    sendSoapRequest("ITS/Add", bodyXml, callback, { localAddress: sourceIp || undefined });
 }
 
 /**
@@ -284,7 +298,8 @@ function sendAddData5(data, callback) {
     console.log("[RMTO] Add5 request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et +
         " C1=" + data.C1 + " C2=" + data.C2 + " C3=" + data.C3 + " C4=" + data.C4 + " C5=" + data.C5);
 
-    sendSoapRequest("ITS/Add5", bodyXml, callback);
+    var sourceIp = getValidSourceIp(data && data.sourceIp);
+    sendSoapRequest("ITS/Add5", bodyXml, callback, { localAddress: sourceIp || undefined });
 }
 
 /**
@@ -294,6 +309,17 @@ function valOrNull(v) {
     if (v === null || v === undefined) return null;
     var n = parseInt(v);
     return isNaN(n) ? null : n;
+}
+
+function getValidSourceIp(sourceIpValue) {
+    var sourceIp = sourceIpValue ? String(sourceIpValue).trim() : "";
+    if (!sourceIp) {
+        if (sourceIpValue) console.error("[RMTO] Source IP is empty after trim, fallback to default interface");
+        return "";
+    }
+    if (net.isIP(sourceIp)) return sourceIp;
+    console.error("[RMTO] Invalid source IP ignored:", sourceIp);
+    return "";
 }
 
 /**
@@ -306,5 +332,12 @@ function initClient(callback) {
 module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
-    sendAddData5: sendAddData5
+    sendAddData5: sendAddData5,
+    getSourceIps: function () {
+        loadDbSettings();
+        return {
+            live: RMTO_LIVE_SOURCE_IP || "",
+            backlog: RMTO_BACKLOG_SOURCE_IP || ""
+        };
+    }
 };

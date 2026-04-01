@@ -293,6 +293,8 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
+    rmto_live_source_ip: "",
+    rmto_backlog_source_ip: "",
     bale_bot_token: "",
     bale_chat_id: ""
 };

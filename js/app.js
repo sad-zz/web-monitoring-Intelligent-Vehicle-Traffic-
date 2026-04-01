@@ -972,6 +972,8 @@
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+            if (data.rmto_live_source_ip) $("#setting-rmto-live-ip").value = data.rmto_live_source_ip;
+            if (data.rmto_backlog_source_ip) $("#setting-rmto-backlog-ip").value = data.rmto_backlog_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -1006,7 +1008,9 @@
             rmto_wsdl: $("#setting-rmto-wsdl").value,
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
-            rmto_password: $("#setting-rmto-pass").value
+            rmto_password: $("#setting-rmto-pass").value,
+            rmto_live_source_ip: $("#setting-rmto-live-ip").value,
+            rmto_backlog_source_ip: $("#setting-rmto-backlog-ip").value
         }, "تنظیمات سامانه ذخیره شد.");
     });
 

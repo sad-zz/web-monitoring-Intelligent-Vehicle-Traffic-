@@ -12,6 +12,9 @@ var db = require("./db");
 var rmto = require("./rmto-client");
 
 var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 5;
+var RMTO_LIVE_WINDOW_MINUTES = parseInt(process.env.RMTO_LIVE_WINDOW_MINUTES, 10) || 20;
+var RMTO_LIVE_BATCH_LIMIT = parseInt(process.env.RMTO_LIVE_BATCH_LIMIT, 10) || 30;
+var RMTO_BACKLOG_BATCH_LIMIT = parseInt(process.env.RMTO_BACKLOG_BATCH_LIMIT, 10) || 20;
 
 /**
  * Send a notification message via Bale messenger bot.
@@ -266,7 +269,25 @@ function sendUnsentData(onComplete) {
     db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
     // --- Send 5-class AddData5 (primary method, matching C# reference) ---
-    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+    // Prioritize recent records so fresh device data is sent first,
+    // while still draining historical backlog in controlled batches.
+    var now = new Date();
+    var liveThreshold = toLocalISOString(new Date(now.getTime() - RMTO_LIVE_WINDOW_MINUTES * 60 * 1000));
+    var liveRows = db.prepare(
+        "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND period_end >= ? ORDER BY period_start LIMIT ?"
+    ).all(liveThreshold, RMTO_LIVE_BATCH_LIMIT);
+    var backlogRows = db.prepare(
+        "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND period_end < ? ORDER BY period_start LIMIT ?"
+    ).all(liveThreshold, RMTO_BACKLOG_BATCH_LIMIT);
+    // sendMode is runtime metadata for source IP selection (not a DB column).
+    function appendRowsWithMode(rows, mode, target) {
+        rows.forEach(function (r) { target.push(Object.assign({}, r, { sendMode: mode })); });
+    }
+
+    var unsent5 = [];
+    appendRowsWithMode(liveRows, "live", unsent5);
+    appendRowsWithMode(backlogRows, "backlog", unsent5);
+    var sourceIps = rmto.getSourceIps();
 
     var pending = unsent5.length;
     results.total = pending;
@@ -303,7 +324,8 @@ function sendUnsentData(onComplete) {
             SSO: row.sso,
             SO1: row.so1, SO2: row.so2, SO3: row.so3, SO4: row.so4, SO5: row.so5,
             OO: row.oo,
-            ESD: row.esd
+            ESD: row.esd,
+            sourceIp: row.sendMode === "backlog" ? sourceIps.backlog : sourceIps.live
         }, function (err, response, soapXml) {
             // Match C# reference success check: ID > 0 || CFL == 100
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
