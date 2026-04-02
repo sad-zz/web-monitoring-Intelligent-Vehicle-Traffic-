@@ -291,7 +291,7 @@ try {
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
-    server_ip: "5.159.49.246",
+    server_ip: "0.0.0.0",
     server_port: "3000",
     tcp_port: "2022",
     refresh_interval: "30",
@@ -304,8 +304,8 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_live_source_ip: "5.159.49.154",
-    rmto_backlog_source_ip: "5.159.49.110",
+    rmto_live_source_ip: "",
+    rmto_backlog_source_ip: "",
     bale_bot_token: "",
     bale_chat_id: ""
 };
