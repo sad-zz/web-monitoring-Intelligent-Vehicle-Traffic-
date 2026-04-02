@@ -972,6 +972,10 @@
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+            var liveIpEl = $("#setting-rmto-live-source-ip");
+            var backlogIpEl = $("#setting-rmto-backlog-source-ip");
+            if (liveIpEl && data.rmto_live_source_ip !== undefined) liveIpEl.value = data.rmto_live_source_ip;
+            if (backlogIpEl && data.rmto_backlog_source_ip !== undefined) backlogIpEl.value = data.rmto_backlog_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -1006,7 +1010,9 @@
             rmto_wsdl: $("#setting-rmto-wsdl").value,
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
-            rmto_password: $("#setting-rmto-pass").value
+            rmto_password: $("#setting-rmto-pass").value,
+            rmto_live_source_ip: ($("#setting-rmto-live-source-ip") && $("#setting-rmto-live-source-ip").value) || "",
+            rmto_backlog_source_ip: ($("#setting-rmto-backlog-source-ip") && $("#setting-rmto-backlog-source-ip").value) || ""
         }, "تنظیمات سامانه ذخیره شد.");
     });
 

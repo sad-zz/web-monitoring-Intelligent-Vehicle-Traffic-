@@ -291,7 +291,7 @@ try {
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
-    server_ip: "0.0.0.0",
+    server_ip: "5.159.49.246",
     server_port: "3000",
     tcp_port: "2022",
     refresh_interval: "30",
@@ -304,6 +304,8 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
+    rmto_live_source_ip: "5.159.49.154",
+    rmto_backlog_source_ip: "5.159.49.110",
     bale_bot_token: "",
     bale_chat_id: ""
 };
@@ -1070,7 +1072,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "bale_bot_token", "bale_chat_id"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_live_source_ip", "rmto_backlog_source_ip", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {

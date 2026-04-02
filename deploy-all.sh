@@ -613,6 +613,15 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                                 <label>رمز عبور سامانه</label>
                                 <input type="password" id="setting-rmto-pass" dir="ltr">
                             </div>
+                            <div class="form-group">
+                                <label>IP مبدا ارسال داده‌های لحظه‌ای (اختیاری)</label>
+                                <input type="text" id="setting-rmto-live-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
+                            </div>
+                            <div class="form-group">
+                                <label>IP مبدا ارسال بک‌لاگ/داده‌های گذشته (اختیاری)</label>
+                                <input type="text" id="setting-rmto-backlog-source-ip" dir="ltr" placeholder="مثال: 5.159.49.110">
+                            </div>
+                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود.</small>
                             <button class="btn btn-primary" id="btn-save-rmto">ذخیره تنظیمات سامانه</button>
                         </div>
                     </div>
@@ -2519,6 +2528,10 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+            var liveIpEl = $("#setting-rmto-live-source-ip");
+            var backlogIpEl = $("#setting-rmto-backlog-source-ip");
+            if (liveIpEl && data.rmto_live_source_ip !== undefined) liveIpEl.value = data.rmto_live_source_ip;
+            if (backlogIpEl && data.rmto_backlog_source_ip !== undefined) backlogIpEl.value = data.rmto_backlog_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -2553,7 +2566,9 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             rmto_wsdl: $("#setting-rmto-wsdl").value,
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
-            rmto_password: $("#setting-rmto-pass").value
+            rmto_password: $("#setting-rmto-pass").value,
+            rmto_live_source_ip: ($("#setting-rmto-live-source-ip") && $("#setting-rmto-live-source-ip").value) || "",
+            rmto_backlog_source_ip: ($("#setting-rmto-backlog-source-ip") && $("#setting-rmto-backlog-source-ip").value) || ""
         }, "تنظیمات سامانه ذخیره شد.");
     });
 
@@ -3315,7 +3330,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "bale_bot_token", "bale_chat_id"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_live_source_ip", "rmto_backlog_source_ip", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -5053,7 +5068,7 @@ try {
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
-    server_ip: "0.0.0.0",
+    server_ip: "5.159.49.246",
     server_port: "3000",
     tcp_port: "2022",
     refresh_interval: "30",
@@ -5066,6 +5081,8 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
+    rmto_live_source_ip: "5.159.49.154",
+    rmto_backlog_source_ip: "5.159.49.110",
     bale_bot_token: "",
     bale_chat_id: ""
 };
