@@ -170,12 +170,8 @@ cat /tmp/tc_changed_runtime.txt
 ```bash
 # روش C: نوشتن دستی فایل‌هایی که در این برنچ تغییر کرده‌اند
 # (همیشه کار می‌کند، حتی بدون git history)
-cat > /tmp/tc_changed_runtime.txt << 'EOF'
-index.html
-js/app.js
-server/index.js
-server/db.js
-EOF
+# نکته: از printf استفاده می‌شود تا در copy/paste از GitHub خراب نشود
+printf 'index.html\njs/app.js\nserver/index.js\nserver/db.js\n' > /tmp/tc_changed_runtime.txt
 
 echo "=== RUNTIME FILES TO DEPLOY ==="
 cat /tmp/tc_changed_runtime.txt
