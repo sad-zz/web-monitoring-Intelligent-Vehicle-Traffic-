@@ -119,6 +119,129 @@ ssh root@SERVER_IP 'cp /opt/tc-manager/server/index.js.bak /opt/tc-manager/serve
 
 ---
 
+## 9) آپدیت تک‌تک فایل‌های تغییرکرده از Termux (پیشرفته)
+
+این روش وقتی استفاده می‌شود که می‌خواهید دقیقاً فایل‌های تغییرکرده را از کلون Termux به سرور منتقل کنید.
+
+### مشکل رایج: `fatal: couldn't find remote ref main`
+
+اگر کلون Termux فقط شاخه فیچر را دارد (shallow clone) و `origin/main` موجود نیست،  
+دستور `git fetch origin main` شکست می‌خورد. راه‌حل زیر را استفاده کنید:
+
+```bash
+# =========================
+# 0) تنظیم متغیرها
+# =========================
+export REPO="$HOME/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-"
+export SERVER_IP="5.159.49.246"
+export SERVER_USER="root"
+
+cd "$REPO" || exit 1
+```
+
+```bash
+# =========================
+# 1) ساختن لیست فایل‌های runtime
+# =========================
+
+# روش A: اگر origin/main موجود باشد
+git fetch origin main:refs/remotes/origin/main 2>/dev/null && \
+  git diff --name-only origin/main...HEAD \
+    | grep -Ev '^(DEPLOY|DEPLOY-MOBILE|ANALYSIS|README|mobile/|prepare-mobile-offline\.sh|deploy-mobile\.sh|server/deploy-part|deploy-all\.sh|\.github/)' \
+    > /tmp/tc_changed_runtime.txt
+
+# روش B: اگر origin/main موجود نباشد (shallow clone فقط شاخه فیچر دارد)
+# از git log برای لیست‌کردن فایل‌های تغییرکرده در تمام commitها استفاده کنید:
+if [ ! -s /tmp/tc_changed_runtime.txt ]; then
+  git log --name-only --pretty=format: HEAD \
+    | grep -v '^$' \
+    | sort -u \
+    | grep -Ev '^(DEPLOY|DEPLOY-MOBILE|ANALYSIS|README|mobile/|prepare-mobile-offline\.sh|deploy-mobile\.sh|server/deploy-part|deploy-all\.sh|\.github/)' \
+    > /tmp/tc_changed_runtime.txt
+fi
+
+echo "=== CHANGED RUNTIME FILES ==="
+cat /tmp/tc_changed_runtime.txt
+```
+
+> **نکته:** اگر خروجی لیست خیلی طولانی بود (اولین commit همه فایل‌ها را اضافه کرده)،  
+> می‌توانید فایل را دستی بنویسید (روش C زیر).
+
+```bash
+# روش C: نوشتن دستی فایل‌هایی که در این برنچ تغییر کرده‌اند
+# (همیشه کار می‌کند، حتی بدون git history)
+cat > /tmp/tc_changed_runtime.txt << 'EOF'
+index.html
+js/app.js
+server/index.js
+server/db.js
+EOF
+
+echo "=== RUNTIME FILES TO DEPLOY ==="
+cat /tmp/tc_changed_runtime.txt
+```
+
+```bash
+# =========================
+# 2) آپلود تک‌تک فایل‌ها به سرور
+# =========================
+ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p /tmp/tc-update"
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  echo "UPLOAD => $f"
+  ssh ${SERVER_USER}@${SERVER_IP} "mkdir -p /tmp/tc-update/$(dirname "$f")"
+  scp "$REPO/$f" ${SERVER_USER}@${SERVER_IP}:/tmp/tc-update/"$f"
+done < /tmp/tc_changed_runtime.txt
+```
+
+```bash
+# =========================
+# 3) بکاپ + اعمال + ری‌استارت روی سرور
+# =========================
+ssh ${SERVER_USER}@${SERVER_IP} '
+set -e
+APP_DIR="/opt/tc-manager"
+UPD_DIR="/tmp/tc-update"
+TS=$(date +%Y%m%d-%H%M%S)
+BACKUP_DIR="$APP_DIR/backup-$TS"
+
+mkdir -p "$BACKUP_DIR"
+cd "$UPD_DIR"
+find . -type f | sed "s|^\./||" > /tmp/tc_apply_list.txt
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  mkdir -p "$BACKUP_DIR/$(dirname "$f")" "$APP_DIR/$(dirname "$f")"
+  [ -f "$APP_DIR/$f" ] && cp -f "$APP_DIR/$f" "$BACKUP_DIR/$f" || true
+  install -m 644 "$UPD_DIR/$f" "$APP_DIR/$f"
+  echo "APPLIED => $f"
+done < /tmp/tc_apply_list.txt
+
+systemctl restart tc-manager || pm2 restart tc-manager
+
+echo "=== VERIFY (rmto keys) ==="
+grep -n "setting-rmto-live-source-ip" $APP_DIR/index.html || true
+grep -n "rmto_live_source_ip" $APP_DIR/js/app.js || true
+grep -n "rmto_live_source_ip" $APP_DIR/server/index.js || true
+grep -n "rmto_live_source_ip" $APP_DIR/server/db.js || true
+
+echo "=== SERVICE STATUS ==="
+systemctl status tc-manager --no-pager -l | sed -n "1,40p" || pm2 status
+'
+```
+
+```bash
+# =========================
+# 4) لاگ نهایی
+# =========================
+ssh ${SERVER_USER}@${SERVER_IP} '
+journalctl -u tc-manager -n 120 --no-pager || pm2 logs tc-manager --lines 120
+'
+```
+
+---
+
 ## چک‌لیست کوتاه برای موبایل
 
 1. ورود به Termux  
