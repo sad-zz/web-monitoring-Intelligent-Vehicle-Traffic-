@@ -113,8 +113,21 @@ function aggregateAndSend() {
 
 /**
  * Aggregate a single period for a single device.
+ * RMTO rule: period must be 5, 10, or 15 minutes; must start on a multiple of the
+ * interval from the top of the hour; must not span across an hour boundary.
  */
 function aggregatePeriod(code, startStr, endStr) {
+    // RMTO validation: reject periods that cross an hour boundary (e.g. 7:55–8:10 → خطای D).
+    // A period ending exactly at :00:00 of the next hour (e.g. 7:55–8:00) is valid per RMTO rules.
+    var pStart = new Date(startStr);
+    var pEnd = new Date(endStr);
+    var endsExactlyOnHour = (pEnd.getMinutes() === 0 && pEnd.getSeconds() === 0);
+    if (pStart.getHours() !== pEnd.getHours() && !endsExactlyOnHour) {
+        console.log("[Scheduler] RMTO: device " + code + " period " + startStr + "-" + endStr + " crosses hour boundary - skipping (خطای D RMTO)");
+        db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0")
+            .run(code, startStr, endStr);
+        return;
+    }
     // Get device route info and RID (RMTO route number per lane)
     var devInfo = db.prepare("SELECT route, route1, route2, rid1, rid2 FROM devices WHERE device_code = ?").get(code);
     var route1 = (devInfo && (devInfo.route1 || devInfo.route)) || "";

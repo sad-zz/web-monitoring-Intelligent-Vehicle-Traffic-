@@ -216,20 +216,38 @@
         });
 
         api("GET", "/api/devices", null, function (status, data) {
-            var tbody = $("#dashboard-table-body");
+            var grid = $("#device-grid");
+            if (!grid) return;
             if (status !== 200 || !data || !data.length) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">دستگاهی ثبت نشده است</td></tr>';
+                grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
                 return;
             }
-            tbody.innerHTML = data.map(function (d) {
-                var st = d.status || "offline";
-                return "<tr>" +
-                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
-                    "<td>" + escapeHtml(d.name) + "</td>" +
-                    '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
-                    '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
-                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
-                    "</tr>";
+            grid.innerHTML = data.map(function (d) {
+                var VALID_STATUSES = ["online", "offline", "warning", "error"];
+                var st = (d.status && VALID_STATUSES.indexOf(d.status) !== -1) ? d.status : "offline";
+                var statusLabel = escapeHtml(STATUS_LABELS[st] || st);
+                var typeLabel = escapeHtml(TYPE_LABELS[d.type] || d.type || "");
+                var code = escapeHtml(d.device_code || "");
+                var name = escapeHtml(d.name || d.device_code || "");
+                var route = escapeHtml(d.route1 || d.route || "");
+                var lastSeen = escapeHtml(formatTime(d.last_seen));
+                return '<div class="device-card ' + st + '">' +
+                    '<div class="device-card-header">' +
+                        '<div class="device-card-icon">' +
+                            '<svg viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>' +
+                        '</div>' +
+                        '<div style="overflow:hidden">' +
+                            '<div class="device-card-code">' + code + '</div>' +
+                            (typeLabel ? '<div class="device-card-name">' + typeLabel + '</div>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="device-card-name" style="font-size:12px;color:#475569">' + name + '</div>' +
+                    (route ? '<div class="device-card-row"><span>محور:</span><span>' + route + '</span></div>' : '') +
+                    '<div class="device-card-row">' +
+                        '<span class="status-badge ' + st + '">' + statusLabel + '</span>' +
+                        '<span class="device-card-time">' + lastSeen + '</span>' +
+                    '</div>' +
+                    '</div>';
             }).join("");
         });
 

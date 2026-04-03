@@ -227,7 +227,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                     </div>
                 </div>
 
-                <!-- Device Status Table -->
+                <!-- Device Status Grid -->
                 <div class="panel">
                     <div class="panel-header">
                         <h3 class="panel-title">وضعیت دستگاه‌ها</h3>
@@ -235,21 +235,10 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             <button class="btn btn-sm btn-primary" id="btn-refresh-dashboard">بروزرسانی</button>
                         </div>
                     </div>
-                    <div class="table-wrapper">
-                        <table class="data-table" id="dashboard-table">
-                            <thead>
-                                <tr>
-                                    <th>کد</th>
-                                    <th>نام دستگاه</th>
-                                    <th>نوع</th>
-                                    <th>وضعیت</th>
-                                    <th>آخرین اتصال</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboard-table-body">
-                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
-                            </tbody>
-                        </table>
+                    <div class="panel-body" style="padding:12px">
+                        <div id="device-grid" class="device-grid">
+                            <div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">در حال بارگذاری...</div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -1216,6 +1205,96 @@ body {
 .status-badge.warning { background: rgba(245,158,11,.1); color: var(--warning); }
 .status-badge.error { background: rgba(239,68,68,.1); color: var(--error); }
 
+/* === Device Card Grid (Dashboard) === */
+.device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.device-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: box-shadow 0.15s, transform 0.1s;
+    border-right: 3px solid var(--border);
+    cursor: default;
+}
+
+.device-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.device-card.online  { border-right-color: var(--success); }
+.device-card.offline { border-right-color: var(--text-light); }
+.device-card.warning { border-right-color: var(--warning); }
+.device-card.error   { border-right-color: var(--error); }
+
+.device-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.device-card-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.device-card-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--primary);
+}
+
+.device-card-code {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-name {
+    font-size: 11px;
+    color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.device-card-time {
+    font-size: 11px;
+    color: var(--text-light);
+    direction: ltr;
+    text-align: left;
+}
+
+.rmto-error-row { background: rgba(239,68,68,.04); }
+.rmto-error-row:hover { background: rgba(239,68,68,.08); }
+.rmto-log-row { cursor: default; }
+
 .type-badge {
     font-size: 11px;
     padding: 2px 8px;
@@ -1550,6 +1629,7 @@ body {
     font-size: 13px;
     color: var(--text-light);
 }
+
 ENDOFFILE_CSS_STYLE_CSS
 
 echo "[+] js/app.js"
@@ -1772,20 +1852,38 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         });
 
         api("GET", "/api/devices", null, function (status, data) {
-            var tbody = $("#dashboard-table-body");
+            var grid = $("#device-grid");
+            if (!grid) return;
             if (status !== 200 || !data || !data.length) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">دستگاهی ثبت نشده است</td></tr>';
+                grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
                 return;
             }
-            tbody.innerHTML = data.map(function (d) {
-                var st = d.status || "offline";
-                return "<tr>" +
-                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
-                    "<td>" + escapeHtml(d.name) + "</td>" +
-                    '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
-                    '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
-                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
-                    "</tr>";
+            grid.innerHTML = data.map(function (d) {
+                var VALID_STATUSES = ["online", "offline", "warning", "error"];
+                var st = (d.status && VALID_STATUSES.indexOf(d.status) !== -1) ? d.status : "offline";
+                var statusLabel = escapeHtml(STATUS_LABELS[st] || st);
+                var typeLabel = escapeHtml(TYPE_LABELS[d.type] || d.type || "");
+                var code = escapeHtml(d.device_code || "");
+                var name = escapeHtml(d.name || d.device_code || "");
+                var route = escapeHtml(d.route1 || d.route || "");
+                var lastSeen = escapeHtml(formatTime(d.last_seen));
+                return '<div class="device-card ' + st + '">' +
+                    '<div class="device-card-header">' +
+                        '<div class="device-card-icon">' +
+                            '<svg viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>' +
+                        '</div>' +
+                        '<div style="overflow:hidden">' +
+                            '<div class="device-card-code">' + code + '</div>' +
+                            (typeLabel ? '<div class="device-card-name">' + typeLabel + '</div>' : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="device-card-name" style="font-size:12px;color:#475569">' + name + '</div>' +
+                    (route ? '<div class="device-card-row"><span>محور:</span><span>' + route + '</span></div>' : '') +
+                    '<div class="device-card-row">' +
+                        '<span class="status-badge ' + st + '">' + statusLabel + '</span>' +
+                        '<span class="device-card-time">' + lastSeen + '</span>' +
+                    '</div>' +
+                    '</div>';
             }).join("");
         });
 

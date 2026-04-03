@@ -402,6 +402,92 @@ body {
 .status-badge.warning { background: rgba(245,158,11,.1); color: var(--warning); }
 .status-badge.error { background: rgba(239,68,68,.1); color: var(--error); }
 
+/* === Device Card Grid (Dashboard) === */
+.device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+
+.device-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: box-shadow 0.15s, transform 0.1s;
+    border-right: 3px solid var(--border);
+    cursor: default;
+}
+
+.device-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.device-card.online  { border-right-color: var(--success); }
+.device-card.offline { border-right-color: var(--text-light); }
+.device-card.warning { border-right-color: var(--warning); }
+.device-card.error   { border-right-color: var(--error); }
+
+.device-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.device-card-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.device-card-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--primary);
+}
+
+.device-card-code {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-name {
+    font-size: 11px;
+    color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.device-card-time {
+    font-size: 11px;
+    color: var(--text-light);
+    direction: ltr;
+    text-align: left;
+}
+
 .rmto-error-row { background: rgba(239,68,68,.04); }
 .rmto-error-row:hover { background: rgba(239,68,68,.08); }
 .rmto-log-row { cursor: default; }
