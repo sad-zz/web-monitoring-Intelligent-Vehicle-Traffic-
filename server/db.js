@@ -90,6 +90,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
+    "  retry_count INTEGER DEFAULT 0,",
     "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
@@ -247,6 +248,19 @@ try {
         db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
     }
 } catch(e) {}
+
+// Migration: add retry_count column to rmto_queue_5class if missing
+try {
+    var rmto5Cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
+    var rmto5ColNames = rmto5Cols.map(function(c) { return c.name; });
+    if (rmto5ColNames.length > 0 && rmto5ColNames.indexOf("retry_count") === -1) {
+        console.log("[DB] Adding retry_count column to rmto_queue_5class...");
+        db.exec("ALTER TABLE rmto_queue_5class ADD COLUMN retry_count INTEGER DEFAULT 0");
+        console.log("[DB] rmto_queue_5class retry_count migration done");
+    }
+} catch(e) {
+    console.error("[DB] rmto_queue_5class retry_count migration error:", e.message);
+}
 
 // Migration: add route1, route2, active columns to devices (replace single route column)
 try {
