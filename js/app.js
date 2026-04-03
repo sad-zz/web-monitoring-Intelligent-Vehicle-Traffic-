@@ -241,15 +241,15 @@
                         '<div class="dcv2-body">' +
                             '<div class="dcv2-code">' + (code || name) + '</div>' +
                             '<div class="dcv2-row">' +
-                                '<span class="dcv2-label">Last Data:</span>' +
+                                '<span class="dcv2-label">آخرین داده:</span>' +
                                 '<span class="dcv2-val ltr">' + lastSeen + '</span>' +
                             '</div>' +
                             '<div class="dcv2-row">' +
-                                '<span class="dcv2-label">Status:</span>' +
+                                '<span class="dcv2-label">وضعیت:</span>' +
                                 '<span class="dcv2-status" style="color:' + dotColor + '">&#9679; ' + statusLabel + '</span>' +
                             '</div>' +
                             '<div class="dcv2-row">' +
-                                '<span class="dcv2-label">Address:</span>' +
+                                '<span class="dcv2-label">محور:</span>' +
                                 '<span class="dcv2-val">' + (route || name || '-') + '</span>' +
                             '</div>' +
                         '</div>' +
@@ -683,6 +683,18 @@
     // ============================================================
     var rmtoLogFilter = "all";
 
+    function extractRmtoError(r) {
+        var msg = r.error_message || "";
+        if (!msg) {
+            try {
+                var ro = JSON.parse(r.response_data || "{}");
+                if (ro.ERR) msg = ro.ERR;
+                else if (r.success !== 1 && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") msg = "تاریخ نامعتبر از سامانه (ID=0)";
+            } catch (e) {}
+        }
+        return msg;
+    }
+
     function loadRMTO() {
         loadRMTOQueue();
         loadRMTOMonitor();
@@ -744,14 +756,7 @@
                 if (respShort.length > 80) respShort = respShort.substring(0, 80) + "...";
 
                 // Extract ERR from response_data JSON
-                var errMsg = r.error_message || "";
-                if (!errMsg) {
-                    try {
-                        var ro = JSON.parse(r.response_data || "{}");
-                        if (ro.ERR) errMsg = ro.ERR;
-                        else if (!ok && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") errMsg = "تاریخ نامعتبر از سامانه (ID=0)";
-                    } catch (e) {}
-                }
+                var errMsg = extractRmtoError(r);
                 var errShort = errMsg;
                 if (errShort.length > 80) errShort = errShort.substring(0, 80) + "...";
 
@@ -787,14 +792,7 @@
                 var ok = r.success === 1;
                 var resp = r.response_data || "";
                 if (resp.length > 60) resp = resp.substring(0, 60) + "...";
-                var errDetail = r.error_message || "";
-                if (!errDetail) {
-                    try {
-                        var ro = JSON.parse(r.response_data || "{}");
-                        if (ro.ERR) errDetail = ro.ERR;
-                        else if (!ok && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") errDetail = "تاریخ نامعتبر از سامانه (ID=0)";
-                    } catch (e) {}
-                }
+                var errDetail = extractRmtoError(r);
                 var statusCell = '<span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span>" +
                     (!ok && errDetail ? '<div style="font-size:10px;color:#ef4444;margin-top:2px;white-space:normal;max-width:160px">' + escapeHtml(errDetail.substring(0, 80)) + '</div>' : "");
                 return "<tr>" +
