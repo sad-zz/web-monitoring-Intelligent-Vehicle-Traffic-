@@ -429,6 +429,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                                     <th>وضعیت</th>
                                     <th>پاسخ RMTO</th>
                                     <th>خطا</th>
+                                    <th>IP ارسال</th>
                                     <th>جزئیات</th>
                                 </tr>
                             </thead>
@@ -2495,7 +2496,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         api("GET", "/api/rmto/logs?limit=50&filter=" + filter, null, function (status, data) {
             var mbody = $("#rmto-monitor-body");
             if (status !== 200 || !data || !data.length) {
-                mbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                mbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
                 return;
             }
             mbody.innerHTML = data.map(function (r) {
@@ -2503,9 +2504,19 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 var resp = r.response_data || "-";
                 var respShort = resp;
                 if (respShort.length > 80) respShort = respShort.substring(0, 80) + "...";
-                var errMsg = r.error_message || "-";
+
+                // Extract ERR from response_data JSON
+                var errMsg = r.error_message || "";
+                if (!errMsg) {
+                    try {
+                        var ro = JSON.parse(r.response_data || "{}");
+                        if (ro.ERR) errMsg = ro.ERR;
+                        else if (!ok && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") errMsg = "تاریخ نامعتبر از سامانه (ID=0)";
+                    } catch (e) {}
+                }
                 var errShort = errMsg;
                 if (errShort.length > 80) errShort = errShort.substring(0, 80) + "...";
+
                 return "<tr class='rmto-log-row " + (ok ? "" : "rmto-error-row") + "'>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px;white-space:nowrap">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     '<td style="font-size:12px">' + escapeHtml(r.method) + "</td>" +
@@ -2513,6 +2524,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                     '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(resp) + '">' + escapeHtml(respShort) + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (ok ? '#94a3b8' : '#ef4444') + '" title="' + escapeHtml(errMsg) + '">' + escapeHtml(ok ? "-" : errShort) + "</td>" +
+                    '<td dir="ltr" style="font-size:10px;color:#64748b">' + escapeHtml(r.source_ip || "-") + "</td>" +
                     '<td><button class="btn btn-sm btn-secondary btn-rmto-detail" data-id="' + r.id + '">مشاهده</button></td>' +
                     "</tr>";
             }).join("");
@@ -2537,10 +2549,20 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 var ok = r.success === 1;
                 var resp = r.response_data || "";
                 if (resp.length > 60) resp = resp.substring(0, 60) + "...";
+                var errDetail = r.error_message || "";
+                if (!errDetail) {
+                    try {
+                        var ro = JSON.parse(r.response_data || "{}");
+                        if (ro.ERR) errDetail = ro.ERR;
+                        else if (!ok && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") errDetail = "تاریخ نامعتبر از سامانه (ID=0)";
+                    } catch (e) {}
+                }
+                var statusCell = '<span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span>" +
+                    (!ok && errDetail ? '<div style="font-size:10px;color:#ef4444;margin-top:2px;white-space:normal;max-width:160px">' + escapeHtml(errDetail.substring(0, 80)) + '</div>' : "");
                 return "<tr>" +
                     "<td>" + escapeHtml(r.method) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
-                    '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
+                    "<td>" + statusCell + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     "</tr>";
@@ -5137,6 +5159,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
+    "  retry_count INTEGER DEFAULT 0,",
     "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
@@ -5293,7 +5316,24 @@ try {
         console.log("[DB] Adding soap_xml column to send_log...");
         db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
     }
+    if (slColNames.length > 0 && slColNames.indexOf("source_ip") === -1) {
+        console.log("[DB] Adding source_ip column to send_log...");
+        db.exec("ALTER TABLE send_log ADD COLUMN source_ip TEXT");
+    }
 } catch(e) {}
+
+// Migration: add retry_count column to rmto_queue_5class if missing
+try {
+    var rmto5Cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
+    var rmto5ColNames = rmto5Cols.map(function(c) { return c.name; });
+    if (rmto5ColNames.length > 0 && rmto5ColNames.indexOf("retry_count") === -1) {
+        console.log("[DB] Adding retry_count column to rmto_queue_5class...");
+        db.exec("ALTER TABLE rmto_queue_5class ADD COLUMN retry_count INTEGER DEFAULT 0");
+        console.log("[DB] rmto_queue_5class retry_count migration done");
+    }
+} catch(e) {
+    console.error("[DB] rmto_queue_5class retry_count migration error:", e.message);
+}
 
 // Migration: add route1, route2, active columns to devices (replace single route column)
 try {
@@ -5357,193 +5397,332 @@ ENDOFFILE_SERVER_DB_JS
 echo "[+] server/rmto-client.js"
 cat > "$APP_DIR/server/rmto-client.js" << 'ENDOFFILE_SERVER_RMTO-CLIENT_JS'
 /**
- * RMTO SOAP Client
+ * RMTO SOAP Client - Raw HTTP implementation
  * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
  *
- * Methods:
- *   - AddData  (v1.02): Simple total count + avg speed per 15-min period
- *   - AddData5 (v1.01): 5-class volume + 5-class speed + violations
- *   - AddData8 (v1.00): 8-class volume + 8-class speed + violations
+ * Uses raw SOAP XML (not node-soap) to guarantee exact format matching RMTO docs:
+ *   - ADD DATA_WEB SERVICE_1.02.pdf (Add method)
+ *   - ADD DATA5_WEB SERVICE_1.01.pdf (Add5 method)
+ *
+ * Callback signature: callback(err, response, soapXml)
  */
-var soap = require("soap");
+var http = require("http");
+var db = require("./db");
 
-var WSDL_URL = process.env.RMTO_WSDL || "http://otf.rmto.ir/Companies/Companies.asmx?WSDL";
+var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.asmx";
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
-
-var soapClient = null;
+var LIVE_SOURCE_IP = "";
+var BACKLOG_SOURCE_IP = "";
 
 /**
- * Initialize SOAP client (called once at startup).
+ * Load RMTO settings from database (overrides env vars).
  */
-function initClient(callback) {
-    if (soapClient) return callback(null, soapClient);
-
-    soap.createClient(WSDL_URL, function (err, client) {
-        if (err) {
-            console.error("[RMTO] Failed to create SOAP client:", err.message);
-            return callback(err);
-        }
-        soapClient = client;
-        console.log("[RMTO] SOAP client initialized");
-        console.log("[RMTO] Available methods:", Object.keys(client.describe().CompanySoap || {}));
-        callback(null, client);
-    });
+function loadDbSettings() {
+    try {
+        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')").all();
+        var s = {};
+        rows.forEach(function (r) { s[r.key] = r.value; });
+        if (s.rmto_company_code) COMPANY_CODE = s.rmto_company_code;
+        if (s.rmto_username !== undefined) USERNAME = s.rmto_username;
+        if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
+        if (s.rmto_url) RMTO_URL = s.rmto_url;
+        else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
+        if (s.rmto_live_source_ip !== undefined) LIVE_SOURCE_IP = s.rmto_live_source_ip || "";
+        if (s.rmto_backlog_source_ip !== undefined) BACKLOG_SOURCE_IP = s.rmto_backlog_source_ip || "";
+    } catch (e) {
+        console.error("[RMTO] Failed to load DB settings:", e.message);
+    }
 }
 
 /**
- * AddData (v1.02) - Simple traffic data
- * @param {object} data
- * @param {string} data.deviceCode - 4-digit device code
- * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
- * @param {number} data.totalCount - Total vehicles in period
- * @param {number} data.avgSpeed   - Average speed in period
+ * Returns the configured live source IP (used when binding the outgoing socket).
+ */
+function getSourceIp() {
+    return LIVE_SOURCE_IP || "";
+}
+
+/**
+ * Escape XML special characters.
+ */
+function xmlEscape(str) {
+    if (str == null) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Format datetime for RMTO SOAP: "YYYY-MM-DDTHH:mm:ss" (local, no Z, no timezone).
+ * Input is already stored as local ISO string in DB: "2026-03-10T08:45:00"
+ */
+function formatDateTime(str) {
+    if (!str) return "";
+    // Already in correct format? Return as-is
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(str)) return str;
+    // Remove Z suffix, milliseconds, timezone offset
+    return str.replace(/\.\d+/, "").replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
+}
+
+/**
+ * Build a SOAP XML element. If value is null, emit xsi:nil="true".
+ */
+function xmlElement(name, value) {
+    if (value === null || value === undefined) {
+        return "<" + name + " xsi:nil=\"true\"/>";
+    }
+    return "<" + name + ">" + xmlEscape(value) + "</" + name + ">";
+}
+
+/**
+ * Send raw SOAP request to RMTO and parse response.
+ * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
+ * @param {string} bodyXml - the inner SOAP body XML
+ * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
+ */
+function sendSoapRequest(soapAction, bodyXml, callback) {
+    var soapEnvelope =
+        '<?xml version="1.0" encoding="utf-8"?>' +
+        '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
+        'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' +
+        'xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">' +
+        '<soap:Body>' + bodyXml + '</soap:Body>' +
+        '</soap:Envelope>';
+
+    var urlObj = require("url").parse(RMTO_URL);
+    var options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 80,
+        path: urlObj.path,
+        method: "POST",
+        headers: {
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": '"' + soapAction + '"',
+            "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
+        }
+    };
+    if (LIVE_SOURCE_IP) {
+        options.localAddress = LIVE_SOURCE_IP;
+        console.log("[RMTO] Using source IP: " + LIVE_SOURCE_IP);
+    }
+
+    console.log("[RMTO] SOAP " + soapAction + " to " + RMTO_URL);
+    console.log("[RMTO] Request XML:\n" + bodyXml.substring(0, 500));
+
+    var req = http.request(options, function (res) {
+        var data = "";
+        res.on("data", function (chunk) { data += chunk; });
+        res.on("end", function () {
+            console.log("[RMTO] Response status: " + res.statusCode);
+            console.log("[RMTO] Response body:\n" + data.substring(0, 1000));
+
+            if (res.statusCode !== 200) {
+                return callback(new Error("HTTP " + res.statusCode + ": " + data.substring(0, 500)), null, soapEnvelope);
+            }
+
+            // Parse response XML to extract Re fields
+            var parsed = parseReResponse(data);
+            if (parsed.error) {
+                return callback(new Error(parsed.error), null, soapEnvelope);
+            }
+            callback(null, parsed, soapEnvelope);
+        });
+    });
+
+    req.on("error", function (err) {
+        console.error("[RMTO] Request error:", err.message);
+        callback(err, null, soapEnvelope);
+    });
+
+    req.setTimeout(30000, function () {
+        req.destroy();
+        callback(new Error("RMTO request timeout (30s)"), null, soapEnvelope);
+    });
+
+    req.write(soapEnvelope);
+    req.end();
+}
+
+/**
+ * Parse RMTO SOAP response XML to extract Re object fields.
+ * Fields: ID, FID, CFL, SRVDT, DLY, BIL, ERR
+ */
+function parseReResponse(xml) {
+    function extractTag(tag) {
+        var re = new RegExp("<" + tag + ">([^<]*)</" + tag + ">", "i");
+        var m = xml.match(re);
+        return m ? m[1] : null;
+    }
+
+    // Check for SOAP fault
+    var faultMatch = xml.match(/<faultstring>([^<]*)<\/faultstring>/i);
+    if (faultMatch) {
+        return { error: faultMatch[1], ID: 0, FID: 0, CFL: 0 };
+    }
+
+    // Check for more detailed error
+    var detailMatch = xml.match(/<(?:\w+:)?Text[^>]*>([^<]*)<\/(?:\w+:)?Text>/i);
+
+    return {
+        ID: parseInt(extractTag("ID")) || 0,
+        FID: parseInt(extractTag("FID")) || 0,
+        CFL: parseInt(extractTag("CFL")) || 0,
+        SRVDT: extractTag("SRVDT") || "",
+        DLY: parseInt(extractTag("DLY")) || 0,
+        BIL: parseInt(extractTag("BIL")) || 0,
+        ERR: extractTag("ERR") || (detailMatch ? detailMatch[1] : "")
+    };
+}
+
+/**
+ * Add - Simple traffic data (per PDF: ADD DATA_WEB SERVICE_1.02)
+ *
+ * SOAP body example from PDF:
+ *   <Add xmlns="ITS">
+ *     <CID>30</CID><UID>USER NAME</UID><PWD>PASSWORD</PWD>
+ *     <FID>102030</FID><RID>405060</RID>
+ *     <ST>2014-09-07T09:45:00</ST><ET>2014-09-07T10:00:00</ET>
+ *     <C1>15</C1><C2>8</C2><C3>17</C3><C4>6</C4><C5>11</C5>
+ *     <ASP>91</ASP><SO>3</SO><OO>0</OO><ESD>7</ESD>
+ *   </Add>
+ *
+ * callback(err, response, soapXml)
  */
 function sendAddData(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
+    loadDbSettings();
 
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            Count: data.totalCount,
-            Speed: Math.round(data.avgSpeed)
-        };
+    var cid = parseInt(COMPANY_CODE, 10) || 0;
+    var fid = parseInt(data.FID, 10) || 0;
+    var rid = parseInt(data.RID, 10) || 0;
+    var st = formatDateTime(data.ST);
+    var et = formatDateTime(data.ET);
 
-        console.log("[RMTO] AddData request:", JSON.stringify(args));
+    // Validate RID - must be a positive integer (RMTO route code)
+    if (!rid || rid <= 0) {
+        return callback(new Error("RID نامعتبر: '" + data.RID + "' - کد محور باید عدد مثبت باشد. لطفا محور دستگاه را بررسی کنید"), null, null);
+    }
 
-        soapClient.AddData(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddDataResult;
-            console.log("[RMTO] AddData response:", response);
-            callback(null, response);
-        });
-    });
+    var bodyXml =
+        '<Add xmlns="ITS">' +
+        '<CID>' + cid + '</CID>' +
+        '<UID>' + xmlEscape(USERNAME) + '</UID>' +
+        '<PWD>' + xmlEscape(PASSWORD) + '</PWD>' +
+        '<FID>' + fid + '</FID>' +
+        '<RID>' + rid + '</RID>' +
+        '<ST>' + st + '</ST>' +
+        '<ET>' + et + '</ET>' +
+        '<C1>' + (parseInt(data.C1) || 0) + '</C1>' +
+        '<C2>' + (parseInt(data.C2) || 0) + '</C2>' +
+        '<C3>' + (parseInt(data.C3) || 0) + '</C3>' +
+        '<C4>' + (parseInt(data.C4) || 0) + '</C4>' +
+        '<C5>' + (parseInt(data.C5) || 0) + '</C5>' +
+        '<ASP>' + (parseInt(data.ASP) || 0) + '</ASP>' +
+        '<SO>' + (parseInt(data.SO) || 0) + '</SO>' +
+        '<OO>' + (parseInt(data.OO) || 0) + '</OO>' +
+        '<ESD>' + (parseInt(data.ESD) || 0) + '</ESD>' +
+        '</Add>';
+
+    console.log("[RMTO] Add request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et);
+
+    sendSoapRequest("ITS/Add", bodyXml, callback);
 }
 
 /**
- * AddData5 (v1.01) - 5-class traffic data
- * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
- * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
- * @param {number} data.violations
- * @param {number} data.avgSpeed
+ * Add5 - 5-class traffic data (per PDF: ADD DATA5_WEB SERVICE_1.01)
+ *
+ * SOAP body example from PDF:
+ *   <Add5 xmlns="ITS">
+ *     <CID>6</CID><UID>USERNAME</UID><PWD>PASSWORD</PWD>
+ *     <FID>0</FID><RID>102030</RID>
+ *     <ST>2009-02-24T14:55:00</ST><ET>2009-02-24T15:00:00</ET>
+ *     <C1>500</C1><C2>50</C2><C3>0</C3><C4>10</C4><C5>5</C5>
+ *     <ASP>74</ASP>
+ *     <S1>80</S1><S2>70</S2><S3>60</S3><S4>50</S4><S5>40</S5>
+ *     <SSO>50</SSO><SO1>25</SO1><SO2>13</SO2><SO3>7</SO3><SO4>5</SO4>
+ *     <SO5 xsi:nil="true"/>
+ *     <OO>7</OO><ESD>7</ESD>
+ *   </Add5>
+ *
+ * Per PDF: All numeric fields are Nullable<ushort>.
+ * null = device did not measure this field (all fields null = skip record).
+ * 0 = device measured but found no instances.
+ * Per C# reference: SO5 should be numeric (not null) when data exists.
+ * SSO must equal SO1+SO2+SO3+SO4+SO5 (RMTO validates this sum).
+ *
+ * callback(err, response, soapXml)
  */
 function sendAddData5(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
+    loadDbSettings();
 
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            // 5 volume classes
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            // 5 speed classes
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            // Violation & speed
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
-        };
+    var cid = parseInt(COMPANY_CODE, 10) || 0;
+    var fid = parseInt(data.FID, 10) || 0;
+    var rid = parseInt(data.RID, 10) || 0;
+    var st = formatDateTime(data.ST);
+    var et = formatDateTime(data.ET);
 
-        console.log("[RMTO] AddData5 request:", JSON.stringify(args));
+    // Validate RID - must be a positive integer (RMTO route code)
+    if (!rid || rid <= 0) {
+        return callback(new Error("RID نامعتبر: '" + data.RID + "' - کد محور باید عدد مثبت باشد. لطفا محور دستگاه را بررسی کنید"), null, null);
+    }
 
-        soapClient.AddData5(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData5 error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddData5Result;
-            console.log("[RMTO] AddData5 response:", response);
-            callback(null, response);
-        });
-    });
+    var bodyXml =
+        '<Add5 xmlns="ITS">' +
+        '<CID>' + cid + '</CID>' +
+        '<UID>' + xmlEscape(USERNAME) + '</UID>' +
+        '<PWD>' + xmlEscape(PASSWORD) + '</PWD>' +
+        '<FID>' + fid + '</FID>' +
+        '<RID>' + rid + '</RID>' +
+        '<ST>' + st + '</ST>' +
+        '<ET>' + et + '</ET>' +
+        xmlElement("C1", valOrNull(data.C1)) +
+        xmlElement("C2", valOrNull(data.C2)) +
+        xmlElement("C3", valOrNull(data.C3)) +
+        xmlElement("C4", valOrNull(data.C4)) +
+        xmlElement("C5", valOrNull(data.C5)) +
+        xmlElement("ASP", valOrNull(data.ASP)) +
+        xmlElement("S1", valOrNull(data.S1)) +
+        xmlElement("S2", valOrNull(data.S2)) +
+        xmlElement("S3", valOrNull(data.S3)) +
+        xmlElement("S4", valOrNull(data.S4)) +
+        xmlElement("S5", valOrNull(data.S5)) +
+        xmlElement("SSO", valOrNull(data.SSO)) +
+        xmlElement("SO1", valOrNull(data.SO1)) +
+        xmlElement("SO2", valOrNull(data.SO2)) +
+        xmlElement("SO3", valOrNull(data.SO3)) +
+        xmlElement("SO4", valOrNull(data.SO4)) +
+        xmlElement("SO5", valOrNull(data.SO5)) +
+        xmlElement("OO", valOrNull(data.OO)) +
+        xmlElement("ESD", valOrNull(data.ESD)) +
+        '</Add5>';
+
+    console.log("[RMTO] Add5 request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et +
+        " C1=" + data.C1 + " C2=" + data.C2 + " C3=" + data.C3 + " C4=" + data.C4 + " C5=" + data.C5);
+
+    sendSoapRequest("ITS/Add5", bodyXml, callback);
 }
 
 /**
- * AddData8 (v1.00) - 8-class traffic data
- * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class8Count
- * @param {number} data.speed1Count .. data.speed8Count
- * @param {number} data.violations
- * @param {number} data.avgSpeed
+ * Convert value to integer or null. Keeps 0 as 0 (not null).
  */
-function sendAddData8(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
-
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            C6: data.class6Count || 0,
-            C7: data.class7Count || 0,
-            C8: data.class8Count || 0,
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            S6: data.speed6Count || 0,
-            S7: data.speed7Count || 0,
-            S8: data.speed8Count || 0,
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
-        };
-
-        console.log("[RMTO] AddData8 request:", JSON.stringify(args));
-
-        soapClient.AddData8(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData8 error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddData8Result;
-            console.log("[RMTO] AddData8 response:", response);
-            callback(null, response);
-        });
-    });
+function valOrNull(v) {
+    if (v === null || v === undefined) return null;
+    var n = parseInt(v);
+    return isNaN(n) ? null : n;
 }
 
-function ensureClient(callback) {
-    if (soapClient) return callback(null);
-    initClient(function (err) { callback(err); });
+/**
+ * Stub initClient for backward compatibility (no longer needed with raw HTTP).
+ */
+function initClient(callback) {
+    callback(null);
 }
 
 module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    sendAddData8: sendAddData8
+    getSourceIp: getSourceIp
 };
+
 ENDOFFILE_SERVER_RMTO-CLIENT_JS
 
 echo "[+] server/scheduler.js"
@@ -5663,8 +5842,21 @@ function aggregateAndSend() {
 
 /**
  * Aggregate a single period for a single device.
+ * RMTO rule: period must be 5, 10, or 15 minutes; must start on a multiple of the
+ * interval from the top of the hour; must not span across an hour boundary.
  */
 function aggregatePeriod(code, startStr, endStr) {
+    // RMTO validation: reject periods that cross an hour boundary (e.g. 7:55–8:10 → خطای D).
+    // A period ending exactly at :00:00 of the next hour (e.g. 7:55–8:00) is valid per RMTO rules.
+    var pStart = new Date(startStr);
+    var pEnd = new Date(endStr);
+    var endsExactlyOnHour = (pEnd.getMinutes() === 0 && pEnd.getSeconds() === 0);
+    if (pStart.getHours() !== pEnd.getHours() && !endsExactlyOnHour) {
+        console.log("[Scheduler] RMTO: device " + code + " period " + startStr + "-" + endStr + " crosses hour boundary - skipping (خطای D RMTO)");
+        db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0")
+            .run(code, startStr, endStr);
+        return;
+    }
     // Get device route info and RID (RMTO route number per lane)
     var devInfo = db.prepare("SELECT route, route1, route2, rid1, rid2 FROM devices WHERE device_code = ?").get(code);
     var route1 = (devInfo && (devInfo.route1 || devInfo.route)) || "";
@@ -5697,6 +5889,15 @@ function aggregatePeriod(code, startStr, endStr) {
             console.log("[Scheduler] Device " + code + " lane " + lane + " period " + startStr + ": no route assigned, skipping");
             db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
                 .run(code, startStr, endStr, lane);
+            // Log once per hour per device+lane so it shows in the RMTO monitor
+            var recentSkip = db.prepare(
+                "SELECT id FROM send_log WHERE device_code = ? AND method = 'Skipped' AND error_message LIKE ? AND created_at >= datetime('now','-1 hour')"
+            ).get(code, "%lane=" + lane + "%");
+            if (!recentSkip) {
+                db.prepare(
+                    "INSERT INTO send_log (method, device_code, request_data, success, error_message) VALUES (?, ?, ?, ?, ?)"
+                ).run("Skipped", code, JSON.stringify({ period: startStr, lane: lane }), 0, "محور ارسال تنظیم نشده (rid/route خالی) lane=" + lane);
+            }
             return;
         }
 
@@ -5816,7 +6017,14 @@ function sendUnsentData(onComplete) {
     db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
     // --- Send 5-class AddData5 (primary method, matching C# reference) ---
-    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+    // Only retry records that haven't exceeded the max retry count (5 attempts)
+    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) ORDER BY period_start LIMIT 50").all();
+
+    // Log records that have been permanently abandoned (retry_count >= 5)
+    var abandoned = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0 AND retry_count >= 5").get();
+    if (abandoned && abandoned.c > 0) {
+        console.log("[Scheduler] " + abandoned.c + " record(s) in rmto_queue_5class permanently abandoned after 5 failed retries (sent=0, retry_count>=5)");
+    }
 
     var pending = unsent5.length;
     results.total = pending;
@@ -5863,15 +6071,23 @@ function sendUnsentData(onComplete) {
                 console.log("[Scheduler] Add5 response for device " + row.device_code + ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL + " ERR=" + (response.ERR || "none"));
             }
 
-            db.prepare(
-                "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-            ).run(success ? 1 : 0, responseStr, row.id);
+            if (success) {
+                db.prepare(
+                    "UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                ).run(responseStr, row.id);
+            } else {
+                db.prepare(
+                    "UPDATE rmto_queue_5class SET sent = 0, retry_count = COALESCE(retry_count, 0) + 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                ).run(responseStr, row.id);
+            }
 
             db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             ).run("Add5", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
+                JSON.stringify(response), success ? 1 : 0,
+                err ? err.message : (response && response.ERR ? response.ERR : null),
+                soapXml || null, rmto.getSourceIp ? rmto.getSourceIp() : null);
 
             if (success) {
                 results.success++;

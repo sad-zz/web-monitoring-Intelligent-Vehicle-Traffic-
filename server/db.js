@@ -247,6 +247,10 @@ try {
         console.log("[DB] Adding soap_xml column to send_log...");
         db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
     }
+    if (slColNames.length > 0 && slColNames.indexOf("source_ip") === -1) {
+        console.log("[DB] Adding source_ip column to send_log...");
+        db.exec("ALTER TABLE send_log ADD COLUMN source_ip TEXT");
+    }
 } catch(e) {}
 
 // Migration: add retry_count column to rmto_queue_5class if missing

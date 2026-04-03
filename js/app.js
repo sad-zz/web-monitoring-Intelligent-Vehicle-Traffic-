@@ -734,7 +734,7 @@
         api("GET", "/api/rmto/logs?limit=50&filter=" + filter, null, function (status, data) {
             var mbody = $("#rmto-monitor-body");
             if (status !== 200 || !data || !data.length) {
-                mbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                mbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
                 return;
             }
             mbody.innerHTML = data.map(function (r) {
@@ -742,9 +742,19 @@
                 var resp = r.response_data || "-";
                 var respShort = resp;
                 if (respShort.length > 80) respShort = respShort.substring(0, 80) + "...";
-                var errMsg = r.error_message || "-";
+
+                // Extract ERR from response_data JSON
+                var errMsg = r.error_message || "";
+                if (!errMsg) {
+                    try {
+                        var ro = JSON.parse(r.response_data || "{}");
+                        if (ro.ERR) errMsg = ro.ERR;
+                        else if (!ok && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") errMsg = "تاریخ نامعتبر از سامانه (ID=0)";
+                    } catch (e) {}
+                }
                 var errShort = errMsg;
                 if (errShort.length > 80) errShort = errShort.substring(0, 80) + "...";
+
                 return "<tr class='rmto-log-row " + (ok ? "" : "rmto-error-row") + "'>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px;white-space:nowrap">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     '<td style="font-size:12px">' + escapeHtml(r.method) + "</td>" +
@@ -752,6 +762,7 @@
                     '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(resp) + '">' + escapeHtml(respShort) + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (ok ? '#94a3b8' : '#ef4444') + '" title="' + escapeHtml(errMsg) + '">' + escapeHtml(ok ? "-" : errShort) + "</td>" +
+                    '<td dir="ltr" style="font-size:10px;color:#64748b">' + escapeHtml(r.source_ip || "-") + "</td>" +
                     '<td><button class="btn btn-sm btn-secondary btn-rmto-detail" data-id="' + r.id + '">مشاهده</button></td>' +
                     "</tr>";
             }).join("");
@@ -776,10 +787,20 @@
                 var ok = r.success === 1;
                 var resp = r.response_data || "";
                 if (resp.length > 60) resp = resp.substring(0, 60) + "...";
+                var errDetail = r.error_message || "";
+                if (!errDetail) {
+                    try {
+                        var ro = JSON.parse(r.response_data || "{}");
+                        if (ro.ERR) errDetail = ro.ERR;
+                        else if (!ok && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") errDetail = "تاریخ نامعتبر از سامانه (ID=0)";
+                    } catch (e) {}
+                }
+                var statusCell = '<span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span>" +
+                    (!ok && errDetail ? '<div style="font-size:10px;color:#ef4444;margin-top:2px;white-space:normal;max-width:160px">' + escapeHtml(errDetail.substring(0, 80)) + '</div>' : "");
                 return "<tr>" +
                     "<td>" + escapeHtml(r.method) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
-                    '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
+                    "<td>" + statusCell + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     "</tr>";

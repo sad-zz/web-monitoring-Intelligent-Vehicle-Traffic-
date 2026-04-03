@@ -353,10 +353,12 @@ function sendUnsentData(onComplete) {
             }
 
             db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             ).run("Add5", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
+                JSON.stringify(response), success ? 1 : 0,
+                err ? err.message : (response && response.ERR ? response.ERR : null),
+                soapXml || null, rmto.getSourceIp ? rmto.getSourceIp() : null);
 
             if (success) {
                 results.success++;
