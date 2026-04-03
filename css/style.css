@@ -405,8 +405,125 @@ body {
 /* === Device Card Grid (Dashboard) === */
 .device-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 10px;
+}
+
+/* New v2 device card layout (image-style) */
+.device-card-v2 {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.dcv2-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.dcv2-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--primary);
+}
+
+.dcv2-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.dcv2-code {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.dcv2-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.dcv2-label {
+    color: var(--text-light);
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+.dcv2-val {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.dcv2-val.ltr {
+    direction: ltr;
+    text-align: left;
+    font-family: monospace;
+    font-size: 10.5px;
+}
+
+.dcv2-status {
+    font-weight: 700;
+    font-size: 11px;
+}
+
+/* Filter bar above device grid */
+.device-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.dfb-btn {
+    padding: 3px 12px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--white);
+    color: var(--text-light);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.dfb-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.dfb-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.dfb-count {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-right: auto;
 }
 
 .device-card {

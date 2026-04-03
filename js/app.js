@@ -220,39 +220,75 @@
             if (!grid) return;
             if (status !== 200 || !data || !data.length) {
                 grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
+                updateDeviceFilterCount(0);
                 return;
             }
-            grid.innerHTML = data.map(function (d) {
-                var VALID_STATUSES = ["online", "offline", "warning", "error"];
+
+            var VALID_STATUSES = ["online", "offline", "warning", "error"];
+            var allCards = data.map(function (d) {
                 var st = (d.status && VALID_STATUSES.indexOf(d.status) !== -1) ? d.status : "offline";
                 var statusLabel = escapeHtml(STATUS_LABELS[st] || st);
-                var typeLabel = escapeHtml(TYPE_LABELS[d.type] || d.type || "");
                 var code = escapeHtml(d.device_code || "");
                 var name = escapeHtml(d.name || d.device_code || "");
                 var route = escapeHtml(d.route1 || d.route || "");
                 var lastSeen = escapeHtml(formatTime(d.last_seen));
-                return '<div class="device-card ' + st + '">' +
-                    '<div class="device-card-header">' +
-                        '<div class="device-card-icon">' +
-                            '<svg viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>' +
+                var dotColor = { online: "#22c55e", offline: "#94a3b8", warning: "#f59e0b", error: "#ef4444" }[st] || "#94a3b8";
+                var cardHtml =
+                    '<div class="device-card device-card-v2 ' + st + '" data-status="' + st + '">' +
+                        '<div class="dcv2-icon">' +
+                            '<svg viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14zm-5 2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-3V7h2v11h-2z"/></svg>' +
                         '</div>' +
-                        '<div style="overflow:hidden">' +
-                            '<div class="device-card-code">' + code + '</div>' +
-                            (typeLabel ? '<div class="device-card-name">' + typeLabel + '</div>' : '') +
+                        '<div class="dcv2-body">' +
+                            '<div class="dcv2-code">' + (code || name) + '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">Last Data:</span>' +
+                                '<span class="dcv2-val ltr">' + lastSeen + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">Status:</span>' +
+                                '<span class="dcv2-status" style="color:' + dotColor + '">&#9679; ' + statusLabel + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">Address:</span>' +
+                                '<span class="dcv2-val">' + (route || name || '-') + '</span>' +
+                            '</div>' +
                         '</div>' +
-                    '</div>' +
-                    '<div class="device-card-name" style="font-size:12px;color:#475569">' + name + '</div>' +
-                    (route ? '<div class="device-card-row"><span>محور:</span><span>' + route + '</span></div>' : '') +
-                    '<div class="device-card-row">' +
-                        '<span class="status-badge ' + st + '">' + statusLabel + '</span>' +
-                        '<span class="device-card-time">' + lastSeen + '</span>' +
-                    '</div>' +
                     '</div>';
-            }).join("");
+                return { html: cardHtml, status: st };
+            });
+
+            var activeFilter = ($("#device-filter-bar .dfb-btn.active") || {}).dataset && $("#device-filter-bar .dfb-btn.active").dataset.filter || "all";
+            renderDeviceCards(grid, allCards, activeFilter);
+
+            var filterBar = $("#device-filter-bar");
+            if (filterBar) {
+                filterBar.querySelectorAll(".dfb-btn").forEach(function (btn) {
+                    btn.onclick = function () {
+                        filterBar.querySelectorAll(".dfb-btn").forEach(function (b) { b.classList.remove("active"); });
+                        btn.classList.add("active");
+                        renderDeviceCards(grid, allCards, btn.dataset.filter || "all");
+                    };
+                });
+            }
         });
 
         loadTcpConnected();
         loadLive();
+    }
+
+    function renderDeviceCards(grid, allCards, filter) {
+        var visible = filter === "all" ? allCards : allCards.filter(function (c) { return c.status === filter; });
+        if (!visible.length) {
+            grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی یافت نشد</div>';
+        } else {
+            grid.innerHTML = visible.map(function (c) { return c.html; }).join("");
+        }
+        updateDeviceFilterCount(visible.length);
+    }
+
+    function updateDeviceFilterCount(n) {
+        var el = $("#device-filter-count");
+        if (el) el.textContent = n + " دستگاه";
     }
 
     function loadTcpConnected() {
