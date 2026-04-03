@@ -236,6 +236,14 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                         </div>
                     </div>
                     <div class="panel-body" style="padding:12px">
+                        <div class="device-filter-bar" id="device-filter-bar">
+                            <button class="dfb-btn active" data-filter="all">همه</button>
+                            <button class="dfb-btn" data-filter="online">آنلاین</button>
+                            <button class="dfb-btn" data-filter="offline">آفلاین</button>
+                            <button class="dfb-btn" data-filter="warning">هشدار</button>
+                            <button class="dfb-btn" data-filter="error">خطا</button>
+                            <span class="dfb-count" id="device-filter-count"></span>
+                        </div>
                         <div id="device-grid" class="device-grid">
                             <div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">در حال بارگذاری...</div>
                         </div>
@@ -1208,8 +1216,125 @@ body {
 /* === Device Card Grid (Dashboard) === */
 .device-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 10px;
+}
+
+/* New v2 device card layout (image-style) */
+.device-card-v2 {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.dcv2-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.dcv2-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--primary);
+}
+
+.dcv2-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.dcv2-code {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.dcv2-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.dcv2-label {
+    color: var(--text-light);
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+.dcv2-val {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.dcv2-val.ltr {
+    direction: ltr;
+    text-align: left;
+    font-family: monospace;
+    font-size: 10.5px;
+}
+
+.dcv2-status {
+    font-weight: 700;
+    font-size: 11px;
+}
+
+/* Filter bar above device grid */
+.device-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.dfb-btn {
+    padding: 3px 12px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--white);
+    color: var(--text-light);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.dfb-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.dfb-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.dfb-count {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-right: auto;
 }
 
 .device-card {
@@ -1856,39 +1981,75 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             if (!grid) return;
             if (status !== 200 || !data || !data.length) {
                 grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
+                updateDeviceFilterCount(0);
                 return;
             }
-            grid.innerHTML = data.map(function (d) {
-                var VALID_STATUSES = ["online", "offline", "warning", "error"];
+
+            var VALID_STATUSES = ["online", "offline", "warning", "error"];
+            var allCards = data.map(function (d) {
                 var st = (d.status && VALID_STATUSES.indexOf(d.status) !== -1) ? d.status : "offline";
                 var statusLabel = escapeHtml(STATUS_LABELS[st] || st);
-                var typeLabel = escapeHtml(TYPE_LABELS[d.type] || d.type || "");
                 var code = escapeHtml(d.device_code || "");
                 var name = escapeHtml(d.name || d.device_code || "");
                 var route = escapeHtml(d.route1 || d.route || "");
                 var lastSeen = escapeHtml(formatTime(d.last_seen));
-                return '<div class="device-card ' + st + '">' +
-                    '<div class="device-card-header">' +
-                        '<div class="device-card-icon">' +
-                            '<svg viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>' +
+                var dotColor = { online: "#22c55e", offline: "#94a3b8", warning: "#f59e0b", error: "#ef4444" }[st] || "#94a3b8";
+                var cardHtml =
+                    '<div class="device-card device-card-v2 ' + st + '" data-status="' + st + '">' +
+                        '<div class="dcv2-icon">' +
+                            '<svg viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14zm-5 2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-3V7h2v11h-2z"/></svg>' +
                         '</div>' +
-                        '<div style="overflow:hidden">' +
-                            '<div class="device-card-code">' + code + '</div>' +
-                            (typeLabel ? '<div class="device-card-name">' + typeLabel + '</div>' : '') +
+                        '<div class="dcv2-body">' +
+                            '<div class="dcv2-code">' + (code || name) + '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">Last Data:</span>' +
+                                '<span class="dcv2-val ltr">' + lastSeen + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">Status:</span>' +
+                                '<span class="dcv2-status" style="color:' + dotColor + '">&#9679; ' + statusLabel + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">Address:</span>' +
+                                '<span class="dcv2-val">' + (route || name || '-') + '</span>' +
+                            '</div>' +
                         '</div>' +
-                    '</div>' +
-                    '<div class="device-card-name" style="font-size:12px;color:#475569">' + name + '</div>' +
-                    (route ? '<div class="device-card-row"><span>محور:</span><span>' + route + '</span></div>' : '') +
-                    '<div class="device-card-row">' +
-                        '<span class="status-badge ' + st + '">' + statusLabel + '</span>' +
-                        '<span class="device-card-time">' + lastSeen + '</span>' +
-                    '</div>' +
                     '</div>';
-            }).join("");
+                return { html: cardHtml, status: st };
+            });
+
+            var activeFilter = ($("#device-filter-bar .dfb-btn.active") || {}).dataset && $("#device-filter-bar .dfb-btn.active").dataset.filter || "all";
+            renderDeviceCards(grid, allCards, activeFilter);
+
+            var filterBar = $("#device-filter-bar");
+            if (filterBar) {
+                filterBar.querySelectorAll(".dfb-btn").forEach(function (btn) {
+                    btn.onclick = function () {
+                        filterBar.querySelectorAll(".dfb-btn").forEach(function (b) { b.classList.remove("active"); });
+                        btn.classList.add("active");
+                        renderDeviceCards(grid, allCards, btn.dataset.filter || "all");
+                    };
+                });
+            }
         });
 
         loadTcpConnected();
         loadLive();
+    }
+
+    function renderDeviceCards(grid, allCards, filter) {
+        var visible = filter === "all" ? allCards : allCards.filter(function (c) { return c.status === filter; });
+        if (!visible.length) {
+            grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی یافت نشد</div>';
+        } else {
+            grid.innerHTML = visible.map(function (c) { return c.html; }).join("");
+        }
+        updateDeviceFilterCount(visible.length);
+    }
+
+    function updateDeviceFilterCount(n) {
+        var el = $("#device-filter-count");
+        if (el) el.textContent = n + " دستگاه";
     }
 
     function loadTcpConnected() {
