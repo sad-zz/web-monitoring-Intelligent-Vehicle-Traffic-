@@ -991,18 +991,19 @@ function sendUnsentData(onComplete) {
     var liveIds = liveRecords.map(function (r) { return r.id; });
 
     // BACKLOG LANE: oldest unsent records, excluding live records → send with backlogIp
+    // Limit to 10 per cycle to avoid flooding the RMTO server
     var backlogRecords;
     if (liveIds.length > 0) {
         var placeholders = liveIds.map(function () { return "?"; }).join(",");
         var bStmt = db.prepare(
             "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
-            "AND id NOT IN (" + placeholders + ") ORDER BY period_start ASC LIMIT 30"
+            "AND id NOT IN (" + placeholders + ") ORDER BY period_start ASC LIMIT 10"
         );
         backlogRecords = bStmt.all.apply(bStmt, liveIds);
     } else {
         backlogRecords = db.prepare(
             "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
-            "ORDER BY period_start ASC LIMIT 30"
+            "ORDER BY period_start ASC LIMIT 10"
         ).all();
     }
 
@@ -1022,22 +1023,28 @@ function sendUnsentData(onComplete) {
         return;
     }
 
-    function checkDone() {
-        pending--;
-        if (pending <= 0 && onComplete) {
-            onComplete(results);
-        }
-    }
+    // Send records one-by-one with a 800ms delay between each to avoid
+    // triggering flood/DDoS detection on the RMTO firewall.
+    var SEND_DELAY_MS = 800;
+    var recordIndex = 0;
 
-    allRecords.forEach(function (row) {
-        // Skip records without a valid route_id (never fall back to device_code)
+    function sendNext() {
+        if (recordIndex >= allRecords.length) {
+            if (onComplete) onComplete(results);
+            return;
+        }
+        var row = allRecords[recordIndex++];
+
+        // Skip records without a valid route_id
         if (!row.route_id) {
             console.log("[Scheduler] Skipping Add5 for device " + row.device_code + " id=" + row.id + ": no route_id");
             db.prepare("UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?")
                 .run('{"skipped":"no route_id"}', row.id);
-            checkDone();
+            results.total--;
+            setTimeout(sendNext, SEND_DELAY_MS);
             return;
         }
+
         var isLive = liveIds.indexOf(row.id) !== -1;
         var sourceIp = isLive ? liveIp : backlogIp;
         rmto.sendAddData5({
@@ -1094,9 +1101,13 @@ function sendUnsentData(onComplete) {
                     response: responseStr
                 });
             }
-            checkDone();
+
+            // Wait before sending the next record
+            setTimeout(sendNext, SEND_DELAY_MS);
         });
-    });
+    }
+
+    sendNext();
 }
 
 /**
@@ -1127,7 +1138,9 @@ function checkOfflineDevices() {
     stale.forEach(function (d) {
         db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(d.device_code);
         console.log("[Scheduler] Device " + d.device_code + " marked offline (last_seen < " + cutoff + ")");
-        sendBaleNotification("🔴 دستگاه آفلاین شد\nکد: " + d.device_code + "\nنام: " + (d.name || d.device_code));
+        sendBaleNotification("🔴 دستگاه آفلاین شد
+کد: " + d.device_code + "
+نام: " + (d.name || d.device_code));
     });
 }
 
