@@ -39,10 +39,17 @@ function loadDbSettings() {
 }
 
 /**
- * Returns the configured live source IP (used when binding the outgoing socket).
+ * Returns the configured live source IP.
  */
 function getSourceIp() {
     return LIVE_SOURCE_IP || "";
+}
+
+/**
+ * Returns the configured backlog source IP.
+ */
+function getBacklogSourceIp() {
+    return BACKLOG_SOURCE_IP || "";
 }
 
 /**
@@ -79,9 +86,12 @@ function xmlElement(name, value) {
  * Send raw SOAP request to RMTO and parse response.
  * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
  * @param {string} bodyXml - the inner SOAP body XML
+ * @param {string|null} sourceIp - local IP to bind (overrides LIVE_SOURCE_IP); null = use module default
  * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
  */
-function sendSoapRequest(soapAction, bodyXml, callback) {
+function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
+    // Allow legacy 3-arg call: sendSoapRequest(action, body, callback)
+    if (typeof sourceIp === "function") { callback = sourceIp; sourceIp = null; }
     var soapEnvelope =
         '<?xml version="1.0" encoding="utf-8"?>' +
         '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
@@ -102,9 +112,11 @@ function sendSoapRequest(soapAction, bodyXml, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
-    if (LIVE_SOURCE_IP) {
-        options.localAddress = LIVE_SOURCE_IP;
-        console.log("[RMTO] Using source IP: " + LIVE_SOURCE_IP);
+    // sourceIp param overrides module-level LIVE_SOURCE_IP (null = OS default, "" = OS default)
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : LIVE_SOURCE_IP;
+    if (effectiveIp) {
+        options.localAddress = effectiveIp;
+        console.log("[RMTO] Using source IP: " + effectiveIp);
     }
 
     console.log("[RMTO] SOAP " + soapAction + " to " + RMTO_URL);
@@ -225,7 +237,7 @@ function sendAddData(data, callback) {
 
     console.log("[RMTO] Add request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et);
 
-    sendSoapRequest("ITS/Add", bodyXml, callback);
+    sendSoapRequest("ITS/Add", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
@@ -299,7 +311,7 @@ function sendAddData5(data, callback) {
     console.log("[RMTO] Add5 request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et +
         " C1=" + data.C1 + " C2=" + data.C2 + " C3=" + data.C3 + " C4=" + data.C4 + " C5=" + data.C5);
 
-    sendSoapRequest("ITS/Add5", bodyXml, callback);
+    sendSoapRequest("ITS/Add5", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
@@ -322,5 +334,6 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    getSourceIp: getSourceIp
+    getSourceIp: getSourceIp,
+    getBacklogSourceIp: getBacklogSourceIp
 };

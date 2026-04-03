@@ -5435,10 +5435,17 @@ function loadDbSettings() {
 }
 
 /**
- * Returns the configured live source IP (used when binding the outgoing socket).
+ * Returns the configured live source IP.
  */
 function getSourceIp() {
     return LIVE_SOURCE_IP || "";
+}
+
+/**
+ * Returns the configured backlog source IP.
+ */
+function getBacklogSourceIp() {
+    return BACKLOG_SOURCE_IP || "";
 }
 
 /**
@@ -5475,9 +5482,12 @@ function xmlElement(name, value) {
  * Send raw SOAP request to RMTO and parse response.
  * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
  * @param {string} bodyXml - the inner SOAP body XML
+ * @param {string|null} sourceIp - local IP to bind (overrides LIVE_SOURCE_IP); null = use module default
  * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
  */
-function sendSoapRequest(soapAction, bodyXml, callback) {
+function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
+    // Allow legacy 3-arg call: sendSoapRequest(action, body, callback)
+    if (typeof sourceIp === "function") { callback = sourceIp; sourceIp = null; }
     var soapEnvelope =
         '<?xml version="1.0" encoding="utf-8"?>' +
         '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
@@ -5498,9 +5508,11 @@ function sendSoapRequest(soapAction, bodyXml, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
-    if (LIVE_SOURCE_IP) {
-        options.localAddress = LIVE_SOURCE_IP;
-        console.log("[RMTO] Using source IP: " + LIVE_SOURCE_IP);
+    // sourceIp param overrides module-level LIVE_SOURCE_IP (null = OS default, "" = OS default)
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : LIVE_SOURCE_IP;
+    if (effectiveIp) {
+        options.localAddress = effectiveIp;
+        console.log("[RMTO] Using source IP: " + effectiveIp);
     }
 
     console.log("[RMTO] SOAP " + soapAction + " to " + RMTO_URL);
@@ -5621,7 +5633,7 @@ function sendAddData(data, callback) {
 
     console.log("[RMTO] Add request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et);
 
-    sendSoapRequest("ITS/Add", bodyXml, callback);
+    sendSoapRequest("ITS/Add", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
@@ -5695,7 +5707,7 @@ function sendAddData5(data, callback) {
     console.log("[RMTO] Add5 request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et +
         " C1=" + data.C1 + " C2=" + data.C2 + " C3=" + data.C3 + " C4=" + data.C4 + " C5=" + data.C5);
 
-    sendSoapRequest("ITS/Add5", bodyXml, callback);
+    sendSoapRequest("ITS/Add5", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
@@ -5718,7 +5730,8 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    getSourceIp: getSourceIp
+    getSourceIp: getSourceIp,
+    getBacklogSourceIp: getBacklogSourceIp
 };
 
 ENDOFFILE_SERVER_RMTO-CLIENT_JS
@@ -6014,17 +6027,54 @@ function sendUnsentData(onComplete) {
     // The rmto_queue table lacks C1-C5 columns needed by the WSDL Add method
     db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
-    // --- Send 5-class AddData5 (primary method, matching C# reference) ---
-    // Only retry records that haven't exceeded the max retry count (5 attempts)
-    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) ORDER BY period_start LIMIT 50").all();
+    // Load source IPs directly from DB for routing decisions
+    var settingsRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_live_source_ip','rmto_backlog_source_ip')").all();
+    var settingsMap = {};
+    settingsRows.forEach(function (r) { settingsMap[r.key] = r.value || ""; });
+    var liveIp = settingsMap.rmto_live_source_ip || "";
+    var backlogIp = settingsMap.rmto_backlog_source_ip || "";
 
-    // Log records that have been permanently abandoned (retry_count >= 5)
+    // --- Send 5-class AddData5 (primary method, matching C# reference) ---
+
+    // Log records permanently abandoned (retry_count >= 5)
     var abandoned = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0 AND retry_count >= 5").get();
     if (abandoned && abandoned.c > 0) {
         console.log("[Scheduler] " + abandoned.c + " record(s) in rmto_queue_5class permanently abandoned after 5 failed retries (sent=0, retry_count>=5)");
     }
 
-    var pending = unsent5.length;
+    // LIVE LANE: most recent unsent records (last 2 intervals) → send with liveIp
+    var recentThreshold = toLocalISOString(new Date(Date.now() - 2 * INTERVAL * 60 * 1000));
+    var liveRecords = db.prepare(
+        "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+        "AND period_start >= ? ORDER BY period_start DESC LIMIT 5"
+    ).all(recentThreshold);
+    var liveIds = liveRecords.map(function (r) { return r.id; });
+
+    // BACKLOG LANE: oldest unsent records, excluding live records → send with backlogIp
+    var backlogRecords;
+    if (liveIds.length > 0) {
+        var placeholders = liveIds.map(function () { return "?"; }).join(",");
+        var bStmt = db.prepare(
+            "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+            "AND id NOT IN (" + placeholders + ") ORDER BY period_start ASC LIMIT 30"
+        );
+        backlogRecords = bStmt.all.apply(bStmt, liveIds);
+    } else {
+        backlogRecords = db.prepare(
+            "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+            "ORDER BY period_start ASC LIMIT 30"
+        ).all();
+    }
+
+    if (liveRecords.length > 0) {
+        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (liveIp || "default") + ")");
+    }
+    if (backlogRecords.length > 0) {
+        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (backlogIp || "default") + ")");
+    }
+
+    var allRecords = liveRecords.concat(backlogRecords);
+    var pending = allRecords.length;
     results.total = pending;
 
     if (pending === 0) {
@@ -6039,7 +6089,7 @@ function sendUnsentData(onComplete) {
         }
     }
 
-    unsent5.forEach(function (row) {
+    allRecords.forEach(function (row) {
         // Skip records without a valid route_id (never fall back to device_code)
         if (!row.route_id) {
             console.log("[Scheduler] Skipping Add5 for device " + row.device_code + " id=" + row.id + ": no route_id");
@@ -6048,6 +6098,8 @@ function sendUnsentData(onComplete) {
             checkDone();
             return;
         }
+        var isLive = liveIds.indexOf(row.id) !== -1;
+        var sourceIp = isLive ? liveIp : backlogIp;
         rmto.sendAddData5({
             FID: row.id,
             RID: row.route_id,
@@ -6059,14 +6111,17 @@ function sendUnsentData(onComplete) {
             SSO: row.sso,
             SO1: row.so1, SO2: row.so2, SO3: row.so3, SO4: row.so4, SO5: row.so5,
             OO: row.oo,
-            ESD: row.esd
+            ESD: row.esd,
+            sourceIp: sourceIp
         }, function (err, response, soapXml) {
             // Match C# reference success check: ID > 0 || CFL == 100
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             var responseStr = JSON.stringify(response || (err && err.message));
 
             if (!err && response) {
-                console.log("[Scheduler] Add5 response for device " + row.device_code + ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL + " ERR=" + (response.ERR || "none"));
+                console.log("[Scheduler] Add5 " + (isLive ? "[LIVE]" : "[BACKLOG]") + " response for device " + row.device_code +
+                    ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL +
+                    " DLY=" + response.DLY + " ERR=" + (response.ERR || "none"));
             }
 
             if (success) {
@@ -6085,7 +6140,7 @@ function sendUnsentData(onComplete) {
             ).run("Add5", row.device_code, JSON.stringify(row),
                 JSON.stringify(response), success ? 1 : 0,
                 err ? err.message : (response && response.ERR ? response.ERR : null),
-                soapXml || null, rmto.getSourceIp ? rmto.getSourceIp() : null);
+                soapXml || null, sourceIp || null);
 
             if (success) {
                 results.success++;
