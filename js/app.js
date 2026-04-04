@@ -45,6 +45,25 @@
     var TYPE_LABELS = { counter: "ترددشمار", sensor: "سنسور", loop: "حلقه القایی", radar: "رادار" };
     var STATUS_LABELS = { online: "آنلاین", offline: "آفلاین", warning: "هشدار", error: "خطا" };
 
+    var ERROR_BITS = {
+        1:   'MMC_ERR - کارت حافظه',
+        2:   'LP1_ERR - لوپ ۱',
+        4:   'LP2_ERR - لوپ ۲',
+        8:   'LP3_ERR - لوپ ۳',
+        16:  'LP4_ERR - لوپ ۴',
+        32:  'VMN_ERR - ولتاژ شبانه',
+        64:  'SOL_ERR - پنل خورشیدی',
+        128: 'LBT_ERR - باتری ضعیف',
+        256: 'L1D_ERR - جهت لاین ۱',
+        512: 'L2D_ERR - جهت لاین ۲'
+    };
+    function decodeErrorByte(code) {
+        if (!code) return [];
+        return Object.keys(ERROR_BITS).filter(function(bit) {
+            return (code & parseInt(bit, 10)) !== 0;
+        }).map(function(bit) { return ERROR_BITS[bit]; });
+    }
+
     var VIEW_TITLES = {
         dashboard: "داشبورد",
         devices: "دستگاه‌ها",
@@ -455,7 +474,7 @@
 
         var tbody = $("#devices-table-body");
         if (!paged.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
         } else {
             tbody.innerHTML = paged.map(function (d, i) {
                 var st = d.status || "offline";
@@ -463,6 +482,11 @@
                 var r2 = d.route2 || "";
                 var r1Name = getMehvarName(r1);
                 var r2Name = getMehvarName(r2);
+                var errCode = d.last_error_byte || 0;
+                var errLabels = decodeErrorByte(errCode);
+                var errCell = errCode > 0
+                    ? '<span class="status-badge error" title="' + escapeHtml(errLabels.join(' | ')) + '" style="cursor:help">' + escapeHtml(String(errCode)) + '</span>'
+                    : '<span style="color:#94a3b8">—</span>';
                 return "<tr>" +
                     "<td>" + (start + i + 1) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
@@ -471,6 +495,7 @@
                     "<td>" + escapeHtml(r1Name || "-") + "</td>" +
                     "<td>" + escapeHtml(r2Name || "-") + "</td>" +
                     '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
+                    "<td>" + errCell + "</td>" +
                     '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
                     "<td>" +
                         '<div class="action-btns">' +
