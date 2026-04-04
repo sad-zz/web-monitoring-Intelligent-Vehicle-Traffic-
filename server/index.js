@@ -957,6 +957,29 @@ function parseRATCX1Interval(intervalStr) {
     };
 }
 
+/** RATCX1 error_byte bitmask — from firmware/Main/Variables.h */
+var ERROR_BITS = {
+    1:   'MMC_ERR  - خطای کارت حافظه',
+    2:   'LP1_ERR  - خطای لوپ ۱',
+    4:   'LP2_ERR  - خطای لوپ ۲',
+    8:   'LP3_ERR  - خطای لوپ ۳',
+    16:  'LP4_ERR  - خطای لوپ ۴',
+    32:  'VMN_ERR  - خطای ولتاژ شبانه',
+    64:  'SOL_ERR  - خطای پنل خورشیدی',
+    128: 'LBT_ERR  - خطای باتری ضعیف',
+    256: 'L1D_ERR  - خطای جهت لاین ۱',
+    512: 'L2D_ERR  - خطای جهت لاین ۲'
+};
+
+/** Decode an error_byte integer into a readable list of active error names */
+function decodeErrorByte(code) {
+    var active = [];
+    Object.keys(ERROR_BITS).forEach(function(bit) {
+        if ((code & parseInt(bit, 10)) !== 0) active.push(ERROR_BITS[bit]);
+    });
+    return active.length ? active.join('\n  ') : '';
+}
+
 /** Convert RATCX1 parsed interval to irawdata rows (one per lane) */
 function ratcx1ToIrawdata(parsed) {
     // Compute stop time = create_at + 5 minutes
@@ -1552,11 +1575,13 @@ function processRawData(raw, ip) {
                 if (prevErr === 0) {
                     // New error onset — notify
                     var devName = devRow ? (devRow.name || parsed.device_code) : parsed.device_code;
+                    var errLabels = decodeErrorByte(parsed.error_byte);
                     scheduler.sendBaleNotification && scheduler.sendBaleNotification(
                         "⚠️ خطا از دستگاه\n" +
                         "کد: " + parsed.device_code + "\n" +
                         "نام: " + devName + "\n" +
                         "کد خطا: " + parsed.error_byte + "\n" +
+                        (errLabels ? "خطاها:\n  " + errLabels + "\n" : "") +
                         "باتری: " + parsed.battery + "  سولار: " + parsed.solar + "\n" +
                         "تردد: " + totalAll + "\n" +
                         "IP: " + ip
