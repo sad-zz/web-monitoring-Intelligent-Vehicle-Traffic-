@@ -6042,12 +6042,19 @@ function sendUnsentData(onComplete) {
         console.log("[Scheduler] " + abandoned.c + " record(s) in rmto_queue_5class permanently abandoned after 5 failed retries (sent=0, retry_count>=5)");
     }
 
-    // LIVE LANE: most recent unsent records (last 2 intervals) → send with liveIp
-    var recentThreshold = toLocalISOString(new Date(Date.now() - 2 * INTERVAL * 60 * 1000));
+    // LIVE LANE: most recent unsent record PER DEVICE → send with liveIp
+    // This ensures every device (even those with large backlogs) gets its latest
+    // data point sent first, so RMTO marks them as online immediately.
     var liveRecords = db.prepare(
-        "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
-        "AND period_start >= ? ORDER BY period_start DESC LIMIT 5"
-    ).all(recentThreshold);
+        "SELECT q.* FROM rmto_queue_5class q " +
+        "INNER JOIN (" +
+        "  SELECT device_code, MAX(period_start) AS max_start " +
+        "  FROM rmto_queue_5class " +
+        "  WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+        "  GROUP BY device_code" +
+        ") latest ON q.device_code = latest.device_code AND q.period_start = latest.max_start " +
+        "WHERE q.sent = 0 AND (q.retry_count IS NULL OR q.retry_count < 5)"
+    ).all();
     var liveIds = liveRecords.map(function (r) { return r.id; });
 
     // BACKLOG LANE: oldest unsent records, excluding live records → send with backlogIp
