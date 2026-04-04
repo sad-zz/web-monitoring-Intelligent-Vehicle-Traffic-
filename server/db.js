@@ -291,6 +291,12 @@ try {
         db.exec("ALTER TABLE devices ADD COLUMN rid2 TEXT DEFAULT ''");
         console.log("[DB] devices rid1/rid2 migration done");
     }
+    // Migration: add last_error_byte to track device error state for Bale notifications
+    if (devColNames.indexOf("last_error_byte") === -1) {
+        console.log("[DB] Adding last_error_byte column to devices...");
+        db.exec("ALTER TABLE devices ADD COLUMN last_error_byte INTEGER DEFAULT 0");
+        console.log("[DB] devices last_error_byte migration done");
+    }
 } catch(e) {
     console.error("[DB] devices migration error:", e.message);
 }

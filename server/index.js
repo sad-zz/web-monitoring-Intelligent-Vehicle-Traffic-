@@ -1544,6 +1544,30 @@ function processRawData(raw, ip) {
             // Update device battery/solar info
             db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(parsed.device_code);
             console.log("[TCP] RATCX1 stored: device=" + parsed.device_code + " vehicles=" + totalAll + " lanes=" + rows.length + " bat=" + parsed.battery + " sol=" + parsed.solar + (timestampCorrected ? " (timestamp corrected)" : ""));
+
+            // Send Bale notification when error_byte transitions from 0 to non-zero
+            if (parsed.error_byte > 0) {
+                var devRow = db.prepare("SELECT name, last_error_byte FROM devices WHERE device_code = ?").get(parsed.device_code);
+                var prevErr = devRow ? (devRow.last_error_byte || 0) : 0;
+                if (prevErr === 0) {
+                    // New error onset — notify
+                    var devName = devRow ? (devRow.name || parsed.device_code) : parsed.device_code;
+                    scheduler.sendBaleNotification && scheduler.sendBaleNotification(
+                        "⚠️ خطا از دستگاه\n" +
+                        "کد: " + parsed.device_code + "\n" +
+                        "نام: " + devName + "\n" +
+                        "کد خطا: " + parsed.error_byte + "\n" +
+                        "باتری: " + parsed.battery + "  سولار: " + parsed.solar + "\n" +
+                        "تردد: " + totalAll + "\n" +
+                        "IP: " + ip
+                    );
+                    console.log("[TCP] Bale error notification sent for device=" + parsed.device_code + " error=" + parsed.error_byte);
+                }
+                db.prepare("UPDATE devices SET last_error_byte = ? WHERE device_code = ?").run(parsed.error_byte, parsed.device_code);
+            } else if (parsed.error_byte === 0) {
+                // Error cleared — reset so next error triggers a new notification
+                db.prepare("UPDATE devices SET last_error_byte = 0 WHERE device_code = ?").run(parsed.device_code);
+            }
         } catch (e) {
             console.error("[TCP] DB error: " + e.message);
         }
