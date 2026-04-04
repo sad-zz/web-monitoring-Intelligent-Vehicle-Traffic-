@@ -534,6 +534,82 @@ app.post("/api/rmto/aggregate", function (req, res) {
     res.json({ success: true, message: "تجمیع انجام شد. ارسال در پس‌زمینه ادامه دارد." });
 });
 
+// ============================================================
+// API: RMTO Connectivity Check
+// Tests TCP reachability of the RMTO host from each configured source IP.
+// ============================================================
+app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
+    var net = require("net");
+    var url = require("url");
+
+    // Reload latest settings from DB
+    var settingsRows = db.prepare(
+        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')"
+    ).all();
+    var cfg = {};
+    settingsRows.forEach(function (r) { cfg[r.key] = r.value || ""; });
+
+    var rmtoUrl = cfg.rmto_url || (cfg.rmto_wsdl
+        ? cfg.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "")
+        : "http://otf.rmto.ir/Companies/Companies.asmx");
+
+    var parsedUrl = url.parse(rmtoUrl);
+    var host = parsedUrl.hostname || "otf.rmto.ir";
+    var port = parseInt(parsedUrl.port, 10) || 80;
+
+    var ipsToCheck = [
+        { label: "IP پیش‌فرض سرور", ip: "" },
+        { label: "IP لحظه‌ای (live)", ip: cfg.rmto_live_source_ip || "" },
+        { label: "IP بک‌لاگ (backlog)", ip: cfg.rmto_backlog_source_ip || "" }
+    ];
+
+    var results = [];
+    var remaining = ipsToCheck.length;
+    var TIMEOUT_MS = 8000;
+
+    function checkOne(entry, done) {
+        var start = Date.now();
+        var timedOut = false;
+        var sock = new net.Socket();
+
+        var connectOpts = { host: host, port: port };
+        if (entry.ip) connectOpts.localAddress = entry.ip;
+
+        var timer = setTimeout(function () {
+            timedOut = true;
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: false, latencyMs: null, error: "timeout (" + TIMEOUT_MS + "ms)" });
+        }, TIMEOUT_MS);
+
+        sock.connect(connectOpts, function () {
+            clearTimeout(timer);
+            var latency = Date.now() - start;
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: true, latencyMs: latency, error: null });
+        });
+
+        sock.on("error", function (err) {
+            if (timedOut) return;
+            clearTimeout(timer);
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: false, latencyMs: null, error: err.message });
+        });
+    }
+
+    ipsToCheck.forEach(function (entry) {
+        checkOne(entry, function (result) {
+            results.push(result);
+            remaining--;
+            if (remaining === 0) {
+                res.json({ host: host, port: port, url: rmtoUrl, checks: results, checkedAt: new Date().toISOString() });
+            }
+        });
+    });
+});
+
 app.get("/api/rmto/queue", function (req, res) {
     var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
     var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();

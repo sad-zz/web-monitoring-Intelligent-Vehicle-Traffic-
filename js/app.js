@@ -927,7 +927,44 @@
     var rmtoRefreshBtn = $("#btn-rmto-refresh");
     if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
 
-    // Monitor filter
+    // Connectivity check
+    var rmtoConnBtn = $("#btn-rmto-connectivity");
+    if (rmtoConnBtn) rmtoConnBtn.addEventListener("click", function () {
+        var panel = $("#panel-connectivity");
+        var resultEl = $("#connectivity-result");
+        var hostEl = $("#connectivity-host");
+        panel.style.display = "";
+        resultEl.innerHTML = '<div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>';
+        if (hostEl) hostEl.textContent = "";
+        rmtoConnBtn.disabled = true;
+        api("GET", "/api/rmto/connectivity-check", null, function (status, data) {
+            rmtoConnBtn.disabled = false;
+            if (status !== 200 || !data) {
+                resultEl.innerHTML = '<div style="color:#ef4444;font-size:13px">خطا در دریافت نتیجه</div>';
+                return;
+            }
+            if (hostEl) hostEl.textContent = data.host + ":" + data.port;
+            var html = '<div style="display:grid;gap:8px">';
+            (data.checks || []).forEach(function (c) {
+                var color = c.ok ? "#16a34a" : "#ef4444";
+                var badge = c.ok
+                    ? '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:12px">✓ متصل</span>'
+                    : '<span style="background:#fee2e2;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:12px">✗ قطع</span>';
+                var latency = c.ok ? ' &nbsp;<span style="color:#64748b;font-size:12px">' + c.latencyMs + 'ms</span>' : "";
+                var errMsg = c.error ? ' &nbsp;<span style="color:#ef4444;font-size:12px;direction:ltr">' + escapeHtml(c.error) + "</span>" : "";
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">' +
+                    '<span style="min-width:160px;font-size:13px">' + escapeHtml(c.label) + "</span>" +
+                    '<span style="color:#64748b;font-size:12px;direction:ltr;min-width:120px">' + escapeHtml(c.ip) + "</span>" +
+                    badge + latency + errMsg +
+                    "</div>";
+            });
+            var ts = data.checkedAt ? ' <span style="font-size:11px;color:#94a3b8">' + escapeHtml(data.checkedAt.replace("T", " ").substring(0, 19)) + "</span>" : "";
+            html += "</div>" + ts;
+            resultEl.innerHTML = html;
+        });
+    });
+
+
     var rmtoFilterEl = $("#rmto-log-filter");
     if (rmtoFilterEl) rmtoFilterEl.addEventListener("change", function () {
         rmtoLogFilter = this.value;

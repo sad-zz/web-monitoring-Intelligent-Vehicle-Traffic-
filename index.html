@@ -353,7 +353,21 @@
                     <button class="btn btn-primary" id="btn-rmto-send-now">ارسال الان</button>
                     <button class="btn btn-secondary" id="btn-rmto-aggregate">تجمیع و ارسال</button>
                     <button class="btn btn-secondary" id="btn-rmto-refresh">بروزرسانی</button>
+                    <button class="btn btn-secondary" id="btn-rmto-connectivity">🔌 بررسی اتصال</button>
                     <div id="rmto-send-result" style="font-size:13px;margin-right:12px;display:none"></div>
+                </div>
+
+                <!-- Connectivity Check Panel -->
+                <div class="panel" id="panel-connectivity" style="margin-bottom:16px;display:none">
+                    <div class="panel-header">
+                        <h3 class="panel-title">🔌 بررسی اتصال به سرور RMTO</h3>
+                        <div class="panel-tools">
+                            <span id="connectivity-host" style="font-size:12px;color:#64748b;direction:ltr"></span>
+                        </div>
+                    </div>
+                    <div id="connectivity-result" style="padding:12px">
+                        <div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>
+                    </div>
                 </div>
 
                 <!-- Unsent Queue -->
