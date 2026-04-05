@@ -266,11 +266,13 @@ function aggregatePeriod(code, startStr, endStr) {
         // Multiple devices on the same highway can share one route code; their data
         // must be SUMMED into a single RMTO record to prevent duplicate errors.
         var existingQ5 = db.prepare(
-            "SELECT * FROM rmto_queue_5class WHERE route_id = ? AND period_start = ? AND sent = 0 LIMIT 1"
+            "SELECT id, c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
+            "sso, so1, so2, so3, so4, so5, oo, esd " +
+            "FROM rmto_queue_5class WHERE route_id = ? AND period_start = ? AND sent = 0 LIMIT 1"
         ).get(String(routeIdNum), startStr);
 
         if (existingQ5) {
-            // Merge: weighted avg speed, summed counts
+            // Merge using weighted average: newAvg = (totalA×speedA + totalB×speedB) / (totalA+totalB)
             var existTotal = (existingQ5.c1||0) + (existingQ5.c2||0) + (existingQ5.c3||0) + (existingQ5.c4||0) + (existingQ5.c5||0);
             var newC1 = (existingQ5.c1||0) + c1, newC2 = (existingQ5.c2||0) + c2;
             var newC3 = (existingQ5.c3||0) + c3, newC4 = (existingQ5.c4||0) + c4, newC5 = (existingQ5.c5||0) + c5;
