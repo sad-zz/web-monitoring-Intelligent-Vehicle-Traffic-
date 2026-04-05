@@ -15,15 +15,14 @@ var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.a
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
-var LIVE_SOURCE_IP = "";
-var BACKLOG_SOURCE_IP = "";
+var SOURCE_IP = "";
 
 /**
  * Load RMTO settings from database (overrides env vars).
  */
 function loadDbSettings() {
     try {
-        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')").all();
+        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_source_ip')").all();
         var s = {};
         rows.forEach(function (r) { s[r.key] = r.value; });
         if (s.rmto_company_code) COMPANY_CODE = s.rmto_company_code;
@@ -31,25 +30,17 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_url) RMTO_URL = s.rmto_url;
         else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
-        if (s.rmto_live_source_ip !== undefined) LIVE_SOURCE_IP = s.rmto_live_source_ip || "";
-        if (s.rmto_backlog_source_ip !== undefined) BACKLOG_SOURCE_IP = s.rmto_backlog_source_ip || "";
+        if (s.rmto_source_ip !== undefined) SOURCE_IP = s.rmto_source_ip || "";
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
     }
 }
 
 /**
- * Returns the configured live source IP.
+ * Returns the configured source IP.
  */
 function getSourceIp() {
-    return LIVE_SOURCE_IP || "";
-}
-
-/**
- * Returns the configured backlog source IP.
- */
-function getBacklogSourceIp() {
-    return BACKLOG_SOURCE_IP || "";
+    return SOURCE_IP || "";
 }
 
 /**
@@ -86,7 +77,7 @@ function xmlElement(name, value) {
  * Send raw SOAP request to RMTO and parse response.
  * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
  * @param {string} bodyXml - the inner SOAP body XML
- * @param {string|null} sourceIp - local IP to bind (overrides LIVE_SOURCE_IP); null = use module default
+ * @param {string|null} sourceIp - local IP to bind (overrides SOURCE_IP); null = use module default
  * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
  */
 function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
@@ -112,8 +103,8 @@ function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
-    // sourceIp param overrides module-level LIVE_SOURCE_IP (null = OS default, "" = OS default)
-    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : LIVE_SOURCE_IP;
+    // sourceIp param overrides module-level SOURCE_IP (null = OS default, "" = OS default)
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : SOURCE_IP;
     if (effectiveIp) {
         options.localAddress = effectiveIp;
         console.log("[RMTO] Using source IP: " + effectiveIp);
@@ -334,6 +325,5 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    getSourceIp: getSourceIp,
-    getBacklogSourceIp: getBacklogSourceIp
+    getSourceIp: getSourceIp
 };

@@ -301,6 +301,23 @@ try {
     console.error("[DB] devices migration error:", e.message);
 }
 
+// Migration: consolidate dual-lane source IPs into single rmto_source_ip
+try {
+    var liveIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_live_source_ip'").get();
+    if (liveIpRow) {
+        var liveVal = (liveIpRow.value || "").trim();
+        // Copy live IP to new unified key if not already set
+        var existingUnified = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+        if (!existingUnified && liveVal) {
+            db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('rmto_source_ip', ?)").run(liveVal);
+        }
+        db.prepare("DELETE FROM settings WHERE key IN ('rmto_live_source_ip', 'rmto_backlog_source_ip')").run();
+        console.log("[DB] Migrated rmto_live/backlog_source_ip -> rmto_source_ip");
+    }
+} catch(e) {
+    // ignore
+}
+
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
@@ -317,8 +334,7 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_live_source_ip: "",
-    rmto_backlog_source_ip: "",
+    rmto_source_ip: "",
     bale_bot_token: "",
     bale_chat_id: ""
 };

@@ -312,324 +312,21 @@ try {
     console.error("[DB] devices migration error:", e.message);
 }
 
-// Insert default settings if not exists
-var defaultSettings = {
-    system_name: "نوآوران جنوب شرق",
-    server_ip: "0.0.0.0",
-    server_port: "3000",
-    tcp_port: "2022",
-    refresh_interval: "30",
-    max_speed: "120",
-    alert_offline: "1",
-    alert_speed: "1",
-    alert_error: "1",
-    offline_timeout: "5",
-    rmto_company_code: "58",
-    rmto_username: "",
-    rmto_password: "",
-    rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_live_source_ip: "",
-    rmto_backlog_source_ip: "",
-    bale_bot_token: "",
-    bale_chat_id: ""
-};
-var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
-Object.keys(defaultSettings).forEach(function (k) {
-    insertSetting.run(k, defaultSettings[k]);
-});
-
-module.exports = db;
-/**
- * Database module - SQLite via better-sqlite3
- * Stores devices, traffic data, and send logs.
- */
-var Database = require("better-sqlite3");
-var path = require("path");
-
-var DB_PATH = path.join(__dirname, "data.db");
-var db = new Database(DB_PATH);
-
-// Enable WAL mode for better concurrent read performance
-db.pragma("journal_mode = WAL");
-
-// --- Schema ---
-db.exec([
-    // Devices: each has a unique 4-digit code
-    "CREATE TABLE IF NOT EXISTS devices (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL UNIQUE,",
-    "  name TEXT NOT NULL,",
-    "  type TEXT NOT NULL DEFAULT 'sensor',",
-    "  route TEXT,",
-    "  ip TEXT,",
-    "  status TEXT NOT NULL DEFAULT 'offline',",
-    "  last_seen TEXT,",
-    "  firmware TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Raw traffic data received from devices
-    "CREATE TABLE IF NOT EXISTS traffic_data (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  timestamp TEXT NOT NULL,",
-    "  vehicle_class INTEGER DEFAULT 0,",
-    "  speed REAL DEFAULT 0,",
-    "  direction INTEGER DEFAULT 1,",
-    "  lane INTEGER DEFAULT 1,",
-    "  raw_payload TEXT,",
-    "  received_at TEXT DEFAULT (datetime('now','localtime')),",
-    "  FOREIGN KEY (device_code) REFERENCES devices(device_code)",
-    ");",
-
-    // Aggregated 15-minute data for RMTO (AddData - simple)
-    "CREATE TABLE IF NOT EXISTS rmto_queue (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  route_id TEXT,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  total_vehicles INTEGER DEFAULT 0,",
-    "  avg_speed REAL DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // 5-class data for RMTO (AddData5)
-    "CREATE TABLE IF NOT EXISTS rmto_queue_5class (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  route_id TEXT,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  -- Volume classes (C1-C5: by vehicle size)",
-    "  c1 INTEGER DEFAULT 0,",
-    "  c2 INTEGER DEFAULT 0,",
-    "  c3 INTEGER DEFAULT 0,",
-    "  c4 INTEGER DEFAULT 0,",
-    "  c5 INTEGER DEFAULT 0,",
-    "  -- Average speed overall (ASP)",
-    "  avg_speed REAL DEFAULT 0,",
-    "  -- Average speed per class (S1-S5)",
-    "  s1 REAL DEFAULT 0,",
-    "  s2 REAL DEFAULT 0,",
-    "  s3 REAL DEFAULT 0,",
-    "  s4 REAL DEFAULT 0,",
-    "  s5 REAL DEFAULT 0,",
-    "  -- Speed violations total (SSO) and per class (SO1-SO5)",
-    "  sso INTEGER DEFAULT 0,",
-    "  so1 INTEGER DEFAULT 0,",
-    "  so2 INTEGER DEFAULT 0,",
-    "  so3 INTEGER DEFAULT 0,",
-    "  so4 INTEGER DEFAULT 0,",
-    "  so5 INTEGER,",
-    "  -- Overtaking (OO) and too-close/headway (ESD)",
-    "  oo INTEGER DEFAULT 0,",
-    "  esd INTEGER DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  retry_count INTEGER DEFAULT 0,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // 8-class data for RMTO (AddData8)
-    "CREATE TABLE IF NOT EXISTS rmto_queue_8class (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  class1_count INTEGER DEFAULT 0,",
-    "  class2_count INTEGER DEFAULT 0,",
-    "  class3_count INTEGER DEFAULT 0,",
-    "  class4_count INTEGER DEFAULT 0,",
-    "  class5_count INTEGER DEFAULT 0,",
-    "  class6_count INTEGER DEFAULT 0,",
-    "  class7_count INTEGER DEFAULT 0,",
-    "  class8_count INTEGER DEFAULT 0,",
-    "  speed1_count INTEGER DEFAULT 0,",
-    "  speed2_count INTEGER DEFAULT 0,",
-    "  speed3_count INTEGER DEFAULT 0,",
-    "  speed4_count INTEGER DEFAULT 0,",
-    "  speed5_count INTEGER DEFAULT 0,",
-    "  speed6_count INTEGER DEFAULT 0,",
-    "  speed7_count INTEGER DEFAULT 0,",
-    "  speed8_count INTEGER DEFAULT 0,",
-    "  violations INTEGER DEFAULT 0,",
-    "  avg_speed REAL DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Send log for auditing
-    "CREATE TABLE IF NOT EXISTS send_log (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  method TEXT NOT NULL,",
-    "  device_code TEXT NOT NULL,",
-    "  request_data TEXT,",
-    "  response_data TEXT,",
-    "  success INTEGER DEFAULT 0,",
-    "  error_message TEXT,",
-    "  soap_xml TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Indexes
-    "CREATE INDEX IF NOT EXISTS idx_traffic_device ON traffic_data(device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_traffic_time ON traffic_data(timestamp);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto_unsent ON rmto_queue(sent, device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto8_unsent ON rmto_queue_8class(sent, device_code);",
-
-    // irawdata table - matches iccore device_irawdata format
-    "CREATE TABLE IF NOT EXISTS irawdata (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  create_at TEXT NOT NULL,",
-    "  stop TEXT NOT NULL,",
-    "  lane INTEGER DEFAULT 1,",
-    "  is_read INTEGER DEFAULT 0,",
-    "  a INTEGER DEFAULT 0,",
-    "  b INTEGER DEFAULT 0,",
-    "  c INTEGER DEFAULT 0,",
-    "  d INTEGER DEFAULT 0,",
-    "  e INTEGER DEFAULT 0,",
-    "  x INTEGER DEFAULT 0,",
-    "  sa INTEGER DEFAULT 0,",
-    "  sb INTEGER DEFAULT 0,",
-    "  sc INTEGER DEFAULT 0,",
-    "  sd INTEGER DEFAULT 0,",
-    "  se INTEGER DEFAULT 0,",
-    "  sx INTEGER DEFAULT 0,",
-    "  sao INTEGER DEFAULT 0,",
-    "  sbo INTEGER DEFAULT 0,",
-    "  sco INTEGER DEFAULT 0,",
-    "  sdo INTEGER DEFAULT 0,",
-    "  seo INTEGER DEFAULT 0,",
-    "  sxo INTEGER DEFAULT 0,",
-    "  overtaking INTEGER DEFAULT 0,",
-    "  tooclose INTEGER DEFAULT 0,",
-    "  received_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Mehvar (routes) table
-    "CREATE TABLE IF NOT EXISTS mehvar (",
-    "  code INTEGER PRIMARY KEY,",
-    "  name TEXT NOT NULL,",
-    "  send_enable INTEGER DEFAULT 1,",
-    "  repair INTEGER DEFAULT 0,",
-    "  ostan TEXT",
-    ");",
-
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
-
-    // Settings (key-value store)
-    "CREATE TABLE IF NOT EXISTS settings (",
-    "  key TEXT PRIMARY KEY,",
-    "  value TEXT",
-    ");"
-].join("\n"));
-
-// Migration: if rmto_queue_5class has old column names, recreate it
+// Migration: consolidate dual-lane source IPs into single rmto_source_ip
 try {
-    var cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
-    var colNames = cols.map(function(c) { return c.name; });
-    if (colNames.indexOf("class1_count") !== -1) {
-        console.log("[DB] Migrating rmto_queue_5class to new RMTO Add5 format...");
-        db.exec("DROP TABLE IF EXISTS rmto_queue_5class");
-        db.exec([
-            "CREATE TABLE rmto_queue_5class (",
-            "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-            "  device_code TEXT NOT NULL,",
-            "  route_id TEXT,",
-            "  period_start TEXT NOT NULL,",
-            "  period_end TEXT NOT NULL,",
-            "  c1 INTEGER DEFAULT 0, c2 INTEGER DEFAULT 0, c3 INTEGER DEFAULT 0, c4 INTEGER DEFAULT 0, c5 INTEGER DEFAULT 0,",
-            "  avg_speed REAL DEFAULT 0,",
-            "  s1 REAL DEFAULT 0, s2 REAL DEFAULT 0, s3 REAL DEFAULT 0, s4 REAL DEFAULT 0, s5 REAL DEFAULT 0,",
-            "  sso INTEGER DEFAULT 0,",
-            "  so1 INTEGER DEFAULT 0, so2 INTEGER DEFAULT 0, so3 INTEGER DEFAULT 0, so4 INTEGER DEFAULT 0, so5 INTEGER,",
-            "  oo INTEGER DEFAULT 0, esd INTEGER DEFAULT 0,",
-            "  sent INTEGER DEFAULT 0, sent_at TEXT, rmto_response TEXT,",
-            "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-            ")"
-        ].join("\n"));
-        db.exec("CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code)");
-        console.log("[DB] rmto_queue_5class migrated successfully");
-    }
-} catch(e) {
-    // Table doesn't exist yet - will be created by schema above
-}
-
-// Migration: add route_id column to rmto_queue if missing
-try {
-    var qCols = db.prepare("PRAGMA table_info(rmto_queue)").all();
-    var qColNames = qCols.map(function(c) { return c.name; });
-    if (qColNames.length > 0 && qColNames.indexOf("route_id") === -1) {
-        console.log("[DB] Adding route_id column to rmto_queue...");
-        db.exec("ALTER TABLE rmto_queue ADD COLUMN route_id TEXT");
-        console.log("[DB] rmto_queue migrated successfully");
-    }
-} catch(e) {
-    // Table doesn't exist yet
-}
-
-// Migration: add soap_xml column to send_log if missing
-try {
-    var slCols = db.prepare("PRAGMA table_info(send_log)").all();
-    var slColNames = slCols.map(function(c) { return c.name; });
-    if (slColNames.length > 0 && slColNames.indexOf("soap_xml") === -1) {
-        console.log("[DB] Adding soap_xml column to send_log...");
-        db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
-    }
-} catch(e) {}
-
-// Migration: add retry_count column to rmto_queue_5class if missing
-try {
-    var rmto5Cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
-    var rmto5ColNames = rmto5Cols.map(function(c) { return c.name; });
-    if (rmto5ColNames.length > 0 && rmto5ColNames.indexOf("retry_count") === -1) {
-        console.log("[DB] Adding retry_count column to rmto_queue_5class...");
-        db.exec("ALTER TABLE rmto_queue_5class ADD COLUMN retry_count INTEGER DEFAULT 0");
-        console.log("[DB] rmto_queue_5class retry_count migration done");
-    }
-} catch(e) {
-    console.error("[DB] rmto_queue_5class retry_count migration error:", e.message);
-}
-
-// Migration: add route1, route2, active columns to devices (replace single route column)
-try {
-    var devCols = db.prepare("PRAGMA table_info(devices)").all();
-    var devColNames = devCols.map(function(c) { return c.name; });
-    if (devColNames.indexOf("route1") === -1) {
-        console.log("[DB] Adding route1, route2, active columns to devices...");
-        db.exec("ALTER TABLE devices ADD COLUMN route1 TEXT DEFAULT ''");
-        db.exec("ALTER TABLE devices ADD COLUMN route2 TEXT DEFAULT ''");
-        // Copy existing route value to route1
-        if (devColNames.indexOf("route") !== -1) {
-            db.exec("UPDATE devices SET route1 = route WHERE route IS NOT NULL AND route != ''");
+    var liveIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_live_source_ip'").get();
+    if (liveIpRow) {
+        var liveVal = (liveIpRow.value || "").trim();
+        // Copy live IP to new unified key if not already set
+        var existingUnified = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+        if (!existingUnified && liveVal) {
+            db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('rmto_source_ip', ?)").run(liveVal);
         }
-        console.log("[DB] devices route1/route2 migration done");
-    }
-    if (devColNames.indexOf("active") === -1) {
-        db.exec("ALTER TABLE devices ADD COLUMN active INTEGER DEFAULT 1");
-        console.log("[DB] devices active column added");
-    }
-    // Migration: add rid1, rid2 columns for RMTO route ID per lane
-    if (devColNames.indexOf("rid1") === -1) {
-        console.log("[DB] Adding rid1, rid2 columns to devices (RMTO route ID per lane)...");
-        db.exec("ALTER TABLE devices ADD COLUMN rid1 TEXT DEFAULT ''");
-        db.exec("ALTER TABLE devices ADD COLUMN rid2 TEXT DEFAULT ''");
-        console.log("[DB] devices rid1/rid2 migration done");
+        db.prepare("DELETE FROM settings WHERE key IN ('rmto_live_source_ip', 'rmto_backlog_source_ip')").run();
+        console.log("[DB] Migrated rmto_live/backlog_source_ip -> rmto_source_ip");
     }
 } catch(e) {
-    console.error("[DB] devices migration error:", e.message);
+    // ignore
 }
 
 // Insert default settings if not exists
@@ -648,8 +345,7 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_live_source_ip: "",
-    rmto_backlog_source_ip: "",
+    rmto_source_ip: "",
     bale_bot_token: "",
     bale_chat_id: ""
 };
@@ -681,15 +377,14 @@ var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.a
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
-var LIVE_SOURCE_IP = "";
-var BACKLOG_SOURCE_IP = "";
+var SOURCE_IP = "";
 
 /**
  * Load RMTO settings from database (overrides env vars).
  */
 function loadDbSettings() {
     try {
-        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')").all();
+        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_source_ip')").all();
         var s = {};
         rows.forEach(function (r) { s[r.key] = r.value; });
         if (s.rmto_company_code) COMPANY_CODE = s.rmto_company_code;
@@ -697,25 +392,17 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_url) RMTO_URL = s.rmto_url;
         else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
-        if (s.rmto_live_source_ip !== undefined) LIVE_SOURCE_IP = s.rmto_live_source_ip || "";
-        if (s.rmto_backlog_source_ip !== undefined) BACKLOG_SOURCE_IP = s.rmto_backlog_source_ip || "";
+        if (s.rmto_source_ip !== undefined) SOURCE_IP = s.rmto_source_ip || "";
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
     }
 }
 
 /**
- * Returns the configured live source IP.
+ * Returns the configured source IP.
  */
 function getSourceIp() {
-    return LIVE_SOURCE_IP || "";
-}
-
-/**
- * Returns the configured backlog source IP.
- */
-function getBacklogSourceIp() {
-    return BACKLOG_SOURCE_IP || "";
+    return SOURCE_IP || "";
 }
 
 /**
@@ -752,7 +439,7 @@ function xmlElement(name, value) {
  * Send raw SOAP request to RMTO and parse response.
  * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
  * @param {string} bodyXml - the inner SOAP body XML
- * @param {string|null} sourceIp - local IP to bind (overrides LIVE_SOURCE_IP); null = use module default
+ * @param {string|null} sourceIp - local IP to bind (overrides SOURCE_IP); null = use module default
  * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
  */
 function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
@@ -778,8 +465,8 @@ function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
-    // sourceIp param overrides module-level LIVE_SOURCE_IP (null = OS default, "" = OS default)
-    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : LIVE_SOURCE_IP;
+    // sourceIp param overrides module-level SOURCE_IP (null = OS default, "" = OS default)
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : SOURCE_IP;
     if (effectiveIp) {
         options.localAddress = effectiveIp;
         console.log("[RMTO] Using source IP: " + effectiveIp);
@@ -1000,8 +687,7 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    getSourceIp: getSourceIp,
-    getBacklogSourceIp: getBacklogSourceIp
+    getSourceIp: getSourceIp
 };
 
 ENDFILE
@@ -1297,12 +983,9 @@ function sendUnsentData(onComplete) {
     // The rmto_queue table lacks C1-C5 columns needed by the WSDL Add method
     db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
-    // Load source IPs directly from DB for routing decisions
-    var settingsRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_live_source_ip','rmto_backlog_source_ip')").all();
-    var settingsMap = {};
-    settingsRows.forEach(function (r) { settingsMap[r.key] = r.value || ""; });
-    var liveIp = settingsMap.rmto_live_source_ip || "";
-    var backlogIp = settingsMap.rmto_backlog_source_ip || "";
+    // Load single source IP from DB
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
 
     // --- Send 5-class AddData5 (primary method, matching C# reference) ---
 
@@ -1312,9 +995,7 @@ function sendUnsentData(onComplete) {
         console.log("[Scheduler] " + abandoned.c + " record(s) in rmto_queue_5class permanently abandoned after 5 failed retries (sent=0, retry_count>=5)");
     }
 
-    // LIVE LANE: most recent unsent record PER DEVICE → send with liveIp
-    // This ensures every device (even those with large backlogs) gets its latest
-    // data point sent first, so RMTO marks them as online immediately.
+    // LIVE LANE: most recent unsent record PER DEVICE (highest priority)
     var liveRecords = db.prepare(
         "SELECT q.* FROM rmto_queue_5class q " +
         "INNER JOIN (" +
@@ -1327,7 +1008,7 @@ function sendUnsentData(onComplete) {
     ).all();
     var liveIds = liveRecords.map(function (r) { return r.id; });
 
-    // BACKLOG LANE: oldest unsent records, excluding live records → send with backlogIp
+    // BACKLOG LANE: oldest unsent records, excluding live records
     // Limit to 10 per cycle to avoid flooding the RMTO server
     var backlogRecords;
     if (liveIds.length > 0) {
@@ -1345,10 +1026,10 @@ function sendUnsentData(onComplete) {
     }
 
     if (liveRecords.length > 0) {
-        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (liveIp || "default") + ")");
+        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
     if (backlogRecords.length > 0) {
-        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (backlogIp || "default") + ")");
+        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
 
     var allRecords = liveRecords.concat(backlogRecords);
@@ -1383,7 +1064,6 @@ function sendUnsentData(onComplete) {
         }
 
         var isLive = liveIds.indexOf(row.id) !== -1;
-        var sourceIp = isLive ? liveIp : backlogIp;
         rmto.sendAddData5({
             FID: row.id,
             RID: row.route_id,
@@ -1464,10 +1144,12 @@ function formatDateTime(isoStr) {
  * Start the scheduler.
  */
 /**
- * Mark devices as offline if they haven't been seen for more than 15 minutes.
+ * Mark devices as offline if they haven't been seen for more than 2×INTERVAL minutes.
+ * Uses 2× the poll interval (default 10 min) so transient disconnects don't flip status.
  */
 function checkOfflineDevices() {
-    var cutoff = toLocalISOString(new Date(Date.now() - 15 * 60 * 1000));
+    var cutoffMs = 2 * INTERVAL * 60 * 1000;
+    var cutoff = toLocalISOString(new Date(Date.now() - cutoffMs));
     var stale = db.prepare(
         "SELECT device_code, name FROM devices WHERE status = 'online' AND last_seen < ?"
     ).all(cutoff);
@@ -1475,9 +1157,7 @@ function checkOfflineDevices() {
     stale.forEach(function (d) {
         db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(d.device_code);
         console.log("[Scheduler] Device " + d.device_code + " marked offline (last_seen < " + cutoff + ")");
-        sendBaleNotification("🔴 دستگاه آفلاین شد
-کد: " + d.device_code + "
-نام: " + (d.name || d.device_code));
+        sendBaleNotification("🔴 دستگاه آفلاین شد\nکد: " + d.device_code + "\nنام: " + (d.name || d.device_code));
     });
 }
 
@@ -1789,7 +1469,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_live_source_ip", "rmto_backlog_source_ip", "bale_bot_token", "bale_chat_id"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_source_ip", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -2059,7 +1739,7 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
 
     // Reload latest settings from DB
     var settingsRows = db.prepare(
-        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')"
+        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_source_ip')"
     ).all();
     var cfg = {};
     settingsRows.forEach(function (r) { cfg[r.key] = r.value || ""; });
@@ -2074,8 +1754,7 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
 
     var ipsToCheck = [
         { label: "IP پیش‌فرض سرور", ip: "" },
-        { label: "IP لحظه‌ای (live)", ip: cfg.rmto_live_source_ip || "" },
-        { label: "IP بک‌لاگ (backlog)", ip: cfg.rmto_backlog_source_ip || "" }
+        { label: "IP ارسال (rmto_source_ip)", ip: cfg.rmto_source_ip || "" }
     ];
 
     var results = [];
@@ -2136,6 +1815,74 @@ app.get("/api/rmto/queue", function (req, res) {
         todayErrors = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?").get(todayStart.toISOString()).c;
     } catch (e) { /* ok */ }
     res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
+});
+
+// ============================================================
+// API: History (received data + RMTO send log, searchable, paginated)
+// ============================================================
+app.get("/api/history", requireAuth, function (req, res) {
+    var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    var limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    var offset = (page - 1) * limit;
+    var type = req.query.type === "received" ? "received" : "sent";
+    var device = (req.query.device || "").trim();
+    var route = (req.query.route || "").trim();
+    var from = (req.query.from || "").trim();
+    var to = (req.query.to || "").trim();
+
+    var conds = [];
+    var params = [];
+
+    if (type === "received") {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (route) { conds.push("route_id = ?"); params.push(route); }
+        if (from) { conds.push("period_start >= ?"); params.push(from); }
+        if (to) { conds.push("period_start <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where), params);
+        var rows = db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    } else {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (from) { conds.push("created_at >= ?"); params.push(from); }
+        if (to) { conds.push("created_at <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM send_log " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM send_log " + where), params);
+        var rows = db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    }
+});
+
+// Load full detail of a history record for re-send in test-sender
+app.get("/api/history/record/:id", requireAuth, function (req, res) {
+    var id = parseInt(req.params.id, 10);
+    var row = db.prepare("SELECT * FROM rmto_queue_5class WHERE id = ?").get(id);
+    if (!row) return res.status(404).json({ error: "not found" });
+    return res.json(row);
 });
 
 // ============================================================
@@ -2920,10 +2667,8 @@ var tcpServer = net.createServer(function (socket) {
             clearTimeout(pendingSyncs[deviceId].timer);
             delete pendingSyncs[deviceId];
         }
-        // Mark device offline when it disconnects
-        if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
-        }
+        // Do NOT mark device offline immediately on disconnect.
+        // The scheduler will mark it offline after 2×INTERVAL minutes of inactivity.
         console.log("[TCP] Disconnected " + clientIP + (deviceId ? " (device " + deviceId + ")" : ""));
     });
 
@@ -2939,7 +2684,7 @@ var tcpServer = net.createServer(function (socket) {
             delete pendingSyncs[deviceId];
         }
         if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
+            // Do NOT mark offline on error; scheduler handles it after 2×INTERVAL minutes
         }
         console.error("[TCP] Error from " + clientIP + (deviceId ? " (device " + deviceId + ")" : "") + ": " + err.message);
     });

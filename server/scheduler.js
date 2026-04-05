@@ -287,12 +287,9 @@ function sendUnsentData(onComplete) {
     // The rmto_queue table lacks C1-C5 columns needed by the WSDL Add method
     db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
-    // Load source IPs directly from DB for routing decisions
-    var settingsRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_live_source_ip','rmto_backlog_source_ip')").all();
-    var settingsMap = {};
-    settingsRows.forEach(function (r) { settingsMap[r.key] = r.value || ""; });
-    var liveIp = settingsMap.rmto_live_source_ip || "";
-    var backlogIp = settingsMap.rmto_backlog_source_ip || "";
+    // Load single source IP from DB
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
 
     // --- Send 5-class AddData5 (primary method, matching C# reference) ---
 
@@ -302,9 +299,7 @@ function sendUnsentData(onComplete) {
         console.log("[Scheduler] " + abandoned.c + " record(s) in rmto_queue_5class permanently abandoned after 5 failed retries (sent=0, retry_count>=5)");
     }
 
-    // LIVE LANE: most recent unsent record PER DEVICE → send with liveIp
-    // This ensures every device (even those with large backlogs) gets its latest
-    // data point sent first, so RMTO marks them as online immediately.
+    // LIVE LANE: most recent unsent record PER DEVICE (highest priority)
     var liveRecords = db.prepare(
         "SELECT q.* FROM rmto_queue_5class q " +
         "INNER JOIN (" +
@@ -317,7 +312,7 @@ function sendUnsentData(onComplete) {
     ).all();
     var liveIds = liveRecords.map(function (r) { return r.id; });
 
-    // BACKLOG LANE: oldest unsent records, excluding live records → send with backlogIp
+    // BACKLOG LANE: oldest unsent records, excluding live records
     // Limit to 10 per cycle to avoid flooding the RMTO server
     var backlogRecords;
     if (liveIds.length > 0) {
@@ -335,10 +330,10 @@ function sendUnsentData(onComplete) {
     }
 
     if (liveRecords.length > 0) {
-        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (liveIp || "default") + ")");
+        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
     if (backlogRecords.length > 0) {
-        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (backlogIp || "default") + ")");
+        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
 
     var allRecords = liveRecords.concat(backlogRecords);
@@ -373,7 +368,6 @@ function sendUnsentData(onComplete) {
         }
 
         var isLive = liveIds.indexOf(row.id) !== -1;
-        var sourceIp = isLive ? liveIp : backlogIp;
         rmto.sendAddData5({
             FID: row.id,
             RID: row.route_id,
@@ -454,10 +448,12 @@ function formatDateTime(isoStr) {
  * Start the scheduler.
  */
 /**
- * Mark devices as offline if they haven't been seen for more than 15 minutes.
+ * Mark devices as offline if they haven't been seen for more than 2×INTERVAL minutes.
+ * Uses 2× the poll interval (default 10 min) so transient disconnects don't flip status.
  */
 function checkOfflineDevices() {
-    var cutoff = toLocalISOString(new Date(Date.now() - 15 * 60 * 1000));
+    var cutoffMs = 2 * INTERVAL * 60 * 1000;
+    var cutoff = toLocalISOString(new Date(Date.now() - cutoffMs));
     var stale = db.prepare(
         "SELECT device_code, name FROM devices WHERE status = 'online' AND last_seen < ?"
     ).all(cutoff);

@@ -71,6 +71,7 @@
         rmto: "ارسال به سامانه",
         mehvar: "محورها",
         "test-sender": "ارسال تست",
+        history: "تاریخچه",
         settings: "تنظیمات"
     };
 
@@ -201,6 +202,7 @@
         else if (view === "rmto") loadRMTO();
         else if (view === "mehvar") loadMehvar();
         else if (view === "test-sender") initTestSender();
+        else if (view === "history") loadHistory(1);
         else if (view === "settings") loadSettings();
     }
 
@@ -1107,10 +1109,8 @@
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
-            var liveIpEl = $("#setting-rmto-live-source-ip");
-            var backlogIpEl = $("#setting-rmto-backlog-source-ip");
-            if (liveIpEl && data.rmto_live_source_ip !== undefined) liveIpEl.value = data.rmto_live_source_ip;
-            if (backlogIpEl && data.rmto_backlog_source_ip !== undefined) backlogIpEl.value = data.rmto_backlog_source_ip;
+            var liveIpEl = $("#setting-rmto-source-ip");
+            if (liveIpEl && data.rmto_source_ip !== undefined) liveIpEl.value = data.rmto_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -1146,8 +1146,7 @@
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
             rmto_password: $("#setting-rmto-pass").value,
-            rmto_live_source_ip: ($("#setting-rmto-live-source-ip") && $("#setting-rmto-live-source-ip").value) || "",
-            rmto_backlog_source_ip: ($("#setting-rmto-backlog-source-ip") && $("#setting-rmto-backlog-source-ip").value) || ""
+            rmto_source_ip: ($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || ""
         }, "تنظیمات سامانه ذخیره شد.");
     });
 
@@ -1406,6 +1405,160 @@
         if (id === "view-dashboard") loadDashboard();
         else if (id === "view-reception") loadReception();
     }, 30000);
+
+// ============================================================
+    // History
+    // ============================================================
+    var historyType = "sent";
+    var historyPage = 1;
+
+    (function initHistoryTabs() {
+        var btnSent = $("#hist-tab-sent");
+        var btnReceived = $("#hist-tab-received");
+        if (btnSent) btnSent.addEventListener("click", function () {
+            historyType = "sent";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        if (btnReceived) btnReceived.addEventListener("click", function () {
+            historyType = "received";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        var searchBtn = $("#hist-btn-search");
+        if (searchBtn) searchBtn.addEventListener("click", function () {
+            historyPage = 1;
+            loadHistory(1);
+        });
+    })();
+
+    function renderHistoryHeaders() {
+        var thead = $("#hist-thead");
+        if (!thead) return;
+        if (historyType === "sent") {
+            thead.innerHTML =
+                "<th>#</th><th>زمان ارسال</th><th>دستگاه</th><th>وضعیت</th>" +
+                "<th>IP</th><th>پاسخ</th><th>عملیات</th>";
+        } else {
+            thead.innerHTML =
+                "<th>#</th><th>شروع دوره</th><th>پایان دوره</th><th>دستگاه</th>" +
+                "<th>محور</th><th>مجموع خودرو</th><th>سرعت میانگین</th>" +
+                "<th>وضعیت ارسال</th><th>عملیات</th>";
+        }
+    }
+
+    function loadHistory(page) {
+        historyPage = page || 1;
+        var device = ($("#hist-filter-device") && $("#hist-filter-device").value) || "";
+        var route = ($("#hist-filter-route") && $("#hist-filter-route").value) || "";
+        var from = ($("#hist-filter-from") && $("#hist-filter-from").value) || "";
+        var to = ($("#hist-filter-to") && $("#hist-filter-to").value) || "";
+
+        var url = "/api/history?type=" + historyType +
+            "&page=" + historyPage + "&limit=50" +
+            (device ? "&device=" + encodeURIComponent(device) : "") +
+            (route ? "&route=" + encodeURIComponent(route) : "") +
+            (from ? "&from=" + encodeURIComponent(from) : "") +
+            (to ? "&to=" + encodeURIComponent(to) : "");
+
+        renderHistoryHeaders();
+        var tbody = $("#hist-tbody");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>';
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#hist-tbody");
+            var summary = $("#hist-summary");
+            var pagination = $("#hist-pagination");
+            if (!tbody) return;
+            if (status !== 200 || !data) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#ef4444">خطا در بارگذاری</td></tr>';
+                return;
+            }
+            var total = data.total || 0;
+            var totalPages = Math.ceil(total / 50) || 1;
+            if (summary) summary.textContent = "مجموع: " + total + " رکورد — صفحه " + historyPage + " از " + totalPages;
+            var rows = data.rows || [];
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">رکوردی یافت نشد</td></tr>';
+                if (pagination) pagination.innerHTML = "";
+                return;
+            }
+            if (historyType === "sent") {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var ok = r.success ? '<span class="status-badge online">موفق</span>' : '<span class="status-badge error">ناموفق</span>';
+                    var resp = "";
+                    try {
+                        var rd = JSON.parse(r.response_data || "{}");
+                        resp = (rd && (rd.ID !== undefined)) ? "ID=" + rd.ID + " CFL=" + rd.CFL : (r.error_message || "-");
+                    } catch(e) { resp = r.error_message || "-"; }
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.created_at || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + ok + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.source_ip || "-") + "</td>" +
+                        "<td>" + escapeHtml(resp.substring(0, 40)) + "</td>" +
+                        "<td></td>" +
+                        "</tr>";
+                }).join("");
+            } else {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var total = (r.c1 || 0) + (r.c2 || 0) + (r.c3 || 0) + (r.c4 || 0) + (r.c5 || 0);
+                    var sentBadge = r.sent ? '<span class="status-badge online">ارسال شده</span>' : '<span class="status-badge offline">در صف</span>';
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_start || "-") + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_end || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.route_id || "-") + "</td>" +
+                        "<td>" + total + "</td>" +
+                        "<td>" + Math.round(r.avg_speed || 0) + "</td>" +
+                        "<td>" + sentBadge + "</td>" +
+                        "<td><button class='btn btn-secondary' style='padding:3px 10px;font-size:12px' onclick='histLoadToTestSender(" + r.id + ")'>📤 بارگذاری</button></td>" +
+                        "</tr>";
+                }).join("");
+            }
+            // Pagination
+            if (pagination) {
+                var pages = [];
+                var start = Math.max(1, historyPage - 2);
+                var end = Math.min(totalPages, start + 4);
+                if (historyPage > 1) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage - 1) + ')">‹</button>');
+                for (var p = start; p <= end; p++) {
+                    pages.push('<button class="btn ' + (p === historyPage ? 'btn-primary' : 'btn-secondary') + '" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + p + ')">' + p + '</button>');
+                }
+                if (historyPage < totalPages) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage + 1) + ')">›</button>');
+                pagination.innerHTML = pages.join("");
+            }
+        });
+    }
+
+    // Expose for inline onclick in history table
+    window.loadHistory = loadHistory;
+    window.histLoadToTestSender = function (id) {
+        api("GET", "/api/history/record/" + id, null, function (status, row) {
+            if (status !== 200 || !row) { alert("خطا در بارگذاری رکورد"); return; }
+            switchView("test-sender");
+            // Pre-fill test-sender form with the historical record
+            var ridEl = $("#test-rid");
+            var stEl = $("#test-st");
+            var etEl = $("#test-et");
+            var c1El = $("#test-c1"); var c2El = $("#test-c2"); var c3El = $("#test-c3");
+            var c4El = $("#test-c4"); var c5El = $("#test-c5");
+            var aspEl = $("#test-asp");
+            if (ridEl) ridEl.value = row.route_id || "";
+            if (stEl) stEl.value = (row.period_start || "").replace(" ", "T").substring(0, 16);
+            if (etEl) etEl.value = (row.period_end || "").replace(" ", "T").substring(0, 16);
+            if (c1El) c1El.value = row.c1 || 0;
+            if (c2El) c2El.value = row.c2 || 0;
+            if (c3El) c3El.value = row.c3 || 0;
+            if (c4El) c4El.value = row.c4 || 0;
+            if (c5El) c5El.value = row.c5 || 0;
+            if (aspEl) aspEl.value = Math.round(row.avg_speed || 0);
+        });
+    };
 
     // ============================================================
     // Test Sender

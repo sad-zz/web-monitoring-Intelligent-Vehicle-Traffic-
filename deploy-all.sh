@@ -95,6 +95,10 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95A5.469 5.469 0 0 1 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11A2.98 2.98 0 0 1 22 15c0 1.65-1.35 3-3 3zM8 13h2.55v3h2.9v-3H16l-4-4-4 4z"/></svg>
                 <span>ارسال تست</span>
             </button>
+            <button class="nav-item" data-view="history">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span>تاریخچه</span>
+            </button>
             <button class="nav-item" data-view="settings">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
                 <span>تنظیمات</span>
@@ -579,6 +583,52 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                 </div>
             </section>
 
+            <!-- ===== History ===== -->
+            <section class="view" id="view-history">
+                <div class="panel">
+                    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
+                        <h3 class="panel-title">📋 تاریخچه دریافت و ارسال</h3>
+                        <div style="display:flex;gap:8px;margin-right:auto;flex-wrap:wrap">
+                            <button class="btn btn-secondary" id="hist-tab-sent" style="padding:6px 14px;font-size:13px">📤 ارسال به سامانه</button>
+                            <button class="btn btn-secondary" id="hist-tab-received" style="padding:6px 14px;font-size:13px">📥 دریافت از دستگاه</button>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px">
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">دستگاه</label>
+                                <input type="text" id="hist-filter-device" dir="ltr" placeholder="کد دستگاه" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">کد محور (received)</label>
+                                <input type="text" id="hist-filter-route" dir="ltr" placeholder="RID" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">از تاریخ</label>
+                                <input type="datetime-local" id="hist-filter-from" dir="ltr" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">تا تاریخ</label>
+                                <input type="datetime-local" id="hist-filter-to" dir="ltr" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0;align-self:flex-end">
+                                <button class="btn btn-primary" id="hist-btn-search" style="width:100%;padding:7px 10px;font-size:13px">🔍 جستجو</button>
+                            </div>
+                        </div>
+                        <div id="hist-summary" style="font-size:13px;color:#64748b;margin-bottom:8px"></div>
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="hist-table">
+                                <thead><tr id="hist-thead"></tr></thead>
+                                <tbody id="hist-tbody">
+                                    <tr><td colspan="8" style="text-align:center;color:#94a3b8">برای مشاهده جستجو کنید</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="hist-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ===== Settings ===== -->
             <section class="view" id="view-settings">
                 <div class="settings-grid">
@@ -627,14 +677,10 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                                 <input type="password" id="setting-rmto-pass" dir="ltr">
                             </div>
                             <div class="form-group">
-                                <label>IP مبدا ارسال داده‌های لحظه‌ای (اختیاری)</label>
-                                <input type="text" id="setting-rmto-live-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
+                                <label>IP مبدا ارسال به سامانه (اختیاری)</label>
+                                <input type="text" id="setting-rmto-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
                             </div>
-                            <div class="form-group">
-                                <label>IP مبدا ارسال بک‌لاگ/داده‌های گذشته (اختیاری)</label>
-                                <input type="text" id="setting-rmto-backlog-source-ip" dir="ltr" placeholder="مثال: 5.159.49.110">
-                            </div>
-                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود.</small>
+                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود. تمام ارسال‌ها (لحظه‌ای و بک‌لاگ) از این IP خواهند بود.</small>
                             <button class="btn btn-primary" id="btn-save-rmto">ذخیره تنظیمات سامانه</button>
                         </div>
                     </div>
@@ -1848,6 +1894,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         rmto: "ارسال به سامانه",
         mehvar: "محورها",
         "test-sender": "ارسال تست",
+        history: "تاریخچه",
         settings: "تنظیمات"
     };
 
@@ -1978,6 +2025,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         else if (view === "rmto") loadRMTO();
         else if (view === "mehvar") loadMehvar();
         else if (view === "test-sender") initTestSender();
+        else if (view === "history") loadHistory(1);
         else if (view === "settings") loadSettings();
     }
 
@@ -2884,10 +2932,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
-            var liveIpEl = $("#setting-rmto-live-source-ip");
-            var backlogIpEl = $("#setting-rmto-backlog-source-ip");
-            if (liveIpEl && data.rmto_live_source_ip !== undefined) liveIpEl.value = data.rmto_live_source_ip;
-            if (backlogIpEl && data.rmto_backlog_source_ip !== undefined) backlogIpEl.value = data.rmto_backlog_source_ip;
+            var liveIpEl = $("#setting-rmto-source-ip");
+            if (liveIpEl && data.rmto_source_ip !== undefined) liveIpEl.value = data.rmto_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -2923,8 +2969,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
             rmto_password: $("#setting-rmto-pass").value,
-            rmto_live_source_ip: ($("#setting-rmto-live-source-ip") && $("#setting-rmto-live-source-ip").value) || "",
-            rmto_backlog_source_ip: ($("#setting-rmto-backlog-source-ip") && $("#setting-rmto-backlog-source-ip").value) || ""
+            rmto_source_ip: ($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || ""
         }, "تنظیمات سامانه ذخیره شد.");
     });
 
@@ -3183,6 +3228,160 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         if (id === "view-dashboard") loadDashboard();
         else if (id === "view-reception") loadReception();
     }, 30000);
+
+// ============================================================
+    // History
+    // ============================================================
+    var historyType = "sent";
+    var historyPage = 1;
+
+    (function initHistoryTabs() {
+        var btnSent = $("#hist-tab-sent");
+        var btnReceived = $("#hist-tab-received");
+        if (btnSent) btnSent.addEventListener("click", function () {
+            historyType = "sent";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        if (btnReceived) btnReceived.addEventListener("click", function () {
+            historyType = "received";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        var searchBtn = $("#hist-btn-search");
+        if (searchBtn) searchBtn.addEventListener("click", function () {
+            historyPage = 1;
+            loadHistory(1);
+        });
+    })();
+
+    function renderHistoryHeaders() {
+        var thead = $("#hist-thead");
+        if (!thead) return;
+        if (historyType === "sent") {
+            thead.innerHTML =
+                "<th>#</th><th>زمان ارسال</th><th>دستگاه</th><th>وضعیت</th>" +
+                "<th>IP</th><th>پاسخ</th><th>عملیات</th>";
+        } else {
+            thead.innerHTML =
+                "<th>#</th><th>شروع دوره</th><th>پایان دوره</th><th>دستگاه</th>" +
+                "<th>محور</th><th>مجموع خودرو</th><th>سرعت میانگین</th>" +
+                "<th>وضعیت ارسال</th><th>عملیات</th>";
+        }
+    }
+
+    function loadHistory(page) {
+        historyPage = page || 1;
+        var device = ($("#hist-filter-device") && $("#hist-filter-device").value) || "";
+        var route = ($("#hist-filter-route") && $("#hist-filter-route").value) || "";
+        var from = ($("#hist-filter-from") && $("#hist-filter-from").value) || "";
+        var to = ($("#hist-filter-to") && $("#hist-filter-to").value) || "";
+
+        var url = "/api/history?type=" + historyType +
+            "&page=" + historyPage + "&limit=50" +
+            (device ? "&device=" + encodeURIComponent(device) : "") +
+            (route ? "&route=" + encodeURIComponent(route) : "") +
+            (from ? "&from=" + encodeURIComponent(from) : "") +
+            (to ? "&to=" + encodeURIComponent(to) : "");
+
+        renderHistoryHeaders();
+        var tbody = $("#hist-tbody");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>';
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#hist-tbody");
+            var summary = $("#hist-summary");
+            var pagination = $("#hist-pagination");
+            if (!tbody) return;
+            if (status !== 200 || !data) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#ef4444">خطا در بارگذاری</td></tr>';
+                return;
+            }
+            var total = data.total || 0;
+            var totalPages = Math.ceil(total / 50) || 1;
+            if (summary) summary.textContent = "مجموع: " + total + " رکورد — صفحه " + historyPage + " از " + totalPages;
+            var rows = data.rows || [];
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">رکوردی یافت نشد</td></tr>';
+                if (pagination) pagination.innerHTML = "";
+                return;
+            }
+            if (historyType === "sent") {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var ok = r.success ? '<span class="status-badge online">موفق</span>' : '<span class="status-badge error">ناموفق</span>';
+                    var resp = "";
+                    try {
+                        var rd = JSON.parse(r.response_data || "{}");
+                        resp = (rd && (rd.ID !== undefined)) ? "ID=" + rd.ID + " CFL=" + rd.CFL : (r.error_message || "-");
+                    } catch(e) { resp = r.error_message || "-"; }
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.created_at || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + ok + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.source_ip || "-") + "</td>" +
+                        "<td>" + escapeHtml(resp.substring(0, 40)) + "</td>" +
+                        "<td></td>" +
+                        "</tr>";
+                }).join("");
+            } else {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var total = (r.c1 || 0) + (r.c2 || 0) + (r.c3 || 0) + (r.c4 || 0) + (r.c5 || 0);
+                    var sentBadge = r.sent ? '<span class="status-badge online">ارسال شده</span>' : '<span class="status-badge offline">در صف</span>';
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_start || "-") + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_end || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.route_id || "-") + "</td>" +
+                        "<td>" + total + "</td>" +
+                        "<td>" + Math.round(r.avg_speed || 0) + "</td>" +
+                        "<td>" + sentBadge + "</td>" +
+                        "<td><button class='btn btn-secondary' style='padding:3px 10px;font-size:12px' onclick='histLoadToTestSender(" + r.id + ")'>📤 بارگذاری</button></td>" +
+                        "</tr>";
+                }).join("");
+            }
+            // Pagination
+            if (pagination) {
+                var pages = [];
+                var start = Math.max(1, historyPage - 2);
+                var end = Math.min(totalPages, start + 4);
+                if (historyPage > 1) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage - 1) + ')">‹</button>');
+                for (var p = start; p <= end; p++) {
+                    pages.push('<button class="btn ' + (p === historyPage ? 'btn-primary' : 'btn-secondary') + '" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + p + ')">' + p + '</button>');
+                }
+                if (historyPage < totalPages) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage + 1) + ')">›</button>');
+                pagination.innerHTML = pages.join("");
+            }
+        });
+    }
+
+    // Expose for inline onclick in history table
+    window.loadHistory = loadHistory;
+    window.histLoadToTestSender = function (id) {
+        api("GET", "/api/history/record/" + id, null, function (status, row) {
+            if (status !== 200 || !row) { alert("خطا در بارگذاری رکورد"); return; }
+            switchView("test-sender");
+            // Pre-fill test-sender form with the historical record
+            var ridEl = $("#test-rid");
+            var stEl = $("#test-st");
+            var etEl = $("#test-et");
+            var c1El = $("#test-c1"); var c2El = $("#test-c2"); var c3El = $("#test-c3");
+            var c4El = $("#test-c4"); var c5El = $("#test-c5");
+            var aspEl = $("#test-asp");
+            if (ridEl) ridEl.value = row.route_id || "";
+            if (stEl) stEl.value = (row.period_start || "").replace(" ", "T").substring(0, 16);
+            if (etEl) etEl.value = (row.period_end || "").replace(" ", "T").substring(0, 16);
+            if (c1El) c1El.value = row.c1 || 0;
+            if (c2El) c2El.value = row.c2 || 0;
+            if (c3El) c3El.value = row.c3 || 0;
+            if (c4El) c4El.value = row.c4 || 0;
+            if (c5El) c5El.value = row.c5 || 0;
+            if (aspEl) aspEl.value = Math.round(row.avg_speed || 0);
+        });
+    };
 
     // ============================================================
     // Test Sender
@@ -3686,7 +3885,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_live_source_ip", "rmto_backlog_source_ip", "bale_bot_token", "bale_chat_id"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_source_ip", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -3956,7 +4155,7 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
 
     // Reload latest settings from DB
     var settingsRows = db.prepare(
-        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')"
+        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_source_ip')"
     ).all();
     var cfg = {};
     settingsRows.forEach(function (r) { cfg[r.key] = r.value || ""; });
@@ -3971,8 +4170,7 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
 
     var ipsToCheck = [
         { label: "IP پیش‌فرض سرور", ip: "" },
-        { label: "IP لحظه‌ای (live)", ip: cfg.rmto_live_source_ip || "" },
-        { label: "IP بک‌لاگ (backlog)", ip: cfg.rmto_backlog_source_ip || "" }
+        { label: "IP ارسال (rmto_source_ip)", ip: cfg.rmto_source_ip || "" }
     ];
 
     var results = [];
@@ -4033,6 +4231,74 @@ app.get("/api/rmto/queue", function (req, res) {
         todayErrors = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?").get(todayStart.toISOString()).c;
     } catch (e) { /* ok */ }
     res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
+});
+
+// ============================================================
+// API: History (received data + RMTO send log, searchable, paginated)
+// ============================================================
+app.get("/api/history", requireAuth, function (req, res) {
+    var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    var limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    var offset = (page - 1) * limit;
+    var type = req.query.type === "received" ? "received" : "sent";
+    var device = (req.query.device || "").trim();
+    var route = (req.query.route || "").trim();
+    var from = (req.query.from || "").trim();
+    var to = (req.query.to || "").trim();
+
+    var conds = [];
+    var params = [];
+
+    if (type === "received") {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (route) { conds.push("route_id = ?"); params.push(route); }
+        if (from) { conds.push("period_start >= ?"); params.push(from); }
+        if (to) { conds.push("period_start <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where), params);
+        var rows = db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    } else {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (from) { conds.push("created_at >= ?"); params.push(from); }
+        if (to) { conds.push("created_at <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM send_log " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM send_log " + where), params);
+        var rows = db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    }
+});
+
+// Load full detail of a history record for re-send in test-sender
+app.get("/api/history/record/:id", requireAuth, function (req, res) {
+    var id = parseInt(req.params.id, 10);
+    var row = db.prepare("SELECT * FROM rmto_queue_5class WHERE id = ?").get(id);
+    if (!row) return res.status(404).json({ error: "not found" });
+    return res.json(row);
 });
 
 // ============================================================
@@ -4817,10 +5083,8 @@ var tcpServer = net.createServer(function (socket) {
             clearTimeout(pendingSyncs[deviceId].timer);
             delete pendingSyncs[deviceId];
         }
-        // Mark device offline when it disconnects
-        if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
-        }
+        // Do NOT mark device offline immediately on disconnect.
+        // The scheduler will mark it offline after 2×INTERVAL minutes of inactivity.
         console.log("[TCP] Disconnected " + clientIP + (deviceId ? " (device " + deviceId + ")" : ""));
     });
 
@@ -4836,7 +5100,7 @@ var tcpServer = net.createServer(function (socket) {
             delete pendingSyncs[deviceId];
         }
         if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
+            // Do NOT mark offline on error; scheduler handles it after 2×INTERVAL minutes
         }
         console.error("[TCP] Error from " + clientIP + (deviceId ? " (device " + deviceId + ")" : "") + ": " + err.message);
     });
@@ -5570,328 +5834,21 @@ try {
     console.error("[DB] devices migration error:", e.message);
 }
 
-// Insert default settings if not exists
-var defaultSettings = {
-    system_name: "نوآوران جنوب شرق",
-    server_ip: "0.0.0.0",
-    server_port: "3000",
-    tcp_port: "2022",
-    refresh_interval: "30",
-    max_speed: "120",
-    alert_offline: "1",
-    alert_speed: "1",
-    alert_error: "1",
-    offline_timeout: "5",
-    rmto_company_code: "58",
-    rmto_username: "",
-    rmto_password: "",
-    rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_live_source_ip: "",
-    rmto_backlog_source_ip: "",
-    bale_bot_token: "",
-    bale_chat_id: ""
-};
-var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
-Object.keys(defaultSettings).forEach(function (k) {
-    insertSetting.run(k, defaultSettings[k]);
-});
-
-module.exports = db;
-/**
- * Database module - SQLite via better-sqlite3
- * Stores devices, traffic data, and send logs.
- */
-var Database = require("better-sqlite3");
-var path = require("path");
-
-var DB_PATH = path.join(__dirname, "data.db");
-var db = new Database(DB_PATH);
-
-// Enable WAL mode for better concurrent read performance
-db.pragma("journal_mode = WAL");
-
-// --- Schema ---
-db.exec([
-    // Devices: each has a unique 4-digit code
-    "CREATE TABLE IF NOT EXISTS devices (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL UNIQUE,",
-    "  name TEXT NOT NULL,",
-    "  type TEXT NOT NULL DEFAULT 'sensor',",
-    "  route TEXT,",
-    "  ip TEXT,",
-    "  status TEXT NOT NULL DEFAULT 'offline',",
-    "  last_seen TEXT,",
-    "  firmware TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Raw traffic data received from devices
-    "CREATE TABLE IF NOT EXISTS traffic_data (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  timestamp TEXT NOT NULL,",
-    "  vehicle_class INTEGER DEFAULT 0,",
-    "  speed REAL DEFAULT 0,",
-    "  direction INTEGER DEFAULT 1,",
-    "  lane INTEGER DEFAULT 1,",
-    "  raw_payload TEXT,",
-    "  received_at TEXT DEFAULT (datetime('now','localtime')),",
-    "  FOREIGN KEY (device_code) REFERENCES devices(device_code)",
-    ");",
-
-    // Aggregated 15-minute data for RMTO (AddData - simple)
-    "CREATE TABLE IF NOT EXISTS rmto_queue (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  route_id TEXT,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  total_vehicles INTEGER DEFAULT 0,",
-    "  avg_speed REAL DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // 5-class data for RMTO (AddData5)
-    "CREATE TABLE IF NOT EXISTS rmto_queue_5class (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  route_id TEXT,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  -- Volume classes (C1-C5: by vehicle size)",
-    "  c1 INTEGER DEFAULT 0,",
-    "  c2 INTEGER DEFAULT 0,",
-    "  c3 INTEGER DEFAULT 0,",
-    "  c4 INTEGER DEFAULT 0,",
-    "  c5 INTEGER DEFAULT 0,",
-    "  -- Average speed overall (ASP)",
-    "  avg_speed REAL DEFAULT 0,",
-    "  -- Average speed per class (S1-S5)",
-    "  s1 REAL DEFAULT 0,",
-    "  s2 REAL DEFAULT 0,",
-    "  s3 REAL DEFAULT 0,",
-    "  s4 REAL DEFAULT 0,",
-    "  s5 REAL DEFAULT 0,",
-    "  -- Speed violations total (SSO) and per class (SO1-SO5)",
-    "  sso INTEGER DEFAULT 0,",
-    "  so1 INTEGER DEFAULT 0,",
-    "  so2 INTEGER DEFAULT 0,",
-    "  so3 INTEGER DEFAULT 0,",
-    "  so4 INTEGER DEFAULT 0,",
-    "  so5 INTEGER,",
-    "  -- Overtaking (OO) and too-close/headway (ESD)",
-    "  oo INTEGER DEFAULT 0,",
-    "  esd INTEGER DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  retry_count INTEGER DEFAULT 0,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // 8-class data for RMTO (AddData8)
-    "CREATE TABLE IF NOT EXISTS rmto_queue_8class (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  period_start TEXT NOT NULL,",
-    "  period_end TEXT NOT NULL,",
-    "  class1_count INTEGER DEFAULT 0,",
-    "  class2_count INTEGER DEFAULT 0,",
-    "  class3_count INTEGER DEFAULT 0,",
-    "  class4_count INTEGER DEFAULT 0,",
-    "  class5_count INTEGER DEFAULT 0,",
-    "  class6_count INTEGER DEFAULT 0,",
-    "  class7_count INTEGER DEFAULT 0,",
-    "  class8_count INTEGER DEFAULT 0,",
-    "  speed1_count INTEGER DEFAULT 0,",
-    "  speed2_count INTEGER DEFAULT 0,",
-    "  speed3_count INTEGER DEFAULT 0,",
-    "  speed4_count INTEGER DEFAULT 0,",
-    "  speed5_count INTEGER DEFAULT 0,",
-    "  speed6_count INTEGER DEFAULT 0,",
-    "  speed7_count INTEGER DEFAULT 0,",
-    "  speed8_count INTEGER DEFAULT 0,",
-    "  violations INTEGER DEFAULT 0,",
-    "  avg_speed REAL DEFAULT 0,",
-    "  sent INTEGER DEFAULT 0,",
-    "  sent_at TEXT,",
-    "  rmto_response TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Send log for auditing
-    "CREATE TABLE IF NOT EXISTS send_log (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  method TEXT NOT NULL,",
-    "  device_code TEXT NOT NULL,",
-    "  request_data TEXT,",
-    "  response_data TEXT,",
-    "  success INTEGER DEFAULT 0,",
-    "  error_message TEXT,",
-    "  soap_xml TEXT,",
-    "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Indexes
-    "CREATE INDEX IF NOT EXISTS idx_traffic_device ON traffic_data(device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_traffic_time ON traffic_data(timestamp);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto_unsent ON rmto_queue(sent, device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_rmto8_unsent ON rmto_queue_8class(sent, device_code);",
-
-    // irawdata table - matches iccore device_irawdata format
-    "CREATE TABLE IF NOT EXISTS irawdata (",
-    "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-    "  device_code TEXT NOT NULL,",
-    "  create_at TEXT NOT NULL,",
-    "  stop TEXT NOT NULL,",
-    "  lane INTEGER DEFAULT 1,",
-    "  is_read INTEGER DEFAULT 0,",
-    "  a INTEGER DEFAULT 0,",
-    "  b INTEGER DEFAULT 0,",
-    "  c INTEGER DEFAULT 0,",
-    "  d INTEGER DEFAULT 0,",
-    "  e INTEGER DEFAULT 0,",
-    "  x INTEGER DEFAULT 0,",
-    "  sa INTEGER DEFAULT 0,",
-    "  sb INTEGER DEFAULT 0,",
-    "  sc INTEGER DEFAULT 0,",
-    "  sd INTEGER DEFAULT 0,",
-    "  se INTEGER DEFAULT 0,",
-    "  sx INTEGER DEFAULT 0,",
-    "  sao INTEGER DEFAULT 0,",
-    "  sbo INTEGER DEFAULT 0,",
-    "  sco INTEGER DEFAULT 0,",
-    "  sdo INTEGER DEFAULT 0,",
-    "  seo INTEGER DEFAULT 0,",
-    "  sxo INTEGER DEFAULT 0,",
-    "  overtaking INTEGER DEFAULT 0,",
-    "  tooclose INTEGER DEFAULT 0,",
-    "  received_at TEXT DEFAULT (datetime('now','localtime'))",
-    ");",
-
-    // Mehvar (routes) table
-    "CREATE TABLE IF NOT EXISTS mehvar (",
-    "  code INTEGER PRIMARY KEY,",
-    "  name TEXT NOT NULL,",
-    "  send_enable INTEGER DEFAULT 1,",
-    "  repair INTEGER DEFAULT 0,",
-    "  ostan TEXT",
-    ");",
-
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_device ON irawdata(device_code);",
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
-    "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
-
-    // Settings (key-value store)
-    "CREATE TABLE IF NOT EXISTS settings (",
-    "  key TEXT PRIMARY KEY,",
-    "  value TEXT",
-    ");"
-].join("\n"));
-
-// Migration: if rmto_queue_5class has old column names, recreate it
+// Migration: consolidate dual-lane source IPs into single rmto_source_ip
 try {
-    var cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
-    var colNames = cols.map(function(c) { return c.name; });
-    if (colNames.indexOf("class1_count") !== -1) {
-        console.log("[DB] Migrating rmto_queue_5class to new RMTO Add5 format...");
-        db.exec("DROP TABLE IF EXISTS rmto_queue_5class");
-        db.exec([
-            "CREATE TABLE rmto_queue_5class (",
-            "  id INTEGER PRIMARY KEY AUTOINCREMENT,",
-            "  device_code TEXT NOT NULL,",
-            "  route_id TEXT,",
-            "  period_start TEXT NOT NULL,",
-            "  period_end TEXT NOT NULL,",
-            "  c1 INTEGER DEFAULT 0, c2 INTEGER DEFAULT 0, c3 INTEGER DEFAULT 0, c4 INTEGER DEFAULT 0, c5 INTEGER DEFAULT 0,",
-            "  avg_speed REAL DEFAULT 0,",
-            "  s1 REAL DEFAULT 0, s2 REAL DEFAULT 0, s3 REAL DEFAULT 0, s4 REAL DEFAULT 0, s5 REAL DEFAULT 0,",
-            "  sso INTEGER DEFAULT 0,",
-            "  so1 INTEGER DEFAULT 0, so2 INTEGER DEFAULT 0, so3 INTEGER DEFAULT 0, so4 INTEGER DEFAULT 0, so5 INTEGER,",
-            "  oo INTEGER DEFAULT 0, esd INTEGER DEFAULT 0,",
-            "  sent INTEGER DEFAULT 0, sent_at TEXT, rmto_response TEXT,",
-            "  created_at TEXT DEFAULT (datetime('now','localtime'))",
-            ")"
-        ].join("\n"));
-        db.exec("CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code)");
-        console.log("[DB] rmto_queue_5class migrated successfully");
-    }
-} catch(e) {
-    // Table doesn't exist yet - will be created by schema above
-}
-
-// Migration: add route_id column to rmto_queue if missing
-try {
-    var qCols = db.prepare("PRAGMA table_info(rmto_queue)").all();
-    var qColNames = qCols.map(function(c) { return c.name; });
-    if (qColNames.length > 0 && qColNames.indexOf("route_id") === -1) {
-        console.log("[DB] Adding route_id column to rmto_queue...");
-        db.exec("ALTER TABLE rmto_queue ADD COLUMN route_id TEXT");
-        console.log("[DB] rmto_queue migrated successfully");
-    }
-} catch(e) {
-    // Table doesn't exist yet
-}
-
-// Migration: add soap_xml column to send_log if missing
-try {
-    var slCols = db.prepare("PRAGMA table_info(send_log)").all();
-    var slColNames = slCols.map(function(c) { return c.name; });
-    if (slColNames.length > 0 && slColNames.indexOf("soap_xml") === -1) {
-        console.log("[DB] Adding soap_xml column to send_log...");
-        db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
-    }
-    if (slColNames.length > 0 && slColNames.indexOf("source_ip") === -1) {
-        console.log("[DB] Adding source_ip column to send_log...");
-        db.exec("ALTER TABLE send_log ADD COLUMN source_ip TEXT");
-    }
-} catch(e) {}
-
-// Migration: add retry_count column to rmto_queue_5class if missing
-try {
-    var rmto5Cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
-    var rmto5ColNames = rmto5Cols.map(function(c) { return c.name; });
-    if (rmto5ColNames.length > 0 && rmto5ColNames.indexOf("retry_count") === -1) {
-        console.log("[DB] Adding retry_count column to rmto_queue_5class...");
-        db.exec("ALTER TABLE rmto_queue_5class ADD COLUMN retry_count INTEGER DEFAULT 0");
-        console.log("[DB] rmto_queue_5class retry_count migration done");
-    }
-} catch(e) {
-    console.error("[DB] rmto_queue_5class retry_count migration error:", e.message);
-}
-
-// Migration: add route1, route2, active columns to devices (replace single route column)
-try {
-    var devCols = db.prepare("PRAGMA table_info(devices)").all();
-    var devColNames = devCols.map(function(c) { return c.name; });
-    if (devColNames.indexOf("route1") === -1) {
-        console.log("[DB] Adding route1, route2, active columns to devices...");
-        db.exec("ALTER TABLE devices ADD COLUMN route1 TEXT DEFAULT ''");
-        db.exec("ALTER TABLE devices ADD COLUMN route2 TEXT DEFAULT ''");
-        // Copy existing route value to route1
-        if (devColNames.indexOf("route") !== -1) {
-            db.exec("UPDATE devices SET route1 = route WHERE route IS NOT NULL AND route != ''");
+    var liveIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_live_source_ip'").get();
+    if (liveIpRow) {
+        var liveVal = (liveIpRow.value || "").trim();
+        // Copy live IP to new unified key if not already set
+        var existingUnified = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+        if (!existingUnified && liveVal) {
+            db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('rmto_source_ip', ?)").run(liveVal);
         }
-        console.log("[DB] devices route1/route2 migration done");
-    }
-    if (devColNames.indexOf("active") === -1) {
-        db.exec("ALTER TABLE devices ADD COLUMN active INTEGER DEFAULT 1");
-        console.log("[DB] devices active column added");
-    }
-    // Migration: add rid1, rid2 columns for RMTO route ID per lane
-    if (devColNames.indexOf("rid1") === -1) {
-        console.log("[DB] Adding rid1, rid2 columns to devices (RMTO route ID per lane)...");
-        db.exec("ALTER TABLE devices ADD COLUMN rid1 TEXT DEFAULT ''");
-        db.exec("ALTER TABLE devices ADD COLUMN rid2 TEXT DEFAULT ''");
-        console.log("[DB] devices rid1/rid2 migration done");
+        db.prepare("DELETE FROM settings WHERE key IN ('rmto_live_source_ip', 'rmto_backlog_source_ip')").run();
+        console.log("[DB] Migrated rmto_live/backlog_source_ip -> rmto_source_ip");
     }
 } catch(e) {
-    console.error("[DB] devices migration error:", e.message);
+    // ignore
 }
 
 // Insert default settings if not exists
@@ -5910,8 +5867,7 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_live_source_ip: "",
-    rmto_backlog_source_ip: "",
+    rmto_source_ip: "",
     bale_bot_token: "",
     bale_chat_id: ""
 };
@@ -5943,15 +5899,14 @@ var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.a
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
-var LIVE_SOURCE_IP = "";
-var BACKLOG_SOURCE_IP = "";
+var SOURCE_IP = "";
 
 /**
  * Load RMTO settings from database (overrides env vars).
  */
 function loadDbSettings() {
     try {
-        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')").all();
+        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_source_ip')").all();
         var s = {};
         rows.forEach(function (r) { s[r.key] = r.value; });
         if (s.rmto_company_code) COMPANY_CODE = s.rmto_company_code;
@@ -5959,25 +5914,17 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_url) RMTO_URL = s.rmto_url;
         else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
-        if (s.rmto_live_source_ip !== undefined) LIVE_SOURCE_IP = s.rmto_live_source_ip || "";
-        if (s.rmto_backlog_source_ip !== undefined) BACKLOG_SOURCE_IP = s.rmto_backlog_source_ip || "";
+        if (s.rmto_source_ip !== undefined) SOURCE_IP = s.rmto_source_ip || "";
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
     }
 }
 
 /**
- * Returns the configured live source IP.
+ * Returns the configured source IP.
  */
 function getSourceIp() {
-    return LIVE_SOURCE_IP || "";
-}
-
-/**
- * Returns the configured backlog source IP.
- */
-function getBacklogSourceIp() {
-    return BACKLOG_SOURCE_IP || "";
+    return SOURCE_IP || "";
 }
 
 /**
@@ -6014,7 +5961,7 @@ function xmlElement(name, value) {
  * Send raw SOAP request to RMTO and parse response.
  * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
  * @param {string} bodyXml - the inner SOAP body XML
- * @param {string|null} sourceIp - local IP to bind (overrides LIVE_SOURCE_IP); null = use module default
+ * @param {string|null} sourceIp - local IP to bind (overrides SOURCE_IP); null = use module default
  * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
  */
 function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
@@ -6040,8 +5987,8 @@ function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
-    // sourceIp param overrides module-level LIVE_SOURCE_IP (null = OS default, "" = OS default)
-    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : LIVE_SOURCE_IP;
+    // sourceIp param overrides module-level SOURCE_IP (null = OS default, "" = OS default)
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : SOURCE_IP;
     if (effectiveIp) {
         options.localAddress = effectiveIp;
         console.log("[RMTO] Using source IP: " + effectiveIp);
@@ -6262,8 +6209,7 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    getSourceIp: getSourceIp,
-    getBacklogSourceIp: getBacklogSourceIp
+    getSourceIp: getSourceIp
 };
 
 ENDOFFILE_SERVER_RMTO-CLIENT_JS
@@ -6559,12 +6505,9 @@ function sendUnsentData(onComplete) {
     // The rmto_queue table lacks C1-C5 columns needed by the WSDL Add method
     db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
-    // Load source IPs directly from DB for routing decisions
-    var settingsRows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_live_source_ip','rmto_backlog_source_ip')").all();
-    var settingsMap = {};
-    settingsRows.forEach(function (r) { settingsMap[r.key] = r.value || ""; });
-    var liveIp = settingsMap.rmto_live_source_ip || "";
-    var backlogIp = settingsMap.rmto_backlog_source_ip || "";
+    // Load single source IP from DB
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
 
     // --- Send 5-class AddData5 (primary method, matching C# reference) ---
 
@@ -6574,9 +6517,7 @@ function sendUnsentData(onComplete) {
         console.log("[Scheduler] " + abandoned.c + " record(s) in rmto_queue_5class permanently abandoned after 5 failed retries (sent=0, retry_count>=5)");
     }
 
-    // LIVE LANE: most recent unsent record PER DEVICE → send with liveIp
-    // This ensures every device (even those with large backlogs) gets its latest
-    // data point sent first, so RMTO marks them as online immediately.
+    // LIVE LANE: most recent unsent record PER DEVICE (highest priority)
     var liveRecords = db.prepare(
         "SELECT q.* FROM rmto_queue_5class q " +
         "INNER JOIN (" +
@@ -6589,7 +6530,7 @@ function sendUnsentData(onComplete) {
     ).all();
     var liveIds = liveRecords.map(function (r) { return r.id; });
 
-    // BACKLOG LANE: oldest unsent records, excluding live records → send with backlogIp
+    // BACKLOG LANE: oldest unsent records, excluding live records
     // Limit to 10 per cycle to avoid flooding the RMTO server
     var backlogRecords;
     if (liveIds.length > 0) {
@@ -6607,10 +6548,10 @@ function sendUnsentData(onComplete) {
     }
 
     if (liveRecords.length > 0) {
-        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (liveIp || "default") + ")");
+        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
     if (backlogRecords.length > 0) {
-        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (backlogIp || "default") + ")");
+        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
 
     var allRecords = liveRecords.concat(backlogRecords);
@@ -6645,7 +6586,6 @@ function sendUnsentData(onComplete) {
         }
 
         var isLive = liveIds.indexOf(row.id) !== -1;
-        var sourceIp = isLive ? liveIp : backlogIp;
         rmto.sendAddData5({
             FID: row.id,
             RID: row.route_id,
@@ -6726,10 +6666,12 @@ function formatDateTime(isoStr) {
  * Start the scheduler.
  */
 /**
- * Mark devices as offline if they haven't been seen for more than 15 minutes.
+ * Mark devices as offline if they haven't been seen for more than 2×INTERVAL minutes.
+ * Uses 2× the poll interval (default 10 min) so transient disconnects don't flip status.
  */
 function checkOfflineDevices() {
-    var cutoff = toLocalISOString(new Date(Date.now() - 15 * 60 * 1000));
+    var cutoffMs = 2 * INTERVAL * 60 * 1000;
+    var cutoff = toLocalISOString(new Date(Date.now() - cutoffMs));
     var stale = db.prepare(
         "SELECT device_code, name FROM devices WHERE status = 'online' AND last_seen < ?"
     ).all(cutoff);
@@ -6737,9 +6679,7 @@ function checkOfflineDevices() {
     stale.forEach(function (d) {
         db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(d.device_code);
         console.log("[Scheduler] Device " + d.device_code + " marked offline (last_seen < " + cutoff + ")");
-        sendBaleNotification("🔴 دستگاه آفلاین شد
-کد: " + d.device_code + "
-نام: " + (d.name || d.device_code));
+        sendBaleNotification("🔴 دستگاه آفلاین شد\nکد: " + d.device_code + "\nنام: " + (d.name || d.device_code));
     });
 }
 

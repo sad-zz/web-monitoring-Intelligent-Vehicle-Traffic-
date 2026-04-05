@@ -274,7 +274,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_live_source_ip", "rmto_backlog_source_ip", "bale_bot_token", "bale_chat_id"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_source_ip", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -544,7 +544,7 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
 
     // Reload latest settings from DB
     var settingsRows = db.prepare(
-        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_live_source_ip', 'rmto_backlog_source_ip')"
+        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_source_ip')"
     ).all();
     var cfg = {};
     settingsRows.forEach(function (r) { cfg[r.key] = r.value || ""; });
@@ -559,8 +559,7 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
 
     var ipsToCheck = [
         { label: "IP پیش‌فرض سرور", ip: "" },
-        { label: "IP لحظه‌ای (live)", ip: cfg.rmto_live_source_ip || "" },
-        { label: "IP بک‌لاگ (backlog)", ip: cfg.rmto_backlog_source_ip || "" }
+        { label: "IP ارسال (rmto_source_ip)", ip: cfg.rmto_source_ip || "" }
     ];
 
     var results = [];
@@ -621,6 +620,74 @@ app.get("/api/rmto/queue", function (req, res) {
         todayErrors = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?").get(todayStart.toISOString()).c;
     } catch (e) { /* ok */ }
     res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
+});
+
+// ============================================================
+// API: History (received data + RMTO send log, searchable, paginated)
+// ============================================================
+app.get("/api/history", requireAuth, function (req, res) {
+    var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    var limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    var offset = (page - 1) * limit;
+    var type = req.query.type === "received" ? "received" : "sent";
+    var device = (req.query.device || "").trim();
+    var route = (req.query.route || "").trim();
+    var from = (req.query.from || "").trim();
+    var to = (req.query.to || "").trim();
+
+    var conds = [];
+    var params = [];
+
+    if (type === "received") {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (route) { conds.push("route_id = ?"); params.push(route); }
+        if (from) { conds.push("period_start >= ?"); params.push(from); }
+        if (to) { conds.push("period_start <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where), params);
+        var rows = db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    } else {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (from) { conds.push("created_at >= ?"); params.push(from); }
+        if (to) { conds.push("created_at <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM send_log " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM send_log " + where), params);
+        var rows = db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    }
+});
+
+// Load full detail of a history record for re-send in test-sender
+app.get("/api/history/record/:id", requireAuth, function (req, res) {
+    var id = parseInt(req.params.id, 10);
+    var row = db.prepare("SELECT * FROM rmto_queue_5class WHERE id = ?").get(id);
+    if (!row) return res.status(404).json({ error: "not found" });
+    return res.json(row);
 });
 
 // ============================================================
@@ -1405,10 +1472,8 @@ var tcpServer = net.createServer(function (socket) {
             clearTimeout(pendingSyncs[deviceId].timer);
             delete pendingSyncs[deviceId];
         }
-        // Mark device offline when it disconnects
-        if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
-        }
+        // Do NOT mark device offline immediately on disconnect.
+        // The scheduler will mark it offline after 2×INTERVAL minutes of inactivity.
         console.log("[TCP] Disconnected " + clientIP + (deviceId ? " (device " + deviceId + ")" : ""));
     });
 
@@ -1424,7 +1489,7 @@ var tcpServer = net.createServer(function (socket) {
             delete pendingSyncs[deviceId];
         }
         if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
+            // Do NOT mark offline on error; scheduler handles it after 2×INTERVAL minutes
         }
         console.error("[TCP] Error from " + clientIP + (deviceId ? " (device " + deviceId + ")" : "") + ": " + err.message);
     });
