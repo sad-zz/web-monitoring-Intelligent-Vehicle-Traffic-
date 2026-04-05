@@ -76,6 +76,10 @@ cat > index.html << 'ENDFILE'
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95A5.469 5.469 0 0 1 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11A2.98 2.98 0 0 1 22 15c0 1.65-1.35 3-3 3zM8 13h2.55v3h2.9v-3H16l-4-4-4 4z"/></svg>
                 <span>ارسال تست</span>
             </button>
+            <button class="nav-item" data-view="history">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span>تاریخچه</span>
+            </button>
             <button class="nav-item" data-view="settings">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
                 <span>تنظیمات</span>
@@ -208,7 +212,7 @@ cat > index.html << 'ENDFILE'
                     </div>
                 </div>
 
-                <!-- Device Status Table -->
+                <!-- Device Status Grid -->
                 <div class="panel">
                     <div class="panel-header">
                         <h3 class="panel-title">وضعیت دستگاه‌ها</h3>
@@ -216,21 +220,18 @@ cat > index.html << 'ENDFILE'
                             <button class="btn btn-sm btn-primary" id="btn-refresh-dashboard">بروزرسانی</button>
                         </div>
                     </div>
-                    <div class="table-wrapper">
-                        <table class="data-table" id="dashboard-table">
-                            <thead>
-                                <tr>
-                                    <th>کد</th>
-                                    <th>نام دستگاه</th>
-                                    <th>نوع</th>
-                                    <th>وضعیت</th>
-                                    <th>آخرین اتصال</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboard-table-body">
-                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
-                            </tbody>
-                        </table>
+                    <div class="panel-body" style="padding:12px">
+                        <div class="device-filter-bar" id="device-filter-bar">
+                            <button class="dfb-btn active" data-filter="all">همه</button>
+                            <button class="dfb-btn" data-filter="online">آنلاین</button>
+                            <button class="dfb-btn" data-filter="offline">آفلاین</button>
+                            <button class="dfb-btn" data-filter="warning">هشدار</button>
+                            <button class="dfb-btn" data-filter="error">خطا</button>
+                            <span class="dfb-count" id="device-filter-count"></span>
+                        </div>
+                        <div id="device-grid" class="device-grid">
+                            <div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">در حال بارگذاری...</div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -261,12 +262,13 @@ cat > index.html << 'ENDFILE'
                                     <th>محور اول (لاین ۱)</th>
                                     <th>محور دوم (لاین ۲)</th>
                                     <th>وضعیت</th>
+                                    <th>کد خطا</th>
                                     <th>آخرین اتصال</th>
                                     <th>عملیات</th>
                                 </tr>
                             </thead>
                             <tbody id="devices-table-body">
-                                <tr><td colspan="9" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                                <tr><td colspan="10" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -364,7 +366,21 @@ cat > index.html << 'ENDFILE'
                     <button class="btn btn-primary" id="btn-rmto-send-now">ارسال الان</button>
                     <button class="btn btn-secondary" id="btn-rmto-aggregate">تجمیع و ارسال</button>
                     <button class="btn btn-secondary" id="btn-rmto-refresh">بروزرسانی</button>
+                    <button class="btn btn-secondary" id="btn-rmto-connectivity">🔌 بررسی اتصال</button>
                     <div id="rmto-send-result" style="font-size:13px;margin-right:12px;display:none"></div>
+                </div>
+
+                <!-- Connectivity Check Panel -->
+                <div class="panel" id="panel-connectivity" style="margin-bottom:16px;display:none">
+                    <div class="panel-header">
+                        <h3 class="panel-title">🔌 بررسی اتصال به سرور RMTO</h3>
+                        <div class="panel-tools">
+                            <span id="connectivity-host" style="font-size:12px;color:#64748b;direction:ltr"></span>
+                        </div>
+                    </div>
+                    <div id="connectivity-result" style="padding:12px">
+                        <div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>
+                    </div>
                 </div>
 
                 <!-- Unsent Queue -->
@@ -413,6 +429,7 @@ cat > index.html << 'ENDFILE'
                                     <th>وضعیت</th>
                                     <th>پاسخ RMTO</th>
                                     <th>خطا</th>
+                                    <th>IP ارسال</th>
                                     <th>جزئیات</th>
                                 </tr>
                             </thead>
@@ -547,6 +564,52 @@ cat > index.html << 'ENDFILE'
                 </div>
             </section>
 
+            <!-- ===== History ===== -->
+            <section class="view" id="view-history">
+                <div class="panel">
+                    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
+                        <h3 class="panel-title">📋 تاریخچه دریافت و ارسال</h3>
+                        <div style="display:flex;gap:8px;margin-right:auto;flex-wrap:wrap">
+                            <button class="btn btn-secondary" id="hist-tab-sent" style="padding:6px 14px;font-size:13px">📤 ارسال به سامانه</button>
+                            <button class="btn btn-secondary" id="hist-tab-received" style="padding:6px 14px;font-size:13px">📥 دریافت از دستگاه</button>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px">
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">دستگاه</label>
+                                <input type="text" id="hist-filter-device" dir="ltr" placeholder="کد دستگاه" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">کد محور (received)</label>
+                                <input type="text" id="hist-filter-route" dir="ltr" placeholder="RID" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">از تاریخ</label>
+                                <input type="datetime-local" id="hist-filter-from" dir="ltr" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">تا تاریخ</label>
+                                <input type="datetime-local" id="hist-filter-to" dir="ltr" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0;align-self:flex-end">
+                                <button class="btn btn-primary" id="hist-btn-search" style="width:100%;padding:7px 10px;font-size:13px">🔍 جستجو</button>
+                            </div>
+                        </div>
+                        <div id="hist-summary" style="font-size:13px;color:#64748b;margin-bottom:8px"></div>
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="hist-table">
+                                <thead><tr id="hist-thead"></tr></thead>
+                                <tbody id="hist-tbody">
+                                    <tr><td colspan="8" style="text-align:center;color:#94a3b8">برای مشاهده جستجو کنید</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="hist-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- ===== Settings ===== -->
             <section class="view" id="view-settings">
                 <div class="settings-grid">
@@ -595,14 +658,10 @@ cat > index.html << 'ENDFILE'
                                 <input type="password" id="setting-rmto-pass" dir="ltr">
                             </div>
                             <div class="form-group">
-                                <label>IP مبدا ارسال داده‌های لحظه‌ای (اختیاری)</label>
-                                <input type="text" id="setting-rmto-live-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
+                                <label>IP مبدا ارسال به سامانه (اختیاری)</label>
+                                <input type="text" id="setting-rmto-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
                             </div>
-                            <div class="form-group">
-                                <label>IP مبدا ارسال بک‌لاگ/داده‌های گذشته (اختیاری)</label>
-                                <input type="text" id="setting-rmto-backlog-source-ip" dir="ltr" placeholder="مثال: 5.159.49.110">
-                            </div>
-                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود.</small>
+                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود. تمام ارسال‌ها (لحظه‌ای و بک‌لاگ) از این IP خواهند بود.</small>
                             <button class="btn btn-primary" id="btn-save-rmto">ذخیره تنظیمات سامانه</button>
                         </div>
                     </div>
