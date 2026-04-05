@@ -238,6 +238,36 @@ journalctl -u tc-manager -n 120 --no-pager || pm2 logs tc-manager --lines 120
 
 ---
 
+## 10) بازنشانی رمز عبور از طریق SSH
+
+اگر نمی‌توانید از طریق UI وارد شوید (رمز فراموش شده یا تغییر کرده)، می‌توانید با اسکریپت زیر رمز را ریست کنید:
+
+```bash
+# اتصال به سرور
+ssh root@5.159.49.246
+
+# بازنشانی رمز به admin123 (پیش‌فرض)
+cd /opt/tc-manager
+node server/reset-password.js
+
+# یا تنظیم رمز دلخواه
+node server/reset-password.js "RmzJadid1234"
+```
+
+بعد از ریست، با رمز جدید وارد پنل شوید.
+
+> **نکته:** اگر سرور وجود ندارد، می‌توانید مستقیماً در پایگاه داده آپدیت کنید:
+> ```bash
+> cd /opt/tc-manager
+> node -e "
+> const bcrypt=require('bcryptjs'),db=require('better-sqlite3')('./server/data.db');
+> db.prepare('UPDATE users SET password_hash=? WHERE username=?').run(bcrypt.hashSync('admin123',10),'admin');
+> console.log('done');
+> "
+> ```
+
+---
+
 ## چک‌لیست کوتاه برای موبایل
 
 1. ورود به Termux  
