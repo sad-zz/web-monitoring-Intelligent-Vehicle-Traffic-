@@ -31,12 +31,26 @@ ssh root@SERVER_IP
 ```bash
 mkdir -p ~/tc-deploy
 cd ~/tc-deploy
-# پیشنهاد: کل پروژه را همان‌جا بگیرید تا مسیرها درست بماند
+
+# اگر اولین بار است (کلون):
 git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.git
 # توجه: نام ریپو عمدا با خط تیره پایانی است
+
+# اگر قبلاً کلون کرده‌اید (آپدیت):
+# ⚠️ مهم: git pull باید از داخل پوشه‌ی پروژه اجرا شود، نه از ~/tc-deploy
 cd web-monitoring-Intelligent-Vehicle-Traffic-
-# چک سریع وجود فایل‌ها
-ls server/scheduler.js server/index.js server/db.js js/app.js index.html
+git pull origin main
+# خطای "not a git repository" = داخل پوشه اشتباه هستید؛ دستور بالا را با cd درست کنید
+```
+
+```bash
+# بعد از clone یا pull، وارد پوشه پروژه شوید:
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+
+# چک سریع وجود فایل‌ها (باید همه‌شان باشند):
+ls server/scheduler.js server/index.js server/db.js server/reset-password.js js/app.js index.html
+# اگر هر کدام نبود یا curl بعداً دادید و فقط ۱۴ بایت بود (= خطای ۴۰۴ گیت‌هاب)،
+# مطمئن شوید VPN روشن است، سپس دوباره git pull بزنید.
 ```
 
 ### مرحله B: VPN را خاموش کنید، سپس انتقال به سرور
@@ -44,7 +58,7 @@ ls server/scheduler.js server/index.js server/db.js js/app.js index.html
 
 ```bash
 cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
-scp server/scheduler.js server/index.js server/db.js root@SERVER_IP:/opt/tc-manager/server/
+scp server/scheduler.js server/index.js server/db.js server/reset-password.js root@SERVER_IP:/opt/tc-manager/server/
 scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
 scp index.html root@SERVER_IP:/opt/tc-manager/
 ssh root@SERVER_IP 'systemctl restart tc-manager && systemctl status tc-manager --no-pager -l'
@@ -71,7 +85,7 @@ ssh root@SERVER_IP 'bash /tmp/deploy-all.sh'
 این روش برای وقتی است که فقط فایل‌های کد عوض شده‌اند و وابستگی جدید اضافه نشده:
 
 ```bash
-scp server/scheduler.js server/index.js server/db.js root@SERVER_IP:/opt/tc-manager/server/
+scp server/scheduler.js server/index.js server/db.js server/reset-password.js root@SERVER_IP:/opt/tc-manager/server/
 scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
 scp index.html root@SERVER_IP:/opt/tc-manager/
 ssh root@SERVER_IP 'systemctl restart tc-manager && systemctl status tc-manager --no-pager -l'
@@ -89,7 +103,7 @@ ls server/scheduler.js server/index.js server/db.js js/app.js index.html
 - اگر خواستید ساختار پوشه‌ها ۱۰۰٪ حفظ شود، از `rsync` استفاده کنید:
 
 ```bash
-rsync -avz server/scheduler.js server/index.js server/db.js root@SERVER_IP:/opt/tc-manager/server/
+rsync -avz server/scheduler.js server/index.js server/db.js server/reset-password.js root@SERVER_IP:/opt/tc-manager/server/
 rsync -avz js/app.js root@SERVER_IP:/opt/tc-manager/js/
 rsync -avz index.html root@SERVER_IP:/opt/tc-manager/
 ssh root@SERVER_IP 'systemctl restart tc-manager'
@@ -171,7 +185,7 @@ cat /tmp/tc_changed_runtime.txt
 # روش C: نوشتن دستی فایل‌هایی که در این برنچ تغییر کرده‌اند
 # (همیشه کار می‌کند، حتی بدون git history)
 # نکته: از printf استفاده می‌شود تا در copy/paste از GitHub خراب نشود
-printf 'index.html\njs/app.js\nserver/index.js\nserver/db.js\n' > /tmp/tc_changed_runtime.txt
+printf 'index.html\njs/app.js\nserver/index.js\nserver/db.js\nserver/reset-password.js\n' > /tmp/tc_changed_runtime.txt
 
 echo "=== RUNTIME FILES TO DEPLOY ==="
 cat /tmp/tc_changed_runtime.txt
@@ -252,11 +266,22 @@ node server/reset-password.js
 
 # یا تنظیم رمز دلخواه
 node server/reset-password.js "RmzJadid1234"
+
+# مثال: ست کردن رمز 321123 برای کاربر admin
+node server/reset-password.js "321123" "admin"
 ```
 
 بعد از ریست، با رمز جدید وارد پنل شوید.
 
-> **نکته:** اگر سرور وجود ندارد، می‌توانید مستقیماً در پایگاه داده آپدیت کنید:
+> **نکته:** اگر `reset-password.js` روی سرور وجود ندارد (فایل قبلاً آپلود نشده)،
+> ابتدا آن را از Termux آپلود کنید:
+> ```bash
+> # از داخل پوشه پروژه در Termux:
+> scp server/reset-password.js root@5.159.49.246:/opt/tc-manager/server/
+> ssh root@5.159.49.246 'cd /opt/tc-manager && node server/reset-password.js "321123" "admin"'
+> ```
+
+> **نکته:** اگر می‌خواهید مستقیماً در پایگاه داده آپدیت کنید (بدون فایل جانبی):
 > ```bash
 > cd /opt/tc-manager
 > node -e "
