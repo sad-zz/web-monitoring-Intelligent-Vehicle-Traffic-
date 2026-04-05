@@ -375,6 +375,131 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
 });
 
 // ============================================================
+// API: Archive Test Send - send historical records from rmto_queue_5class
+// ============================================================
+
+// In-memory job tracking for archive send operations
+var archiveSendJobs = {};
+var archiveJobSeq = 0;
+
+// GET /api/rmto/archive-records - preview records matching route/date range
+app.get("/api/rmto/archive-records", requireAuth, function (req, res) {
+    var rid = req.query.rid ? parseInt(req.query.rid, 10) : null;
+    var from = req.query.from || "";
+    var to = req.query.to || "";
+    var limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+
+    var sql = "SELECT id, device_code, route_id, period_start, period_end, " +
+        "c1, c2, c3, c4, c5, avg_speed, sso, oo, esd, sent, sent_at " +
+        "FROM rmto_queue_5class WHERE 1=1";
+    var params = [];
+    if (rid) { sql += " AND route_id = ?"; params.push(String(rid)); }
+    if (from) { sql += " AND period_start >= ?"; params.push(from); }
+    if (to) { sql += " AND period_start <= ?"; params.push(to); }
+    sql += " ORDER BY period_start ASC LIMIT ?";
+    params.push(limit);
+
+    var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
+    res.json({ total: rows.length, rows: rows });
+});
+
+// POST /api/rmto/archive-send - start an archive batch send job
+app.post("/api/rmto/archive-send", requireAuth, function (req, res) {
+    var b = req.body;
+    var from = b.from || "";
+    var to = b.to || "";
+    var rid = b.rid ? parseInt(b.rid, 10) : null;
+
+    if (!from || !to) return res.status(400).json({ error: "from و to الزامی است" });
+
+    var sql = "SELECT * FROM rmto_queue_5class WHERE 1=1";
+    var params = [];
+    if (rid) { sql += " AND route_id = ?"; params.push(String(rid)); }
+    sql += " AND period_start >= ? AND period_start <= ? ORDER BY period_start ASC";
+    params.push(from, to);
+
+    var records = db.prepare(sql).all.apply(db.prepare(sql), params);
+    if (records.length === 0) return res.status(404).json({ error: "رکوردی در بازه مشخص‌شده یافت نشد" });
+
+    var jobId = ++archiveJobSeq;
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
+    var job = {
+        id: jobId,
+        rid: rid,
+        from: from,
+        to: to,
+        total: records.length,
+        sent: 0,
+        success: 0,
+        failed: 0,
+        stopped: false,
+        status: "running",
+        startedAt: new Date().toISOString(),
+        errors: []
+    };
+    archiveSendJobs[jobId] = job;
+
+    var SEND_DELAY_MS = 800;
+    var idx = 0;
+
+    function sendNextArchive() {
+        if (job.stopped || idx >= records.length) {
+            job.status = job.stopped ? "stopped" : "done";
+            console.log("[ArchiveSend] Job #" + jobId + " " + job.status + " (" + job.success + "/" + job.total + " success)");
+            return;
+        }
+        var row = records[idx++];
+        if (!row.route_id) {
+            job.sent++;
+            setTimeout(sendNextArchive, SEND_DELAY_MS);
+            return;
+        }
+        rmto.sendAddData5({
+            FID: row.id,
+            RID: parseInt(row.route_id, 10),
+            ST: row.period_start,
+            ET: row.period_end,
+            C1: row.c1, C2: row.c2, C3: row.c3, C4: row.c4, C5: row.c5,
+            ASP: Math.round(row.avg_speed || 0),
+            S1: row.s1 || 0, S2: row.s2 || 0, S3: row.s3 || 0, S4: row.s4 || 0, S5: row.s5 || 0,
+            SSO: row.sso || 0,
+            SO1: row.so1 || 0, SO2: row.so2 || 0, SO3: row.so3 || 0, SO4: row.so4 || 0, SO5: row.so5 || 0,
+            OO: row.oo || 0,
+            ESD: row.esd || 0,
+            sourceIp: sourceIp
+        }, function (err, response, soapXml) {
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
+            job.sent++;
+            if (success) { job.success++; } else { job.failed++; job.errors.push({ id: row.id, rid: row.route_id, error: err ? err.message : (response && response.ERR ? response.ERR : "خطا") }); }
+            db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                .run("Add5-Archive", row.device_code, JSON.stringify(row), JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
+            setTimeout(sendNextArchive, SEND_DELAY_MS);
+        });
+    }
+
+    res.json({ jobId: jobId, total: records.length, message: "ارسال آرشیو شروع شد" });
+    setTimeout(sendNextArchive, 100);
+});
+
+// GET /api/rmto/archive-jobs - list all active/recent jobs
+app.get("/api/rmto/archive-jobs", requireAuth, function (req, res) {
+    var jobs = Object.keys(archiveSendJobs).map(function (k) { return archiveSendJobs[k]; });
+    res.json(jobs);
+});
+
+// DELETE /api/rmto/archive-send/:jobId - stop a job
+app.delete("/api/rmto/archive-send/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = archiveSendJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true;
+    job.status = "stopped";
+    res.json({ success: true, message: "ارسال متوقف شد" });
+});
+
+// ============================================================
 // API: Device Management
 // ============================================================
 app.get("/api/devices", function (req, res) {

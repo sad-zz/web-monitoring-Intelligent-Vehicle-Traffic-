@@ -1641,7 +1641,139 @@
                 }
             });
         });
+
+        // ---- Archive Send ----
+        function toLocalInputVal(d) {
+            return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" +
+                String(d.getDate()).padStart(2,"0") + "T" +
+                String(d.getHours()).padStart(2,"0") + ":" +
+                String(d.getMinutes()).padStart(2,"0");
+        }
+
+        function applyArchivePreset(minutes) {
+            var now = new Date();
+            var to = new Date(now);
+            to.setSeconds(0, 0);
+            var from = new Date(to.getTime() - minutes * 60 * 1000);
+            var fromEl = $("#arch-from"), toEl = $("#arch-to");
+            if (fromEl) fromEl.value = toLocalInputVal(from);
+            if (toEl) toEl.value = toLocalInputVal(to);
+        }
+
+        var presets = { "arch-preset-15m": 15, "arch-preset-1h": 60, "arch-preset-6h": 360,
+            "arch-preset-1d": 1440, "arch-preset-3d": 4320, "arch-preset-7d": 10080, "arch-preset-15d": 21600 };
+        Object.keys(presets).forEach(function (id) {
+            var el = $("#" + id);
+            if (el) el.addEventListener("click", function () { applyArchivePreset(presets[id]); });
+        });
+
+        var archPreviewBtn = $("#btn-arch-preview");
+        if (archPreviewBtn) archPreviewBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : "";
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var url = "/api/rmto/archive-records?from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to);
+            if (rid) url += "&rid=" + rid;
+            if (infoEl) infoEl.textContent = "در حال بارگذاری...";
+            api("GET", url, null, function (status, data) {
+                if (!data || !infoEl) return;
+                infoEl.innerHTML = '🔎 <strong>' + escapeHtml(String(data.total || 0)) + '</strong> رکورد یافت شد' +
+                    (rid ? ' برای محور <strong>' + escapeHtml(String(rid)) + '</strong>' : '') +
+                    ' در بازه انتخابی';
+            });
+        });
+
+        var archSendBtn = $("#btn-arch-send");
+        if (archSendBtn) archSendBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : null;
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var body = { from: from, to: to };
+            if (rid) body.rid = rid;
+            archSendBtn.disabled = true;
+            archSendBtn.textContent = "در حال شروع...";
+            api("POST", "/api/rmto/archive-send", body, function (status, data) {
+                archSendBtn.disabled = false;
+                archSendBtn.textContent = "📤 شروع ارسال";
+                if (!data || status !== 200) {
+                    if (infoEl) infoEl.textContent = "❌ خطا: " + ((data && data.error) || "ارتباط با سرور برقرار نشد");
+                    return;
+                }
+                if (infoEl) infoEl.innerHTML = '✅ ارسال آرشیو شروع شد — شناسه کار: <strong>' + escapeHtml(String(data.jobId)) + '</strong> / ' + escapeHtml(String(data.total)) + ' رکورد';
+                refreshArchiveJobs();
+            });
+        });
+
+        var archRefreshBtn = $("#btn-arch-refresh");
+        if (archRefreshBtn) archRefreshBtn.addEventListener("click", refreshArchiveJobs);
+
+        function refreshArchiveJobs() {
+            api("GET", "/api/rmto/archive-jobs", null, function (status, jobs) {
+                var tbody = $("#arch-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسالی شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var pct = j.total > 0 ? Math.round(j.sent / j.total * 100) : 0;
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : '<span class="status-badge online">تمام شد</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopArchiveJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(j.rid ? String(j.rid) : "همه") + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.from || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.to || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sent)) + " / " + escapeHtml(String(j.total)) + " (" + escapeHtml(String(pct)) + "%)</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.success)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failed)) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
+
+        // Auto-refresh jobs table every 3 seconds while on test-sender view
+        setInterval(function () {
+            var v = document.querySelector(".view.active");
+            if (v && v.id === "view-test-sender") refreshArchiveJobs();
+        }, 3000);
     }
+
+    // Expose stop job function globally for inline onclick
+    window.stopArchiveJob = function (jobId) {
+        api("DELETE", "/api/rmto/archive-send/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var infoEl = $("#arch-preview-info");
+                if (infoEl) infoEl.textContent = "⏹ ارسال شناسه " + jobId + " متوقف شد";
+                // force refresh
+                var tbody = $("#arch-jobs-tbody");
+                if (tbody) {
+                    api("GET", "/api/rmto/archive-jobs", null, function (s, jobs) {
+                        if (!jobs) return;
+                        // trigger re-render by calling refreshArchiveJobs equivalent inline
+                        var evt = document.createEvent("Event");
+                        evt.initEvent("click", true, true);
+                        var rb = $("#btn-arch-refresh");
+                        if (rb) rb.dispatchEvent(evt);
+                    });
+                }
+            }
+        });
+    };
 
     // ============================================================
     // Settings: Bale, Server Restart, Log Monitor

@@ -262,16 +262,50 @@ function aggregatePeriod(code, startStr, endStr) {
             "VALUES (?, ?, ?, ?, ?, ?)"
         ).run(code, String(routeIdNum), startStr, endStr, totalVehicles, avgSpeed);
 
-        db.prepare(
-            "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
-            "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
-            "sso, so1, so2, so3, so4, so5, oo, esd) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(code, String(routeIdNum), startStr, endStr,
-            c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
-            sso, so1, so2, so3, so4, so5, oo, esd);
+        // Check for existing unsent record with the same route_id + period_start.
+        // Multiple devices on the same highway can share one route code; their data
+        // must be SUMMED into a single RMTO record to prevent duplicate errors.
+        var existingQ5 = db.prepare(
+            "SELECT * FROM rmto_queue_5class WHERE route_id = ? AND period_start = ? AND sent = 0 LIMIT 1"
+        ).get(String(routeIdNum), startStr);
 
-        console.log("[Scheduler] Aggregated device " + code + lanesLabel + " (route " + routeIdNum + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd + (merged ? " [MERGED " + groupLanes.length + " lanes]" : ""));
+        if (existingQ5) {
+            // Merge: weighted avg speed, summed counts
+            var existTotal = (existingQ5.c1||0) + (existingQ5.c2||0) + (existingQ5.c3||0) + (existingQ5.c4||0) + (existingQ5.c5||0);
+            var newC1 = (existingQ5.c1||0) + c1, newC2 = (existingQ5.c2||0) + c2;
+            var newC3 = (existingQ5.c3||0) + c3, newC4 = (existingQ5.c4||0) + c4, newC5 = (existingQ5.c5||0) + c5;
+            var newTotal = newC1 + newC2 + newC3 + newC4 + newC5;
+            var newAvgSpeed = newTotal > 0 ? Math.round((existTotal * (existingQ5.avg_speed||0) + totalVehicles * avgSpeed) / newTotal) : 0;
+            var newS1 = newC1 > 0 ? Math.round(((existingQ5.c1||0) * (existingQ5.s1||0) + c1 * s1) / newC1) : 0;
+            var newS2 = newC2 > 0 ? Math.round(((existingQ5.c2||0) * (existingQ5.s2||0) + c2 * s2) / newC2) : 0;
+            var newS3 = newC3 > 0 ? Math.round(((existingQ5.c3||0) * (existingQ5.s3||0) + c3 * s3) / newC3) : 0;
+            var newS4 = newC4 > 0 ? Math.round(((existingQ5.c4||0) * (existingQ5.s4||0) + c4 * s4) / newC4) : 0;
+            var newS5 = newC5 > 0 ? Math.round(((existingQ5.c5||0) * (existingQ5.s5||0) + c5 * s5) / newC5) : 0;
+            db.prepare(
+                "UPDATE rmto_queue_5class SET " +
+                "c1=?, c2=?, c3=?, c4=?, c5=?, avg_speed=?, " +
+                "s1=?, s2=?, s3=?, s4=?, s5=?, " +
+                "sso=?, so1=?, so2=?, so3=?, so4=?, so5=?, oo=?, esd=? " +
+                "WHERE id=?"
+            ).run(newC1, newC2, newC3, newC4, newC5, newAvgSpeed,
+                newS1, newS2, newS3, newS4, newS5,
+                (existingQ5.sso||0) + sso, (existingQ5.so1||0) + so1, (existingQ5.so2||0) + so2,
+                (existingQ5.so3||0) + so3, (existingQ5.so4||0) + so4, (existingQ5.so5||0) + so5,
+                (existingQ5.oo||0) + oo, (existingQ5.esd||0) + esd,
+                existingQ5.id);
+            console.log("[Scheduler] MERGED device " + code + lanesLabel + " into existing route " + routeIdNum + " record id=" + existingQ5.id +
+                " period " + startStr + " (combined total=" + newTotal + " ASP=" + newAvgSpeed + ")");
+        } else {
+            db.prepare(
+                "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
+                "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
+                "sso, so1, so2, so3, so4, so5, oo, esd) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).run(code, String(routeIdNum), startStr, endStr,
+                c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
+                sso, so1, so2, so3, so4, so5, oo, esd);
+            console.log("[Scheduler] Aggregated device " + code + lanesLabel + " (route " + routeIdNum + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd + (merged ? " [MERGED " + groupLanes.length + " lanes]" : ""));
+        }
     });
 }
 
