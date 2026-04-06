@@ -14,16 +14,21 @@ cat > $APP/server/package.json << 'JSONEOF'
 {
   "name": "tc-manager-server",
   "version": "1.0.0",
-  "description": "TC Manager - Sistan Akbari",
+  "description": "TC Manager - Backend server for traffic device data collection and RMTO integration",
   "main": "index.js",
-  "scripts": { "start": "node index.js" },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "better-sqlite3": "^9.4.3",
-    "soap": "^1.0.0",
     "node-cron": "^3.0.3",
-    "dotenv": "^16.4.1"
+    "dotenv": "^16.4.1",
+    "express-session": "^1.17.3",
+    "multer": "^1.4.5-lts.1",
+    "bcryptjs": "^2.4.3"
   }
 }
 JSONEOF
@@ -37,7 +42,7 @@ RMTO_ENDPOINT=http://otf.rmto.ir/Companies/Companies.asmx
 RMTO_COMPANY_CODE=58
 RMTO_USERNAME=NOGSH
 RMTO_PASSWORD=N*(gH5!u3
-SEND_INTERVAL_MINUTES=15
+SEND_INTERVAL_MINUTES=5
 ENVEOF
 
 echo ">>> Files created. Now running setup..."

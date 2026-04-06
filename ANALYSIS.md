@@ -311,3 +311,33 @@ sqlite3 /opt/tc-manager/server/data.db "SELECT device_code, last_seen, status FR
 sqlite3 /opt/tc-manager/server/data.db "SELECT * FROM irawdata ORDER BY id DESC LIMIT 5;"
 sqlite3 /opt/tc-manager/server/data.db "SELECT * FROM rmto_queue WHERE sent=0;"
 ```
+
+---
+
+## DB-Safe Deploy (No DB overwrite)
+
+When `sqlite3` returns `database disk image is malformed`, recover DB first and only then deploy code:
+
+```bash
+# 1) Find healthy backups (expect "ok")
+bash /tmp/deploy-db-safe.sh scan-backups
+
+# 2) Restore healthy DB candidate
+# Replace YYYY-MM-DD-HHMMSS with timestamp from a healthy file reported in step 1.
+bash /tmp/deploy-db-safe.sh restore /opt/tc-manager/server/data.db.before-restore.YYYY-MM-DD-HHMMSS
+
+# 3) Deploy code only (keeps server/data.db* and server/.env untouched)
+bash /tmp/deploy-db-safe.sh deploy-code-only /tmp/new-release
+```
+
+Notes from real incident pattern:
+- `data.db-wal` and `data.db-shm` can exist and still the main `data.db` be corrupted.
+- If `before-restore*` / `current.*` return `ok` but current `data.db` is malformed, restore one of the `ok` files first.
+
+If no backup returns `ok`, stop deployment and do DB recovery first:
+1. Find latest known-good backup from your backup storage/off-server snapshots.
+   - To prepare a SQL export ahead of incidents:
+     - `sqlite3 /opt/tc-manager/server/data.db "PRAGMA wal_checkpoint(TRUNCATE);"`
+     - `sqlite3 /opt/tc-manager/server/data.db .dump > backup.dump.sql`
+2. If you only have a previously exported SQL dump file (for example `backup.dump.sql` created earlier), rebuild a clean DB into a new file with `rm -f recovered.db && sqlite3 recovered.db < backup.dump.sql`.
+3. Run `PRAGMA integrity_check;` on recovered file and only then replace `data.db`.

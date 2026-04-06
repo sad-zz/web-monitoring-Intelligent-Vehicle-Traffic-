@@ -1,4 +1,5 @@
 node_modules/
+node_modules.tar.gz
 server/data.db
 server/data.db-shm
 server/data.db-wal
