@@ -122,8 +122,8 @@ deploy_code_only() {
     --exclude 'server/.env'
 
   cd "$APP_DIR/server"
-  if ! npm ci --omit=dev; then
-    echo "Error: npm ci failed in $APP_DIR/server" >&2
+  if ! npm install --production; then
+    echo "Error: npm install failed in $APP_DIR/server" >&2
     exit 1
   fi
 
