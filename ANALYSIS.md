@@ -311,3 +311,22 @@ sqlite3 /opt/tc-manager/server/data.db "SELECT device_code, last_seen, status FR
 sqlite3 /opt/tc-manager/server/data.db "SELECT * FROM irawdata ORDER BY id DESC LIMIT 5;"
 sqlite3 /opt/tc-manager/server/data.db "SELECT * FROM rmto_queue WHERE sent=0;"
 ```
+
+---
+
+## DB-Safe Deploy (No DB overwrite)
+
+When `sqlite3` returns `database disk image is malformed`, recover DB first and only then deploy code:
+
+```bash
+# 1) Find healthy backups (expect "ok")
+bash /tmp/deploy-db-safe.sh scan-backups
+
+# 2) Restore healthy DB candidate
+bash /tmp/deploy-db-safe.sh restore /opt/tc-manager/server/data.db.before-restore.YYYY-MM-DD-HHMMSS
+
+# 3) Deploy code only (keeps server/data.db* and server/.env untouched)
+bash /tmp/deploy-db-safe.sh deploy-code-only /tmp/new-release
+```
+
+If no backup returns `ok`, do not deploy code before DB recovery from a known-good backup or `.dump`.
