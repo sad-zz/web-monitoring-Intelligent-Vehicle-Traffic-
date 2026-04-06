@@ -33,10 +33,28 @@ ENDFILE
 
 # --- npm install (only if node_modules missing or package.json changed) ---
 if [ ! -d "server/node_modules/better-sqlite3" ] || [ ! -d "server/node_modules/express-session" ] || [ ! -d "server/node_modules/bcryptjs" ]; then
-    echo ">>> Missing dependencies detected, running npm install..."
-    cd server
-    npm install --production 2>&1 | tail -5
-    cd ..
+    echo ">>> Missing dependencies detected..."
+    # Try offline tarball first (for servers without internet)
+    if [ -f "/tmp/node_modules.tar.gz" ]; then
+        echo ">>> Found /tmp/node_modules.tar.gz - installing offline..."
+        cd server
+        # Merge: extract on top of existing node_modules (keeps better-sqlite3 if present)
+        tar xzf /tmp/node_modules.tar.gz
+        cd ..
+        echo ">>> Offline node_modules merged"
+    elif command -v npm &> /dev/null && npm ping 2>/dev/null; then
+        echo ">>> Running npm install (internet available)..."
+        cd server
+        npm install --production 2>&1 | tail -5
+        cd ..
+    else
+        echo "!!! ERROR: No internet and no /tmp/node_modules.tar.gz found"
+        echo "!!! Build tarball on a machine with internet:"
+        echo "!!!   bash prepare-offline-modules.sh --missing"
+        echo "!!!   scp node_modules.tar.gz root@\$(hostname -I | awk '{print \$1}'):/tmp/"
+        echo "!!! Then re-run this script"
+        exit 1
+    fi
 else
     echo ">>> node_modules OK, skipping npm install"
 fi
