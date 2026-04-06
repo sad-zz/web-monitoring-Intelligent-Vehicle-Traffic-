@@ -44,6 +44,9 @@ scan_backups() {
   echo "Listing DB candidates..."
   ls -lt "${DB_PATH}"* || true
   echo
+  # Expected backup names:
+  #   data.db.before-restore.YYYY-MM-DD-HHMMSS
+  #   data.db.current.YYYY-MM-DD-HHMMSS
   echo "Integrity check for candidates (expect: ok):"
   local candidates=("${DB_PATH}".before-restore* "${DB_PATH}".current.* "$DB_PATH")
   if [ "${#candidates[@]}" -eq 0 ]; then
@@ -98,10 +101,12 @@ deploy_code_only() {
   fi
 
   echo "Deploying code only from $source_dir to $APP_DIR ..."
-  rsync -av --delete "${source_dir}/" "${APP_DIR}/" \
+  rsync -av "${source_dir}/" "${APP_DIR}/" \
     --exclude 'server/data.db' \
     --exclude 'server/data.db-*' \
     --exclude 'server/data.db.*' \
+    --exclude 'server/logs/' \
+    --exclude 'server/uploads/' \
     --exclude 'server/.env'
 
   cd "$APP_DIR/server"
@@ -110,7 +115,7 @@ deploy_code_only() {
   systemctl restart "$SERVICE_NAME"
   systemctl restart "$WEB_SERVICE_NAME"
   systemctl status "$SERVICE_NAME" --no-pager -l
-  journalctl -u "$SERVICE_NAME" -n 100 --no-pager
+  journalctl -u "$SERVICE_NAME" -n 30 --no-pager
 }
 
 main() {
