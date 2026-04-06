@@ -5436,6 +5436,8 @@ var httpServer = null;
 
 var TCP_RETRY_COUNT = 0;
 var TCP_MAX_RETRIES = 5;
+var HTTP_RETRY_COUNT = 0;
+var HTTP_MAX_RETRIES = 5;
 
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     TCP_RETRY_COUNT = 0;
@@ -5457,27 +5459,37 @@ tcpServer.on("error", function (err) {
 // ============================================================
 // Start HTTP Server
 // ============================================================
-httpServer = app.listen(PORT, HOST, function () {
-    console.log("============================================");
-    console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
-    console.log("  HTTP: http://" + HOST + ":" + PORT);
-    console.log("  TCP:  port " + TCP_PORT + " (device data)");
-    console.log("  Login: admin / admin123");
-    console.log("============================================");
+function startHttpServer() {
+    httpServer = app.listen(PORT, HOST, function () {
+        HTTP_RETRY_COUNT = 0;
+        console.log("============================================");
+        console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
+        console.log("  HTTP: http://" + HOST + ":" + PORT);
+        console.log("  TCP:  port " + TCP_PORT + " (device data)");
+        console.log("  Login: admin / admin123");
+        console.log("============================================");
 
-    rmto.initClient(function (err) {
-        if (err) console.error("[RMTO] Will retry on first send");
+        rmto.initClient(function (err) {
+            if (err) console.error("[RMTO] Will retry on first send");
+        });
+
+        scheduler.start();
     });
 
-    scheduler.start();
-});
+    httpServer.on("error", function (err) {
+        if (err.code === "EADDRINUSE") {
+            HTTP_RETRY_COUNT++;
+            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
+                console.error("[HTTP] Port " + PORT + " still in use after " + HTTP_MAX_RETRIES + " retries, exiting.");
+                process.exit(1);
+            }
+            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
+            setTimeout(startHttpServer, 5000);
+        }
+    });
+}
 
-httpServer.on("error", function (err) {
-    if (err.code === "EADDRINUSE") {
-        console.error("[HTTP] Port " + PORT + " already in use. Exiting so PM2 can retry.");
-        process.exit(1);
-    }
-});
+startHttpServer();
 
 // ============================================================
 // Graceful Shutdown
@@ -6778,9 +6790,12 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 1; true'
 ExecStart=/usr/bin/node index.js
 Restart=always
 RestartSec=10
+TimeoutStopSec=10
+KillMode=mixed
 Environment=NODE_ENV=production
 
 [Install]

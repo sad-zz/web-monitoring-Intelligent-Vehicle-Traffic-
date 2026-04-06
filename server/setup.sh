@@ -67,9 +67,12 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 1; true'
 ExecStart=/usr/bin/node index.js
 Restart=always
 RestartSec=10
+TimeoutStopSec=10
+KillMode=mixed
 Environment=NODE_ENV=production
 
 [Install]
