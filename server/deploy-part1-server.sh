@@ -779,6 +779,7 @@ function aggregateAndSend() {
     devices.forEach(function (dev) {
         var code = dev.device_code;
 
+        try {
         // Find ALL distinct INTERVAL-minute periods with unread data for this device
         // This ensures we never miss older periods that weren't processed before
         var periods = db.prepare(
@@ -801,6 +802,9 @@ function aggregateAndSend() {
 
             aggregatePeriod(code, startStr, endStr);
         });
+        } catch (devErr) {
+            console.error("[Scheduler] Error processing device " + code + ":", devErr.message, devErr.stack);
+        }
     });
 
     // Now send unsent records
@@ -1170,6 +1174,7 @@ function sendUnsentData(onComplete) {
             ESD: row.esd,
             sourceIp: sourceIp
         }, function (err, response, soapXml) {
+            try {
             // Match C# reference success check: ID > 0 || CFL == 100
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             var responseStr = JSON.stringify(response || (err && err.message));
@@ -1213,6 +1218,11 @@ function sendUnsentData(onComplete) {
                     error: errMsg,
                     response: responseStr
                 });
+            }
+            } catch (cbErr) {
+                console.error("[Scheduler] sendUnsentData callback error for device " + row.device_code + ":", cbErr.message, cbErr.stack);
+                results.failed++;
+                results.errors.push({ method: "Add5", device_code: row.device_code, error: "Internal: " + cbErr.message });
             }
 
             // Wait before sending the next record
@@ -1264,13 +1274,13 @@ function start() {
 
     cron.schedule(cronExpr, function () {
         try { checkOfflineDevices(); } catch (e) { console.error("[Scheduler] checkOfflineDevices error:", e.message); }
-        aggregateAndSend();
+        try { aggregateAndSend(); } catch (e) { console.error("[Scheduler] aggregateAndSend error:", e.message, e.stack); }
     });
 
     // Also allow manual retry of unsent data every hour
     cron.schedule("5 * * * *", function () {
         console.log("[Scheduler] Retry unsent data...");
-        sendUnsentData();
+        try { sendUnsentData(); } catch (e) { console.error("[Scheduler] sendUnsentData error:", e.message, e.stack); }
     });
 }
 
@@ -1300,6 +1310,18 @@ cat > server/index.js << 'ENDFILE'
 // Set timezone to Iran Standard Time (UTC+3:30) BEFORE any Date operations
 // This ensures all new Date() calls return Iran local time
 process.env.TZ = "Asia/Tehran";
+
+// Global error handlers to prevent silent server crashes
+process.on("uncaughtException", function (err) {
+    console.error("[FATAL] Uncaught Exception:", err.message);
+    console.error(err.stack);
+    // Let systemd restart us cleanly
+    setTimeout(function () { process.exit(1); }, 1000);
+});
+
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled Promise Rejection:", reason);
+});
 
 require("dotenv").config();
 
@@ -1516,9 +1538,19 @@ app.post("/api/irawdata", function (req, res) {
     }
 
     if (b.records && Array.isArray(b.records)) {
-        db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        try {
+            db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        } catch (txErr) {
+            console.error("[HTTP] Transaction error for device " + code + ":", txErr.message);
+            return res.status(500).json({ success: false, error: txErr.message });
+        }
     } else {
-        insertOne(b);
+        try {
+            insertOne(b);
+        } catch (insertErr) {
+            console.error("[HTTP] Insert error for device " + code + ":", insertErr.message);
+            return res.status(500).json({ success: false, error: insertErr.message });
+        }
     }
     res.json({ success: true, received: count });
 });

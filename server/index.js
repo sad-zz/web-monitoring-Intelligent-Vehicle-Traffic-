@@ -10,6 +10,18 @@
 // This ensures all new Date() calls return Iran local time
 process.env.TZ = "Asia/Tehran";
 
+// Global error handlers to prevent silent server crashes
+process.on("uncaughtException", function (err) {
+    console.error("[FATAL] Uncaught Exception:", err.message);
+    console.error(err.stack);
+    // Let systemd restart us cleanly
+    setTimeout(function () { process.exit(1); }, 1000);
+});
+
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled Promise Rejection:", reason);
+});
+
 require("dotenv").config();
 
 var express = require("express");
@@ -225,9 +237,19 @@ app.post("/api/irawdata", function (req, res) {
     }
 
     if (b.records && Array.isArray(b.records)) {
-        db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        try {
+            db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        } catch (txErr) {
+            console.error("[HTTP] Transaction error for device " + code + ":", txErr.message);
+            return res.status(500).json({ success: false, error: txErr.message });
+        }
     } else {
-        insertOne(b);
+        try {
+            insertOne(b);
+        } catch (insertErr) {
+            console.error("[HTTP] Insert error for device " + code + ":", insertErr.message);
+            return res.status(500).json({ success: false, error: insertErr.message });
+        }
     }
     res.json({ success: true, received: count });
 });
