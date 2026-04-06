@@ -40,7 +40,6 @@ backup_current_db() {
 }
 
 scan_backups() {
-  shopt -s nullglob
   echo "Listing DB candidates..."
   ls -lt "${DB_PATH}"* || true
   echo
@@ -49,10 +48,13 @@ scan_backups() {
   #   data.db.current.YYYY-MM-DD-HHMMSS
   #   data.db.emergency.YYYY-MM-DD-HHMMSS
   echo "Integrity check for candidates (expect: ok):"
-  local candidates=("${DB_PATH}".before-restore* "${DB_PATH}".current.* "${DB_PATH}".emergency.* "$DB_PATH")
+  local candidates=()
+  local f
+  for f in "${DB_PATH}".before-restore* "${DB_PATH}".current.* "${DB_PATH}".emergency.* "$DB_PATH"; do
+    [ -f "$f" ] && candidates+=("$f")
+  done
   if [ "${#candidates[@]}" -eq 0 ]; then
     echo "No DB candidates found near: $DB_PATH"
-    shopt -u nullglob
     return 0
   fi
   for f in "${candidates[@]}"; do
@@ -61,7 +63,6 @@ scan_backups() {
     sqlite3 "$f" "PRAGMA integrity_check;" || true
     echo
   done
-  shopt -u nullglob
 }
 
 restore_db() {
@@ -111,7 +112,10 @@ deploy_code_only() {
     --exclude 'server/.env'
 
   cd "$APP_DIR/server"
-  npm ci --omit=dev
+  if ! npm ci --omit=dev; then
+    echo "Error: npm ci failed in $APP_DIR/server" >&2
+    exit 1
+  fi
 
   systemctl restart "$SERVICE_NAME"
   systemctl restart "$WEB_SERVICE_NAME"
