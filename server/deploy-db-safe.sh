@@ -60,7 +60,9 @@ scan_backups() {
   for f in "${candidates[@]}"; do
     [ -f "$f" ] || continue
     echo "=== $f ==="
-    sqlite3 "$f" "PRAGMA integrity_check;" || true
+    if ! sqlite3 "$f" "PRAGMA integrity_check;"; then
+      echo "integrity_check failed to run for: $f" >&2
+    fi
     echo
   done
 }
@@ -78,6 +80,7 @@ restore_db() {
 
   echo "Restoring healthy DB from: $source_backup"
   cp -a "$source_backup" "$DB_PATH"
+  # Restrictive mode by default because DB may contain sensitive data.
   chmod 600 "$DB_PATH"
   local svc_user
   svc_user="$(systemctl show -p User --value "$SERVICE_NAME" 2>/dev/null || true)"
