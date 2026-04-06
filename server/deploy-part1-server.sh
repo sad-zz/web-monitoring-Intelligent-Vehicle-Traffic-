@@ -51,7 +51,7 @@ if [ ! -d "server/node_modules/better-sqlite3" ] || [ ! -d "server/node_modules/
         echo "!!! ERROR: No internet and no /tmp/node_modules.tar.gz found"
         echo "!!! Build tarball on a machine with internet:"
         echo "!!!   bash prepare-offline-modules.sh --missing"
-        echo "!!!   scp node_modules.tar.gz root@\$(hostname -I | awk '{print \$1}'):/tmp/"
+        echo "!!!   scp node_modules.tar.gz root@5.159.49.246:/tmp/"
         echo "!!! Then re-run this script"
         exit 1
     fi
