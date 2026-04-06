@@ -1210,7 +1210,8 @@ cat > js/app.js << 'ENDFILE'
         api("GET", "/api/devices", null, function (status, data) {
             var grid = $("#device-grid");
             if (!grid) return;
-            if (status !== 200 || !data || !data.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
                 grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
                 updateDeviceFilterCount(0);
                 return;
@@ -1287,7 +1288,8 @@ cat > js/app.js << 'ENDFILE'
         api("GET", "/api/tcp/connected", null, function (status, data) {
             var tbody = $("#tcp-table-body");
             if (!tbody) return;
-            if (status !== 200 || !data || !Object.keys(data).length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !Object.keys(data).length) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8">دستگاهی متصل نیست</td></tr>';
                 return;
             }
@@ -1630,7 +1632,8 @@ cat > js/app.js << 'ENDFILE'
 
         api("GET", url, null, function (status, data) {
             var tbody = $("#reception-table-body");
-            if (status !== 200 || !data || !data.rows || !data.rows.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.rows || !data.rows.length) {
                 tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">داده‌ای دریافت نشده</td></tr>';
                 receptionState.total = 0;
                 renderTableInfo("reception", 0, 0, 0);
@@ -1979,7 +1982,8 @@ cat > js/app.js << 'ENDFILE'
     function loadMehvar() {
         api("GET", "/api/mehvar", null, function (status, data) {
             var tbody = $("#mehvar-table-body");
-            if (status !== 200 || !data || !data.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">محوری ثبت نشده</td></tr>';
                 return;
             }
@@ -2890,17 +2894,6 @@ cat > js/app.js << 'ENDFILE'
         }
     });
 
-    // ============================================================
-    // Auto-refresh every 30s
-    // ============================================================
-    setInterval(function () {
-        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
-        var activeView = document.querySelector(".view.active");
-        if (!activeView) return;
-        var id = activeView.id;
-        if (id === "view-dashboard") loadDashboard();
-        else if (id === "view-reception") loadReception();
-    }, 30000);
 
 })();
 
