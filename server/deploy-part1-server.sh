@@ -5,7 +5,7 @@ cd /opt/tc-manager
 
 echo "=== Deploying server files ==="
 
-mkdir -p server css js data
+mkdir -p server css js data server/uploads
 
 # --- server/db.js ---
 cat > server/db.js << 'ENDFILE'
@@ -1356,7 +1356,9 @@ app.use(session({
 }));
 
 // Multer for file uploads (backup restore)
-var upload = multer({ dest: path.join(__dirname, "uploads/"), limits: { fileSize: 500 * 1024 * 1024 } });
+var uploadsDir = path.join(__dirname, "uploads/");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+var upload = multer({ dest: uploadsDir, limits: { fileSize: 500 * 1024 * 1024 } });
 
 // ============================================================
 // Auth Middleware
@@ -2321,12 +2323,16 @@ app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
     try {
         if (origName.endsWith(".db")) {
             // Direct SQLite DB file - replace
-            db.pragma("wal_checkpoint(TRUNCATE)");
+            try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch (e) { /* ok */ }
             db.close();
             fs.copyFileSync(tmpPath, dbPath);
-            // Re-require db (Node caches modules, so we need to clear)
+            try { fs.unlinkSync(tmpPath); } catch (e) { /* ok */ }
+            // Re-open database
             delete require.cache[require.resolve("./db")];
-            res.json({ success: true, message: "بازیابی انجام شد. سرویس باید ریستارت شود." });
+            db = require("./db");
+            res.json({ success: true, message: "بازیابی انجام شد. سرویس در حال ریستارت..." });
+            // Auto-restart to ensure clean state
+            setTimeout(function () { process.exit(0); }, 2000);
         } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz") || origName.endsWith(".sql")) {
             // PostgreSQL dump - decompress and parse
             var destPath = path.join(__dirname, "uploads", origName);
@@ -3369,6 +3375,15 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
+
+# --- Ensure nginx allows large backup uploads ---
+if [ -f /etc/nginx/sites-available/tc-manager ]; then
+    if ! grep -q "client_max_body_size" /etc/nginx/sites-available/tc-manager; then
+        sed -i '/server_name/a\    client_max_body_size 500M;' /etc/nginx/sites-available/tc-manager
+        nginx -t && systemctl reload nginx
+        echo ">>> Added client_max_body_size to nginx config"
+    fi
+fi
 
 # --- Restart tc-manager ---
 echo ">>> Restarting tc-manager..."

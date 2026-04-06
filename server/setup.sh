@@ -88,6 +88,7 @@ cat > /etc/nginx/sites-available/tc-manager << 'NGINX'
 server {
     listen 80;
     server_name _;
+    client_max_body_size 500M;
 
     # Frontend files
     location / {

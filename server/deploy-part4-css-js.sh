@@ -1164,6 +1164,10 @@ cat > js/app.js << 'ENDFILE'
         else if (view === "test-sender") initTestSender();
         else if (view === "history") loadHistory(1);
         else if (view === "settings") loadSettings();
+
+        // Auto-refresh server time only on settings page
+        if (view === "settings") startServerTimeRefresh();
+        else stopServerTimeRefresh();
     }
 
     // Sidebar toggle (mobile)
@@ -2111,6 +2115,7 @@ cat > js/app.js << 'ENDFILE'
     });
 
     // Server Time
+    var serverTimeTimer = null;
     function loadServerTime() {
         api("GET", "/api/server/time", null, function (status, data) {
             if (status !== 200 || !data) return;
@@ -2131,6 +2136,14 @@ cat > js/app.js << 'ENDFILE'
                 ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
             }
         });
+    }
+
+    function startServerTimeRefresh() {
+        if (serverTimeTimer) clearInterval(serverTimeTimer);
+        serverTimeTimer = setInterval(loadServerTime, 10000);
+    }
+    function stopServerTimeRefresh() {
+        if (serverTimeTimer) { clearInterval(serverTimeTimer); serverTimeTimer = null; }
     }
 
     var refreshTimeBtn = $("#btn-refresh-server-time");
