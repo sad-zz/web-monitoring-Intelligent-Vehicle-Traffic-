@@ -84,7 +84,12 @@ ssh root@SERVER_IP 'bash /tmp/deploy-all.sh'
 
 این روش برای وقتی است که فقط فایل‌های کد عوض شده‌اند و وابستگی جدید اضافه نشده:
 
+> ⚠️ **مهم:** دستورات `scp` باید از ریشه پروژه اجرا شوند، نه از داخل پوشه `server/`.  
+> اگر داخل `server/` باشید و `scp server/db.js ...` بزنید، خطای `server/db.js: No such file or directory` می‌گیرید.  
+> قبل از هر `scp`، مطمئن شوید در ریشه پروژه هستید:
+
 ```bash
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
 scp server/scheduler.js server/index.js server/db.js server/reset-password.js root@SERVER_IP:/opt/tc-manager/server/
 scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
 scp index.html root@SERVER_IP:/opt/tc-manager/
@@ -103,6 +108,7 @@ ls server/scheduler.js server/index.js server/db.js js/app.js index.html
 - اگر خواستید ساختار پوشه‌ها ۱۰۰٪ حفظ شود، از `rsync` استفاده کنید:
 
 ```bash
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
 rsync -avz server/scheduler.js server/index.js server/db.js server/reset-password.js root@SERVER_IP:/opt/tc-manager/server/
 rsync -avz js/app.js root@SERVER_IP:/opt/tc-manager/js/
 rsync -avz index.html root@SERVER_IP:/opt/tc-manager/
