@@ -562,6 +562,74 @@ cat > index.html << 'ENDFILE'
                         </div>
                     </div>
                 </div>
+
+                <!-- Archive Send Panel -->
+                <div class="panel" style="margin-top:20px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">📦 ارسال از آرشیو به سامانه RMTO</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده‌های تاریخی ذخیره‌شده را در یک بازه زمانی انتخاب کرده و مجدداً به سامانه ارسال کنید.</p>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0">
+                                <label>کد محور (RID) — اختیاری</label>
+                                <input type="number" id="arch-rid" dir="ltr" placeholder="خالی = همه محورها" min="1">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>از تاریخ <span style="color:#ef4444">*</span></label>
+                                <input type="datetime-local" id="arch-from" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>تا تاریخ <span style="color:#ef4444">*</span></label>
+                                <input type="datetime-local" id="arch-to" dir="ltr">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                            <button class="btn btn-secondary" id="arch-preset-15m" style="font-size:12px;padding:5px 10px">۱۵ دقیقه</button>
+                            <button class="btn btn-secondary" id="arch-preset-1h" style="font-size:12px;padding:5px 10px">۱ ساعت</button>
+                            <button class="btn btn-secondary" id="arch-preset-6h" style="font-size:12px;padding:5px 10px">۶ ساعت</button>
+                            <button class="btn btn-secondary" id="arch-preset-1d" style="font-size:12px;padding:5px 10px">۱ روز</button>
+                            <button class="btn btn-secondary" id="arch-preset-3d" style="font-size:12px;padding:5px 10px">۳ روز</button>
+                            <button class="btn btn-secondary" id="arch-preset-7d" style="font-size:12px;padding:5px 10px">۷ روز</button>
+                            <button class="btn btn-secondary" id="arch-preset-15d" style="font-size:12px;padding:5px 10px">۱۵ روز</button>
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-secondary" id="btn-arch-preview" style="padding:9px 20px">🔍 پیش‌نمایش</button>
+                            <button class="btn btn-primary" id="btn-arch-send" style="padding:9px 20px">📤 شروع ارسال</button>
+                        </div>
+                        <div id="arch-preview-info" style="margin-top:10px;font-size:13px;color:#475569"></div>
+                    </div>
+                </div>
+
+                <!-- Archive Send Jobs Table -->
+                <div class="panel" style="margin-top:16px" id="arch-jobs-panel">
+                    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 class="panel-title">📊 وضعیت ارسال آرشیو</h3>
+                        <button class="btn btn-secondary" id="btn-arch-refresh" style="font-size:12px;padding:5px 12px">🔄 بروزرسانی</button>
+                    </div>
+                    <div class="panel-body">
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="arch-jobs-table">
+                                <thead>
+                                    <tr>
+                                        <th>شناسه</th>
+                                        <th>محور</th>
+                                        <th>از تاریخ</th>
+                                        <th>تا تاریخ</th>
+                                        <th>پیشرفت</th>
+                                        <th>موفق</th>
+                                        <th>خطا</th>
+                                        <th>وضعیت</th>
+                                        <th>عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="arch-jobs-tbody">
+                                    <tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسالی شروع نشده</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- ===== History ===== -->
