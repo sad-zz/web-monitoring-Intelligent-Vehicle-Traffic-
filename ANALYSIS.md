@@ -329,4 +329,11 @@ bash /tmp/deploy-db-safe.sh restore /opt/tc-manager/server/data.db.before-restor
 bash /tmp/deploy-db-safe.sh deploy-code-only /tmp/new-release
 ```
 
-If no backup returns `ok`, do not deploy code before DB recovery from a known-good backup or `.dump`.
+Notes from real incident pattern:
+- `data.db-wal` and `data.db-shm` can exist and still the main `data.db` be corrupted.
+- If `before-restore*` / `current.*` return `ok` but current `data.db` is malformed, restore one of the `ok` files first.
+
+If no backup returns `ok`, stop deployment and do DB recovery first:
+1. Find latest known-good backup from your backup storage/off-server snapshots.
+2. If you only have SQL export, rebuild a clean DB from `.dump` into a new file.
+3. Run `PRAGMA integrity_check;` on recovered file and only then replace `data.db`.
