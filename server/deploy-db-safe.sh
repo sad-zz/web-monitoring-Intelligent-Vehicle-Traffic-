@@ -60,8 +60,15 @@ scan_backups() {
   for f in "${candidates[@]}"; do
     [ -f "$f" ] || continue
     echo "=== $f ==="
-    if ! sqlite3 "$f" "PRAGMA integrity_check;"; then
-      echo "integrity_check failed to run for: $f" >&2
+    local check_output
+    if ! check_output="$(sqlite3 "$f" "PRAGMA integrity_check;" 2>&1)"; then
+      echo "integrity_check command error for $f: $check_output" >&2
+      echo
+      continue
+    fi
+    echo "$check_output"
+    if [ "$check_output" != "ok" ]; then
+      echo "integrity_check returned non-ok result for $f" >&2
     fi
     echo
   done
@@ -80,8 +87,6 @@ restore_db() {
 
   echo "Restoring healthy DB from: $source_backup"
   cp -a "$source_backup" "$DB_PATH"
-  # Restrictive mode by default because DB may contain sensitive data.
-  chmod 600 "$DB_PATH"
   local svc_user
   svc_user="$(systemctl show -p User --value "$SERVICE_NAME" 2>/dev/null || true)"
   if [ -z "$svc_user" ] || [ "$svc_user" = "root" ]; then
@@ -89,6 +94,8 @@ restore_db() {
   else
     chown "${svc_user}:${svc_user}" "$DB_PATH"
   fi
+  # Restrictive mode by default because DB may contain sensitive data.
+  chmod 600 "$DB_PATH"
 
   echo "Starting ${SERVICE_NAME}..."
   systemctl start "$SERVICE_NAME"

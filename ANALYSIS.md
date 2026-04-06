@@ -323,6 +323,7 @@ When `sqlite3` returns `database disk image is malformed`, recover DB first and 
 bash /tmp/deploy-db-safe.sh scan-backups
 
 # 2) Restore healthy DB candidate
+# Replace YYYY-MM-DD-HHMMSS with timestamp from a healthy file reported in step 1.
 bash /tmp/deploy-db-safe.sh restore /opt/tc-manager/server/data.db.before-restore.YYYY-MM-DD-HHMMSS
 
 # 3) Deploy code only (keeps server/data.db* and server/.env untouched)
