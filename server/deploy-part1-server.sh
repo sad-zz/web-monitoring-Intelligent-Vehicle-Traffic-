@@ -3346,4 +3346,34 @@ process.on("SIGINT", function () { gracefulShutdown("SIGINT"); });
 
 ENDFILE
 
-echo "=== Part 1 done: server files deployed ==="
+# --- Update systemd service to include ExecStartPre (kill stale ports) ---
+echo ">>> Updating tc-manager.service with port cleanup..."
+cat > /etc/systemd/system/tc-manager.service << 'UNIT'
+[Unit]
+Description=TC Manager (Noavaran Jonoob Shargh)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 1; true'
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=10
+TimeoutStopSec=10
+KillMode=mixed
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+
+# --- Restart tc-manager ---
+echo ">>> Restarting tc-manager..."
+systemctl restart tc-manager
+sleep 2
+systemctl status tc-manager --no-pager || true
+
+echo "=== Part 1 done: server files + systemd service deployed ==="
