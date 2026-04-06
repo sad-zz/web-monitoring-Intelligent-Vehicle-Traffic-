@@ -8,7 +8,7 @@
 ```bash
 pkg update -y
 pkg upgrade -y
-pkg install -y openssh rsync
+pkg install -y openssh rsync git
 ```
 
 > اگر `scp` یا `ssh` از قبل در Termux دارید، همین کافی است.
@@ -39,7 +39,9 @@ git clone https://github.com/sad-zz/web-monitoring-Intelligent-Vehicle-Traffic-.
 # اگر قبلاً کلون کرده‌اید (آپدیت):
 # ⚠️ مهم: git pull باید از داخل پوشه‌ی پروژه اجرا شود، نه از ~/tc-deploy
 cd web-monitoring-Intelligent-Vehicle-Traffic-
-git pull origin main
+git pull
+# نکته: از "git pull" بدون آرگومان استفاده کنید (نه git pull origin main)
+# چون شاخه پیش‌فرض ریپو "main" نیست
 # خطای "not a git repository" = داخل پوشه اشتباه هستید؛ دستور بالا را با cd درست کنید
 ```
 
