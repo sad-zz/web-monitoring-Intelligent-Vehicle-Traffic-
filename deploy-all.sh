@@ -3006,8 +3006,14 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         var newP = $("#setting-new-pass").value;
         if (!oldP || !newP) { alert("لطفا هر دو فیلد را پر کنید"); return; }
         api("POST", "/api/auth/change-password", { old_password: oldP, new_password: newP }, function (status, data) {
-            if (status === 200) { alert("رمز عبور تغییر کرد"); $("#setting-old-pass").value = ""; $("#setting-new-pass").value = ""; }
-            else alert((data && data.error) || "خطا");
+            if (status === 200) {
+                alert("رمز عبور تغییر کرد. لطفا دوباره وارد شوید.");
+                $("#setting-old-pass").value = "";
+                $("#setting-new-pass").value = "";
+                loginOverlay.classList.remove("hidden");
+            } else {
+                alert((data && data.error) || "خطا");
+            }
         });
     });
 
@@ -3727,6 +3733,7 @@ app.post("/api/auth/change-password", requireAuth, function (req, res) {
 
     var hash = bcrypt.hashSync(newPass, 10);
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, user.id);
+    req.session.destroy();
     res.json({ success: true });
 });
 

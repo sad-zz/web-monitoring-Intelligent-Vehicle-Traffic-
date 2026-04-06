@@ -116,6 +116,7 @@ app.post("/api/auth/change-password", requireAuth, function (req, res) {
 
     var hash = bcrypt.hashSync(newPass, 10);
     db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(hash, user.id);
+    req.session.destroy();
     res.json({ success: true });
 });
 
