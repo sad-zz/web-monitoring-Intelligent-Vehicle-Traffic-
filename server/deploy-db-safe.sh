@@ -40,16 +40,24 @@ backup_current_db() {
 }
 
 scan_backups() {
+  shopt -s nullglob
   echo "Listing DB candidates..."
   ls -lt "${DB_PATH}"* || true
   echo
   echo "Integrity check for candidates (expect: ok):"
-  for f in "${DB_PATH}".before-restore* "${DB_PATH}".current.* "$DB_PATH"; do
+  local candidates=("${DB_PATH}".before-restore* "${DB_PATH}".current.* "$DB_PATH")
+  if [ "${#candidates[@]}" -eq 0 ]; then
+    echo "No DB candidates found near: $DB_PATH"
+    shopt -u nullglob
+    return 0
+  fi
+  for f in "${candidates[@]}"; do
     [ -f "$f" ] || continue
     echo "=== $f ==="
     sqlite3 "$f" "PRAGMA integrity_check;" || true
     echo
   done
+  shopt -u nullglob
 }
 
 restore_db() {
@@ -65,8 +73,14 @@ restore_db() {
 
   echo "Restoring healthy DB from: $source_backup"
   cp -a "$source_backup" "$DB_PATH"
-  chown root:root "$DB_PATH"
   chmod 640 "$DB_PATH"
+  local svc_user
+  svc_user="$(systemctl show -p User --value "$SERVICE_NAME" 2>/dev/null || true)"
+  if [ -z "$svc_user" ] || [ "$svc_user" = "root" ]; then
+    chown root:root "$DB_PATH"
+  else
+    chown "${svc_user}:${svc_user}" "$DB_PATH"
+  fi
 
   echo "Starting ${SERVICE_NAME}..."
   systemctl start "$SERVICE_NAME"
