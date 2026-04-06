@@ -98,6 +98,7 @@ NGXEOF
 
 ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
+systemctl enable nginx
 nginx -t && systemctl restart nginx
 
 # ---------- Firewall ----------

@@ -6811,7 +6811,8 @@ server {
 ENDNGINX
 ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
 rm -f /etc/nginx/sites-enabled/default
-nginx -t 2>/dev/null && systemctl reload nginx
+systemctl enable nginx
+nginx -t && systemctl restart nginx
 
 echo "[7/7] Starting..."
 systemctl restart tc-manager
