@@ -2769,3 +2769,8 @@ process.on("SIGINT", function () { gracefulShutdown("SIGINT"); });
 ENDFILE
 
 echo "=== Part 1 done: server files deployed ==="
+echo ""
+echo "=== Restarting tc-manager service ==="
+systemctl restart tc-manager
+sleep 2
+systemctl status tc-manager --no-pager || (echo "tc-manager failed to start - check logs with: journalctl -u tc-manager -n 50 --no-pager" && exit 1)
