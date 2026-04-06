@@ -262,13 +262,15 @@ function aggregatePeriod(code, startStr, endStr) {
             "VALUES (?, ?, ?, ?, ?, ?)"
         ).run(code, String(routeIdNum), startStr, endStr, totalVehicles, avgSpeed);
 
-        // Check for existing unsent record with the same route_id + period_start.
+        // Check for existing record (sent OR unsent) with the same route_id + period_start.
         // Multiple devices on the same highway can share one route code; their data
         // must be SUMMED into a single RMTO record to prevent duplicate errors.
+        // Prefer unsent (sent=0) so we merge into a pending record; fall back to the
+        // most recently sent record (sent=1) and reset it to sent=0 for re-send.
         var existingQ5 = db.prepare(
-            "SELECT id, c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
+            "SELECT id, sent, c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
             "sso, so1, so2, so3, so4, so5, oo, esd " +
-            "FROM rmto_queue_5class WHERE route_id = ? AND period_start = ? AND sent = 0 LIMIT 1"
+            "FROM rmto_queue_5class WHERE route_id = ? AND period_start = ? ORDER BY sent ASC LIMIT 1"
         ).get(String(routeIdNum), startStr);
 
         if (existingQ5) {
@@ -283,19 +285,21 @@ function aggregatePeriod(code, startStr, endStr) {
             var newS3 = newC3 > 0 ? Math.round(((existingQ5.c3||0) * (existingQ5.s3||0) + c3 * s3) / newC3) : 0;
             var newS4 = newC4 > 0 ? Math.round(((existingQ5.c4||0) * (existingQ5.s4||0) + c4 * s4) / newC4) : 0;
             var newS5 = newC5 > 0 ? Math.round(((existingQ5.c5||0) * (existingQ5.s5||0) + c5 * s5) / newC5) : 0;
+            // If the existing record was already sent, reset to unsent so the merged data gets re-sent.
+            var resetSent = existingQ5.sent === 1 ? ", sent = 0, retry_count = 0" : "";
             db.prepare(
                 "UPDATE rmto_queue_5class SET " +
                 "c1=?, c2=?, c3=?, c4=?, c5=?, avg_speed=?, " +
                 "s1=?, s2=?, s3=?, s4=?, s5=?, " +
-                "sso=?, so1=?, so2=?, so3=?, so4=?, so5=?, oo=?, esd=? " +
-                "WHERE id=?"
+                "sso=?, so1=?, so2=?, so3=?, so4=?, so5=?, oo=?, esd=?" +
+                resetSent + " WHERE id=?"
             ).run(newC1, newC2, newC3, newC4, newC5, newAvgSpeed,
                 newS1, newS2, newS3, newS4, newS5,
                 (existingQ5.sso||0) + sso, (existingQ5.so1||0) + so1, (existingQ5.so2||0) + so2,
                 (existingQ5.so3||0) + so3, (existingQ5.so4||0) + so4, (existingQ5.so5||0) + so5,
                 (existingQ5.oo||0) + oo, (existingQ5.esd||0) + esd,
                 existingQ5.id);
-            console.log("[Scheduler] MERGED device " + code + lanesLabel + " into existing route " + routeIdNum + " record id=" + existingQ5.id +
+            console.log("[Scheduler] MERGED device " + code + lanesLabel + " into " + (existingQ5.sent ? "SENT(reset)" : "existing") + " route " + routeIdNum + " record id=" + existingQ5.id +
                 " period " + startStr + " (combined total=" + newTotal + " ASP=" + newAvgSpeed + ")");
         } else {
             db.prepare(
@@ -372,8 +376,55 @@ function sendUnsentData(onComplete) {
         console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
 
-    var allRecords = liveRecords.concat(backlogRecords);
-    var pending = allRecords.length;
+    var rawRecords = liveRecords.concat(backlogRecords);
+
+    // --- Merge records sharing the same route_id + period_start ---
+    // A dual-lane device may have each lane registered under the same route
+    // number. Without merging, two records with the same RID + period would be
+    // sent to RMTO, causing a "duplicate" error on the second one.
+    var mergeMap = {};
+    var noRouteRecords = [];
+    rawRecords.forEach(function (r) {
+        if (!r.route_id) { noRouteRecords.push(r); return; }
+        var key = r.route_id + "|" + r.period_start;
+        if (!mergeMap[key]) {
+            mergeMap[key] = { record: JSON.parse(JSON.stringify(r)), sourceIds: [r.id] };
+        } else {
+            var g = mergeMap[key];
+            g.sourceIds.push(r.id);
+            var e = g.record;
+            var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
+            var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            // Weighted average per-class speeds (compute before summing counts)
+            var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
+            var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
+            var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
+            var ns4 = (e.c4||0) + (r.c4||0) > 0 ? Math.round(((e.c4||0) * (e.s4||0) + (r.c4||0) * (r.s4||0)) / ((e.c4||0) + (r.c4||0))) : 0;
+            var ns5 = (e.c5||0) + (r.c5||0) > 0 ? Math.round(((e.c5||0) * (e.s5||0) + (r.c5||0) * (r.s5||0)) / ((e.c5||0) + (r.c5||0))) : 0;
+            var nTotal = eTotal + rTotal;
+            e.avg_speed = nTotal > 0 ? Math.round((eTotal * (e.avg_speed||0) + rTotal * (r.avg_speed||0)) / nTotal) : 0;
+            e.c1 = (e.c1||0) + (r.c1||0);
+            e.c2 = (e.c2||0) + (r.c2||0);
+            e.c3 = (e.c3||0) + (r.c3||0);
+            e.c4 = (e.c4||0) + (r.c4||0);
+            e.c5 = (e.c5||0) + (r.c5||0);
+            e.s1 = ns1; e.s2 = ns2; e.s3 = ns3; e.s4 = ns4; e.s5 = ns5;
+            e.sso = (e.sso||0) + (r.sso||0);
+            e.so1 = (e.so1||0) + (r.so1||0);
+            e.so2 = (e.so2||0) + (r.so2||0);
+            e.so3 = (e.so3||0) + (r.so3||0);
+            e.so4 = (e.so4||0) + (r.so4||0);
+            e.so5 = (e.so5||0) + (r.so5||0);
+            e.oo = (e.oo||0) + (r.oo||0);
+            e.esd = (e.esd||0) + (r.esd||0);
+            e.device_code = e.device_code + "+" + r.device_code;
+            console.log("[Scheduler] SEND-MERGE route " + r.route_id + " period " + r.period_start +
+                ": merged " + g.sourceIds.length + " records (ids=" + g.sourceIds.join(",") + ")");
+        }
+    });
+    var allRecords = Object.keys(mergeMap).map(function (k) { return mergeMap[k]; });
+
+    var pending = allRecords.length + noRouteRecords.length;
     results.total = pending;
 
     if (pending === 0) {
@@ -384,6 +435,20 @@ function sendUnsentData(onComplete) {
     // Send records one-by-one with a 800ms delay between each to avoid
     // triggering flood/DDoS detection on the RMTO firewall.
     var SEND_DELAY_MS = 800;
+
+    // First skip records without route_id
+    noRouteRecords.forEach(function (nr) {
+        console.log("[Scheduler] Skipping Add5 for device " + nr.device_code + " id=" + nr.id + ": no route_id");
+        db.prepare("UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?")
+            .run('{"skipped":"no route_id"}', nr.id);
+        results.total--;
+    });
+
+    if (allRecords.length === 0) {
+        if (onComplete) onComplete(results);
+        return;
+    }
+
     var recordIndex = 0;
 
     function sendNext() {
@@ -391,21 +456,13 @@ function sendUnsentData(onComplete) {
             if (onComplete) onComplete(results);
             return;
         }
-        var row = allRecords[recordIndex++];
+        var entry = allRecords[recordIndex++];
+        var row = entry.record;
+        var sourceIds = entry.sourceIds;
 
-        // Skip records without a valid route_id
-        if (!row.route_id) {
-            console.log("[Scheduler] Skipping Add5 for device " + row.device_code + " id=" + row.id + ": no route_id");
-            db.prepare("UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?")
-                .run('{"skipped":"no route_id"}', row.id);
-            results.total--;
-            setTimeout(sendNext, SEND_DELAY_MS);
-            return;
-        }
-
-        var isLive = liveIds.indexOf(row.id) !== -1;
+        var isLive = sourceIds.some(function (sid) { return liveIds.indexOf(sid) !== -1; });
         rmto.sendAddData5({
-            FID: row.id,
+            FID: sourceIds[0],
             RID: row.route_id,
             ST: row.period_start,
             ET: row.period_end,
@@ -424,19 +481,23 @@ function sendUnsentData(onComplete) {
 
             if (!err && response) {
                 console.log("[Scheduler] Add5 " + (isLive ? "[LIVE]" : "[BACKLOG]") + " response for device " + row.device_code +
+                    " (ids=" + sourceIds.join(",") + ")" +
                     ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL +
                     " DLY=" + response.DLY + " ERR=" + (response.ERR || "none"));
             }
 
-            if (success) {
-                db.prepare(
-                    "UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-                ).run(responseStr, row.id);
-            } else {
-                db.prepare(
-                    "UPDATE rmto_queue_5class SET sent = 0, retry_count = COALESCE(retry_count, 0) + 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-                ).run(responseStr, row.id);
-            }
+            // Mark ALL source records as sent/failed
+            sourceIds.forEach(function (sid) {
+                if (success) {
+                    db.prepare(
+                        "UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                    ).run(responseStr, sid);
+                } else {
+                    db.prepare(
+                        "UPDATE rmto_queue_5class SET sent = 0, retry_count = COALESCE(retry_count, 0) + 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                    ).run(responseStr, sid);
+                }
+            });
 
             db.prepare(
                 "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
