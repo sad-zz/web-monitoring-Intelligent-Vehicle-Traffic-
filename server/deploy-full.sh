@@ -10,8 +10,8 @@
 # ============================================
 set -e
 
-SERVER_IP="5.159.49.246"
-SERVER_USER="root"
+SERVER_IP="${SERVER_IP:-5.159.49.246}"
+SERVER_USER="${SERVER_USER:-root}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo ""
