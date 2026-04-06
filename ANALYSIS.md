@@ -335,5 +335,5 @@ Notes from real incident pattern:
 
 If no backup returns `ok`, stop deployment and do DB recovery first:
 1. Find latest known-good backup from your backup storage/off-server snapshots.
-2. If you only have SQL export, rebuild a clean DB from `.dump` into a new file (`sqlite3 recovered.db < backup.dump.sql`).
+2. If you only have a previously exported SQL dump file (for example `backup.dump.sql` created earlier), rebuild a clean DB into a new file with `sqlite3 recovered.db < backup.dump.sql`.
 3. Run `PRAGMA integrity_check;` on recovered file and only then replace `data.db`.

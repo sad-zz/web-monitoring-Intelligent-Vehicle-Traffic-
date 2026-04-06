@@ -47,8 +47,9 @@ scan_backups() {
   # Expected backup names:
   #   data.db.before-restore.YYYY-MM-DD-HHMMSS
   #   data.db.current.YYYY-MM-DD-HHMMSS
+  #   data.db.emergency.YYYY-MM-DD-HHMMSS
   echo "Integrity check for candidates (expect: ok):"
-  local candidates=("${DB_PATH}".before-restore* "${DB_PATH}".current.* "$DB_PATH")
+  local candidates=("${DB_PATH}".before-restore* "${DB_PATH}".current.* "${DB_PATH}".emergency.* "$DB_PATH")
   if [ "${#candidates[@]}" -eq 0 ]; then
     echo "No DB candidates found near: $DB_PATH"
     shopt -u nullglob
