@@ -14,8 +14,14 @@ process.env.TZ = "Asia/Tehran";
 process.on("uncaughtException", function (err) {
     console.error("[FATAL] Uncaught Exception:", err.message);
     console.error(err.stack);
-    // Let systemd restart us cleanly
-    setTimeout(function () { process.exit(1); }, 1000);
+    // Only exit on truly fatal errors (EADDRINUSE, out of memory, etc.)
+    // For other errors, log and continue to avoid restart loops
+    if (err.code === "EADDRINUSE" || err.code === "ERR_IPC_CHANNEL_CLOSED" ||
+        err.message && err.message.indexOf("Cannot allocate memory") !== -1) {
+        setTimeout(function () { process.exit(1); }, 1000);
+    } else {
+        console.error("[FATAL] Server continuing despite uncaught exception to avoid restart loop");
+    }
 });
 
 process.on("unhandledRejection", function (reason) {
@@ -337,8 +343,13 @@ app.post("/api/server/restart", requireAuth, function (req, res) {
 // ============================================================
 app.post("/api/bale/test", requireAuth, function (req, res) {
     var text = req.body.text || "🔔 تست اطلاع‌رسانی از TC Manager";
-    scheduler.sendBaleNotification(text);
-    res.json({ success: true, message: "پیام ارسال شد (در صورت تنظیم توکن)" });
+    scheduler.sendBaleNotification(text, function (err) {
+        if (err) {
+            res.json({ success: false, message: "خطا در ارسال: " + err.message });
+        } else {
+            res.json({ success: true, message: "پیام با موفقیت ارسال شد" });
+        }
+    });
 });
 
 // ============================================================
@@ -2075,7 +2086,7 @@ function gracefulShutdown(signal) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
-    scheduler.stop && scheduler.stop();
+    scheduler.stop();
 
     // Close all active TCP device connections first
     Object.keys(connectedDevices).forEach(function (key) {

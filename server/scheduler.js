@@ -17,14 +17,19 @@ var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 5;
  * Send a notification message via Bale messenger bot.
  * Settings: bale_bot_token, bale_chat_id (stored in DB settings table)
  */
-function sendBaleNotification(text) {
+function sendBaleNotification(text, callback) {
     try {
         var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('bale_bot_token','bale_chat_id')").all();
         var s = {};
         rows.forEach(function (r) { s[r.key] = r.value; });
         var token = s.bale_bot_token || "";
         var chatId = s.bale_chat_id || "";
-        if (!token || !chatId) return; // Bale not configured
+        if (!token || !chatId) {
+            var msg = !token ? "توکن بات بله تنظیم نشده" : "شناسه چت بله تنظیم نشده";
+            console.warn("[Bale] " + msg);
+            if (callback) callback(new Error(msg));
+            return;
+        }
         var body = JSON.stringify({ chat_id: chatId, text: text });
         var options = {
             hostname: "tapi.bale.ai",
@@ -37,16 +42,31 @@ function sendBaleNotification(text) {
             var data = "";
             res.on("data", function (c) { data += c; });
             res.on("end", function () {
-                if (res.statusCode !== 200) console.error("[Bale] sendMessage failed: " + res.statusCode + " " + data.substring(0, 200));
-                else console.log("[Bale] Notification sent: " + text.substring(0, 80));
+                if (res.statusCode !== 200) {
+                    var errMsg = "Bale API error: " + res.statusCode + " " + data.substring(0, 200);
+                    console.error("[Bale] sendMessage failed: " + errMsg);
+                    if (callback) callback(new Error(errMsg));
+                } else {
+                    console.log("[Bale] Notification sent: " + text.substring(0, 80));
+                    if (callback) callback(null);
+                }
             });
         });
-        req.on("error", function (e) { console.error("[Bale] Request error:", e.message); });
-        req.setTimeout(10000, function () { req.destroy(); console.error("[Bale] Notification request timed out"); });
+        req.on("error", function (e) {
+            console.error("[Bale] Request error:", e.message);
+            if (callback) callback(e);
+        });
+        req.setTimeout(10000, function () {
+            req.destroy();
+            var errMsg = "Bale notification request timed out";
+            console.error("[Bale] " + errMsg);
+            if (callback) callback(new Error(errMsg));
+        });
         req.write(body);
         req.end();
     } catch (e) {
         console.error("[Bale] sendBaleNotification error:", e.message);
+        if (callback) callback(e);
     }
 }
 
@@ -572,25 +592,36 @@ function checkOfflineDevices() {
     });
 }
 
+var scheduledTasks = [];
+
 function start() {
     // Run every INTERVAL minutes
     var cronExpr = "*/" + INTERVAL + " * * * *";
     console.log("[Scheduler] Starting with cron:", cronExpr);
 
-    cron.schedule(cronExpr, function () {
+    scheduledTasks.push(cron.schedule(cronExpr, function () {
         try { checkOfflineDevices(); } catch (e) { console.error("[Scheduler] checkOfflineDevices error:", e.message); }
         try { aggregateAndSend(); } catch (e) { console.error("[Scheduler] aggregateAndSend error:", e.message, e.stack); }
-    });
+    }));
 
     // Also allow manual retry of unsent data every hour
-    cron.schedule("5 * * * *", function () {
+    scheduledTasks.push(cron.schedule("5 * * * *", function () {
         console.log("[Scheduler] Retry unsent data...");
         try { sendUnsentData(); } catch (e) { console.error("[Scheduler] sendUnsentData error:", e.message, e.stack); }
+    }));
+}
+
+function stop() {
+    console.log("[Scheduler] Stopping " + scheduledTasks.length + " scheduled tasks...");
+    scheduledTasks.forEach(function (task) {
+        try { task.stop(); } catch (e) { /* ignore */ }
     });
+    scheduledTasks = [];
 }
 
 module.exports = {
     start: start,
+    stop: stop,
     aggregateAndSend: aggregateAndSend,
     aggregatePeriod: aggregatePeriod,
     sendUnsentData: sendUnsentData,
