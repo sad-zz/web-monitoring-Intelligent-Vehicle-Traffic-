@@ -72,7 +72,21 @@ ssh root@SERVER_IP 'systemctl restart tc-manager && systemctl status tc-manager 
 
 ## 3) آپدیت کامل (فقط وقتی سرور پیش‌نیازها را دارد)
 
-دستور کامل:
+### روش ساده (از Termux):
+
+```bash
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+git pull
+bash server/deploy-full.sh
+```
+
+این اسکریپت خودش فایل‌ها را به سرور کپی و اجرا می‌کند (از طریق SSH).
+با `--clean` می‌توانید wipe کامل انجام دهید:
+```bash
+bash server/deploy-full.sh --clean
+```
+
+### روش deploy-all.sh (یکپارچه):
 
 ```bash
 scp deploy-all.sh root@SERVER_IP:/tmp/
