@@ -18,12 +18,14 @@ echo "[4/5] Running css/js deploy (part4)..."
 bash /tmp/deploy-part4-css-js.sh
 
 echo "[5/5] Verifying services..."
-systemctl is-active --quiet tc-manager && echo "tc-manager: active" || (echo "tc-manager: inactive" && exit 1)
-systemctl is-active --quiet nginx && echo "nginx: active" || (echo "nginx: inactive" && exit 1)
+systemctl is-active --quiet tc-manager && echo "tc-manager: active" || (echo "tc-manager: inactive - check logs with: journalctl -u tc-manager -n 50 --no-pager" && exit 1)
+systemctl is-active --quiet nginx && echo "nginx: active" || (echo "nginx: inactive - check logs with: journalctl -u nginx -n 50 --no-pager" && exit 1)
 
 if [ -f "$ROOT_DIR/server/.env" ]; then
   echo "Current SEND_INTERVAL_MINUTES:"
-  grep -E '^SEND_INTERVAL_MINUTES=' "$ROOT_DIR/server/.env" || true
+  if ! grep -E '^SEND_INTERVAL_MINUTES=' "$ROOT_DIR/server/.env"; then
+    echo "SEND_INTERVAL_MINUTES not found in $ROOT_DIR/server/.env"
+  fi
 fi
 
 echo "=== Full deploy done ==="
