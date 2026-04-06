@@ -37,7 +37,7 @@ RMTO_ENDPOINT=http://otf.rmto.ir/Companies/Companies.asmx
 RMTO_COMPANY_CODE=58
 RMTO_USERNAME=NOGSH
 RMTO_PASSWORD=N*(gH5!u3
-SEND_INTERVAL_MINUTES=15
+SEND_INTERVAL_MINUTES=5
 ENVEOF
 
 echo ">>> Files created. Now running setup..."
