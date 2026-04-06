@@ -5691,7 +5691,6 @@ cat > "$APP_DIR/server/package.json" << 'ENDOFFILE_SERVER_PACKAGE_JSON'
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "better-sqlite3": "^9.4.3",
-    "soap": "^1.0.0",
     "node-cron": "^3.0.3",
     "dotenv": "^16.4.1",
     "express-session": "^1.17.3",

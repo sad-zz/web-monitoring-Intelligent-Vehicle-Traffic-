@@ -7,6 +7,40 @@ echo "=== Deploying server files ==="
 
 mkdir -p server css js data
 
+# --- server/package.json ---
+cat > server/package.json << 'ENDFILE'
+{
+  "name": "tc-manager-server",
+  "version": "1.0.0",
+  "description": "TC Manager - Backend server for traffic device data collection and RMTO integration",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^9.4.3",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.1",
+    "express-session": "^1.17.3",
+    "multer": "^1.4.5-lts.1",
+    "bcryptjs": "^2.4.3"
+  }
+}
+ENDFILE
+
+# --- npm install (only if node_modules missing or package.json changed) ---
+if [ ! -d "server/node_modules/better-sqlite3" ] || [ ! -d "server/node_modules/express-session" ] || [ ! -d "server/node_modules/bcryptjs" ]; then
+    echo ">>> Missing dependencies detected, running npm install..."
+    cd server
+    npm install --production 2>&1 | tail -5
+    cd ..
+else
+    echo ">>> node_modules OK, skipping npm install"
+fi
+
 # --- server/db.js ---
 cat > server/db.js << 'ENDFILE'
 /**
