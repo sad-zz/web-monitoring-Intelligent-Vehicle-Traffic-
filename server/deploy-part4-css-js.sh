@@ -996,6 +996,13 @@ cat > js/app.js << 'ENDFILE'
         xhr.onload = function () {
             var data = null;
             try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+            // Global 401 handler: session expired → show login overlay
+            if (xhr.status === 401 && url.indexOf("/api/auth/") === -1) {
+                serverConnected = true;
+                updateConnectionStatus(true);
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             callback(xhr.status, data);
         };
         xhr.onerror = function () { callback(0, null); };
@@ -1400,6 +1407,7 @@ cat > js/app.js << 'ENDFILE'
 
     // Auto-refresh live monitor every 3 seconds
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var autoCheck = $("#live-auto-refresh");
         var activeView = document.querySelector(".view.active");
         if (autoCheck && autoCheck.checked && activeView && activeView.id === "view-dashboard") {
@@ -2191,6 +2199,12 @@ cat > js/app.js << 'ENDFILE'
         xhr.onload = function () {
             var r;
             try { r = JSON.parse(xhr.responseText); } catch (e) { r = {}; }
+            if (xhr.status === 401) {
+                statusEl.textContent = "نشست منقضی شده. لطفا دوباره وارد شوید";
+                statusEl.style.color = "#ef4444";
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             if (xhr.status === 200) {
                 statusEl.textContent = r.message || "بازیابی انجام شد";
                 statusEl.style.color = "#22c55e";
@@ -2372,6 +2386,7 @@ cat > js/app.js << 'ENDFILE'
     // Auto-refresh every 30s
     // ============================================================
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var activeView = document.querySelector(".view.active");
         if (!activeView) return;
         var id = activeView.id;
@@ -2721,6 +2736,7 @@ cat > js/app.js << 'ENDFILE'
 
         // Auto-refresh jobs table every 3 seconds while on test-sender view
         setInterval(function () {
+            if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
             var v = document.querySelector(".view.active");
             if (v && v.id === "view-test-sender") refreshArchiveJobs();
         }, 3000);
@@ -2878,6 +2894,7 @@ cat > js/app.js << 'ENDFILE'
     // Auto-refresh every 30s
     // ============================================================
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var activeView = document.querySelector(".view.active");
         if (!activeView) return;
         var id = activeView.id;
