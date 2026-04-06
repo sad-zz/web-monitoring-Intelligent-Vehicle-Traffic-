@@ -78,7 +78,7 @@ restore_db() {
 
   echo "Restoring healthy DB from: $source_backup"
   cp -a "$source_backup" "$DB_PATH"
-  chmod 640 "$DB_PATH"
+  chmod 600 "$DB_PATH"
   local svc_user
   svc_user="$(systemctl show -p User --value "$SERVICE_NAME" 2>/dev/null || true)"
   if [ -z "$svc_user" ] || [ "$svc_user" = "root" ]; then

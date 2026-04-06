@@ -335,5 +335,6 @@ Notes from real incident pattern:
 
 If no backup returns `ok`, stop deployment and do DB recovery first:
 1. Find latest known-good backup from your backup storage/off-server snapshots.
+   - To prepare a SQL export ahead of incidents: `sqlite3 /opt/tc-manager/server/data.db .dump > backup.dump.sql`
 2. If you only have a previously exported SQL dump file (for example `backup.dump.sql` created earlier), rebuild a clean DB into a new file with `rm -f recovered.db && sqlite3 recovered.db < backup.dump.sql`.
 3. Run `PRAGMA integrity_check;` on recovered file and only then replace `data.db`.
