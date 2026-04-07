@@ -69,9 +69,14 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
 ExecStart=/usr/bin/node index.js
-Restart=always
-RestartSec=10
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=10
+KillMode=mixed
+StartLimitBurst=10
+StartLimitIntervalSec=300
 Environment=NODE_ENV=production
 
 [Install]
@@ -86,6 +91,7 @@ cat > /etc/nginx/sites-available/tc-manager << 'NGXEOF'
 server {
     listen 80;
     server_name _;
+    client_max_body_size 500M;
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -98,6 +104,7 @@ NGXEOF
 
 ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
+systemctl enable nginx
 nginx -t && systemctl restart nginx
 
 # ---------- Firewall ----------

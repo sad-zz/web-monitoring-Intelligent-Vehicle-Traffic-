@@ -7,125 +7,952 @@ echo "=== Deploying css/style.css ==="
 mkdir -p css js
 
 cat > css/style.css << 'ENDFILE'
+/* === Reset === */
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-:root { --sidebar-w: 240px; --sidebar-bg: #1e293b; --sidebar-active: #3b82f6; --topbar-h: 56px; --footer-h: 40px; --bg: #f1f5f9; --white: #ffffff; --border: #e2e8f0; --text: #334155; --text-light: #94a3b8; --primary: #3b82f6; --primary-dark: #2563eb; --success: #22c55e; --warning: #f59e0b; --error: #ef4444; --radius: 8px; --shadow: 0 1px 3px rgba(0,0,0,.08); --shadow-md: 0 4px 12px rgba(0,0,0,.1); }
-body { font-family: Tahoma, 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); direction: rtl; display: flex; min-height: 100vh; }
-.sidebar { width: var(--sidebar-w); background: var(--sidebar-bg); color: #cbd5e1; display: flex; flex-direction: column; position: fixed; top: 0; right: 0; bottom: 0; z-index: 100; transition: transform .25s; }
-.sidebar-header { padding: 20px 16px; border-bottom: 1px solid rgba(255,255,255,.08); }
-.sidebar-logo { display: flex; align-items: center; gap: 12px; }
-.logo-icon { width: 42px; height: 42px; background: var(--primary); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: white; letter-spacing: -1px; }
+
+:root {
+    --sidebar-w: 240px;
+    --sidebar-bg: #1e293b;
+    --sidebar-active: #3b82f6;
+    --topbar-h: 56px;
+    --footer-h: 40px;
+    --bg: #f1f5f9;
+    --white: #ffffff;
+    --border: #e2e8f0;
+    --text: #334155;
+    --text-light: #94a3b8;
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,.08);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.1);
+}
+
+body {
+    font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    direction: rtl;
+    display: flex;
+    min-height: 100vh;
+}
+
+/* === Sidebar === */
+.sidebar {
+    width: var(--sidebar-w);
+    background: var(--sidebar-bg);
+    color: #cbd5e1;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    transition: transform .25s;
+}
+
+.sidebar-header {
+    padding: 20px 16px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-icon {
+    width: 42px;
+    height: 42px;
+    background: var(--primary);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 16px;
+    color: white;
+    letter-spacing: -1px;
+}
+
 .logo-text { display: flex; flex-direction: column; }
 .logo-title { font-size: 18px; font-weight: 700; color: white; }
 .logo-sub { font-size: 11px; color: #64748b; }
-.sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: none; background: none; border-radius: var(--radius); color: #94a3b8; font-size: 14px; cursor: pointer; text-align: right; width: 100%; transition: all .15s; font-family: inherit; }
+
+.sidebar-nav {
+    flex: 1;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border: none;
+    background: none;
+    border-radius: var(--radius);
+    color: #94a3b8;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: right;
+    width: 100%;
+    transition: all .15s;
+    font-family: inherit;
+}
+
 .nav-item:hover { background: rgba(255,255,255,.06); color: #e2e8f0; }
-.nav-item.active { background: var(--sidebar-active); color: white; }
-.nav-icon { width: 20px; height: 20px; fill: currentColor; flex-shrink: 0; }
-.sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,.08); }
-.sidebar-user { display: flex; align-items: center; gap: 10px; }
-.user-avatar { width: 36px; height: 36px; background: #475569; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; }
+
+.nav-item.active {
+    background: var(--sidebar-active);
+    color: white;
+}
+
+.nav-icon {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+    flex-shrink: 0;
+}
+
+.sidebar-footer {
+    padding: 16px;
+    border-top: 1px solid rgba(255,255,255,.08);
+}
+
+.sidebar-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user-avatar {
+    width: 36px;
+    height: 36px;
+    background: #475569;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: white;
+}
+
 .user-info { display: flex; flex-direction: column; }
 .user-name { font-size: 13px; color: #e2e8f0; }
 .user-role { font-size: 11px; color: #64748b; }
-.main-wrapper { margin-right: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
-.topbar { height: var(--topbar-h); background: var(--white); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; gap: 16px; position: sticky; top: 0; z-index: 50; }
-.topbar-toggle { display: none; background: none; border: none; cursor: pointer; fill: var(--text); padding: 4px; }
-.topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
-.topbar-left { margin-right: auto; display: flex; align-items: center; gap: 12px; }
-.topbar-time { font-size: 13px; color: var(--text-light); direction: ltr; }
-.topbar-badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; }
-.topbar-badge.online { background: rgba(34,197,94,.12); color: var(--success); }
-.content { flex: 1; padding: 24px; }
+
+/* === Main Wrapper === */
+.main-wrapper {
+    margin-right: var(--sidebar-w);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* === Topbar === */
+.topbar {
+    height: var(--topbar-h);
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+.topbar-toggle {
+    display: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    fill: var(--text);
+    padding: 4px;
+}
+
+.topbar-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.topbar-left {
+    margin-right: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.topbar-time {
+    font-size: 13px;
+    color: var(--text-light);
+    direction: ltr;
+}
+
+.topbar-badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+}
+
+.topbar-badge.online {
+    background: rgba(34,197,94,.12);
+    color: var(--success);
+}
+
+/* === Content === */
+.content {
+    flex: 1;
+    padding: 24px;
+}
+
 .view { display: none; }
 .view.active { display: block; }
-.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-.stat-card { background: var(--white); border-radius: var(--radius); padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: var(--shadow); }
-.stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+
+/* === Stats Row === */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: var(--shadow);
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .stat-icon svg { width: 24px; height: 24px; fill: white; }
 .stat-icon.blue { background: var(--primary); }
 .stat-icon.green { background: var(--success); }
 .stat-icon.orange { background: var(--warning); }
 .stat-icon.red { background: var(--error); }
+
 .stat-body { display: flex; flex-direction: column; }
-.stat-value { font-size: 26px; font-weight: 800; color: var(--text); direction: ltr; text-align: right; }
-.stat-label { font-size: 12px; color: var(--text-light); margin-top: 2px; }
-.panel { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-.panel-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 12px; }
-.panel-title { font-size: 15px; font-weight: 700; color: var(--text); }
-.panel-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.panel-body { padding: 20px; }
-.export-btns { display: flex; gap: 0; }
-.export-btn { padding: 6px 14px; border: 1px solid var(--border); background: var(--white); font-size: 12px; cursor: pointer; color: var(--text); font-family: inherit; transition: background .15s; }
+
+.stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text);
+    direction: ltr;
+    text-align: right;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+
+/* === Panel === */
+.panel {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.panel-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.panel-tools {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.panel-body {
+    padding: 20px;
+}
+
+/* === Export Buttons === */
+.export-btns {
+    display: flex;
+    gap: 0;
+}
+
+.export-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text);
+    font-family: inherit;
+    transition: background .15s;
+}
+
 .export-btn:first-child { border-radius: 0 var(--radius) var(--radius) 0; }
 .export-btn:last-child { border-radius: var(--radius) 0 0 var(--radius); }
 .export-btn:not(:last-child) { border-left: none; }
-.export-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
-.search-box { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-light); }
-.search-input { padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; width: 180px; font-family: inherit; direction: rtl; }
-.search-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+
+.export-btn:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+/* === Search Box === */
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-light);
+}
+
+.search-input {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 13px;
+    width: 180px;
+    font-family: inherit;
+    direction: rtl;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+
+/* === Data Table === */
 .table-wrapper { overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
 .data-table thead { background: #f8fafc; }
-.data-table th { text-align: right; padding: 12px 16px; font-weight: 600; color: var(--text-light); font-size: 12px; border-bottom: 2px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+
+.data-table th {
+    text-align: right;
+    padding: 12px 16px;
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 12px;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
 .data-table th:hover { color: var(--primary); }
+
 .data-table th.sort-asc::after { content: " \25B2"; font-size: 10px; }
 .data-table th.sort-desc::after { content: " \25BC"; font-size: 10px; }
-.data-table td { padding: 11px 16px; border-bottom: 1px solid #f1f5f9; color: var(--text); }
+
+.data-table td {
+    padding: 11px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    color: var(--text);
+}
+
 .data-table tbody tr:hover { background: #f8fafc; }
+
 .data-table tbody tr:nth-child(even) { background: #fafbfc; }
 .data-table tbody tr:nth-child(even):hover { background: #f1f5f9; }
-.status-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; }
+
+/* === Status Badges === */
+.status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
 .status-badge.online { background: rgba(34,197,94,.1); color: var(--success); }
 .status-badge.offline { background: rgba(148,163,184,.15); color: var(--text-light); }
 .status-badge.warning { background: rgba(245,158,11,.1); color: var(--warning); }
 .status-badge.error { background: rgba(239,68,68,.1); color: var(--error); }
-.type-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: #f1f5f9; color: #475569; }
-.table-footer { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-light); }
-.pagination { display: flex; gap: 4px; }
-.page-btn { min-width: 32px; height: 32px; border: 1px solid var(--border); background: var(--white); border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--text); font-family: inherit; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+
+/* === Device Card Grid (Dashboard) === */
+.device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+/* New v2 device card layout (image-style) */
+.device-card-v2 {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.dcv2-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.dcv2-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--primary);
+}
+
+.dcv2-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.dcv2-code {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.dcv2-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.dcv2-label {
+    color: var(--text-light);
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+.dcv2-val {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.dcv2-val.ltr {
+    direction: ltr;
+    text-align: left;
+    font-family: monospace;
+    font-size: 10.5px;
+}
+
+.dcv2-status {
+    font-weight: 700;
+    font-size: 11px;
+}
+
+/* Filter bar above device grid */
+.device-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.dfb-btn {
+    padding: 3px 12px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--white);
+    color: var(--text-light);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.dfb-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.dfb-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.dfb-count {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-right: auto;
+}
+
+.device-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: box-shadow 0.15s, transform 0.1s;
+    border-right: 3px solid var(--border);
+    cursor: default;
+}
+
+.device-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.device-card.online  { border-right-color: var(--success); }
+.device-card.offline { border-right-color: var(--text-light); }
+.device-card.warning { border-right-color: var(--warning); }
+.device-card.error   { border-right-color: var(--error); }
+
+.device-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.device-card-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.device-card-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--primary);
+}
+
+.device-card-code {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-name {
+    font-size: 11px;
+    color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.device-card-time {
+    font-size: 11px;
+    color: var(--text-light);
+    direction: ltr;
+    text-align: left;
+}
+
+.rmto-error-row { background: rgba(239,68,68,.04); }
+.rmto-error-row:hover { background: rgba(239,68,68,.08); }
+.rmto-log-row { cursor: default; }
+
+.type-badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #475569;
+}
+
+/* === Table Footer === */
+.table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-light);
+}
+
+.pagination {
+    display: flex;
+    gap: 4px;
+}
+
+.page-btn {
+    min-width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    background: var(--white);
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text);
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .15s;
+}
+
 .page-btn:hover { border-color: var(--primary); color: var(--primary); }
-.page-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
-.page-btn:disabled { opacity: .4; cursor: not-allowed; }
-.btn { padding: 8px 18px; border: none; border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s; white-space: nowrap; }
+
+.page-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.page-btn:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+
+/* === Buttons === */
+.btn {
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s;
+    white-space: nowrap;
+}
+
 .btn-primary { background: var(--primary); color: white; }
 .btn-primary:hover { background: var(--primary-dark); }
 .btn-secondary { background: #e2e8f0; color: var(--text); }
 .btn-secondary:hover { background: #cbd5e1; }
 .btn-danger { background: var(--error); color: white; }
 .btn-danger:hover { background: #dc2626; }
+
 .btn-sm { padding: 5px 10px; font-size: 12px; }
+
 .action-btns { display: flex; gap: 6px; }
-.form-group { margin-bottom: 16px; }
-.form-group > label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 6px; }
-.form-group input[type="text"], .form-group input[type="number"], .form-group input[type="date"], .form-group select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; font-family: inherit; direction: rtl; background: var(--white); }
-.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
-.toggle-label { display: flex !important; align-items: center; gap: 10px; cursor: pointer; font-weight: 400 !important; }
+
+/* === Forms === */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group > label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 6px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="number"],
+.form-group input[type="date"],
+.form-group select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: inherit;
+    direction: rtl;
+    background: var(--white);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.12);
+}
+
+.toggle-label {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: 400 !important;
+}
+
 .toggle-label input { accent-color: var(--primary); }
-.report-filters { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; background: var(--white); padding: 16px 20px; border-radius: var(--radius); box-shadow: var(--shadow); }
-.filter-group { display: flex; flex-direction: column; gap: 4px; }
-.filter-group label { font-size: 12px; font-weight: 600; color: #475569; }
-.filter-group select, .filter-group input { padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; font-family: inherit; min-width: 160px; }
-.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
-.about-info p { margin-bottom: 8px; font-size: 13px; color: #475569; line-height: 1.8; }
-.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; align-items: center; justify-content: center; }
+
+/* === Report Filters === */
+.report-filters {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    background: var(--white);
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.filter-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.filter-group select,
+.filter-group input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: inherit;
+    min-width: 160px;
+}
+
+/* === Settings === */
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+}
+
+.about-info p {
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.8;
+}
+
+/* === Modal === */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+}
+
 .modal-overlay.active { display: flex; }
-.modal { background: var(--white); border-radius: 12px; width: 92%; max-width: 520px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); }
+
+.modal {
+    background: var(--white);
+    border-radius: 12px;
+    width: 92%;
+    max-width: 520px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
 .modal-header h3 { font-size: 16px; font-weight: 700; }
-.modal-close { background: none; border: none; font-size: 22px; color: var(--text-light); cursor: pointer; line-height: 1; }
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 22px;
+    color: var(--text-light);
+    cursor: pointer;
+    line-height: 1;
+}
+
 .modal-close:hover { color: var(--text); }
+
 .modal-body { padding: 24px; }
-.modal-footer { display: flex; justify-content: flex-start; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--border); }
-.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+}
+
+/* === Detail Grid in Modal === */
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
 .detail-item { display: flex; flex-direction: column; gap: 4px; }
-.detail-label { font-size: 11px; color: var(--text-light); letter-spacing: .3px; }
-.detail-value { font-size: 14px; font-weight: 600; color: var(--text); }
-.footer { height: var(--footer-h); background: var(--white); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; font-size: 12px; color: var(--text-light); }
-.footer-status { display: inline-flex; align-items: center; gap: 6px; }
-.footer-status::before { content: ""; width: 7px; height: 7px; background: var(--success); border-radius: 50%; }
-@media (max-width: 1024px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 768px) { .sidebar { transform: translateX(100%); } .sidebar.open { transform: translateX(0); } .main-wrapper { margin-right: 0; } .topbar-toggle { display: block; } .stats-row { grid-template-columns: 1fr; } .panel-header { flex-direction: column; align-items: flex-start; } .settings-grid { grid-template-columns: 1fr; } .detail-grid { grid-template-columns: 1fr; } .report-filters { flex-direction: column; align-items: stretch; } }
+
+.detail-label {
+    font-size: 11px;
+    color: var(--text-light);
+    letter-spacing: .3px;
+}
+
+.detail-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* === Footer === */
+.footer {
+    height: var(--footer-h);
+    background: var(--white);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.footer-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.footer-status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    background: var(--success);
+    border-radius: 50%;
+}
+
+/* === Responsive === */
+@media (max-width: 1024px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+    .sidebar { transform: translateX(100%); }
+    .sidebar.open { transform: translateX(0); }
+
+    .main-wrapper { margin-right: 0; }
+
+    .topbar-toggle { display: block; }
+
+    .stats-row { grid-template-columns: 1fr; }
+
+    .panel-header { flex-direction: column; align-items: flex-start; }
+
+    .settings-grid { grid-template-columns: 1fr; }
+
+    .detail-grid { grid-template-columns: 1fr; }
+
+    .report-filters { flex-direction: column; align-items: stretch; }
+}
+
+/* === Login Page === */
+.login-overlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-overlay.hidden { display: none; }
+
+.login-box {
+    background: var(--white);
+    border-radius: 16px;
+    padding: 40px 36px;
+    width: 380px;
+    max-width: 92%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+
+.login-logo {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.login-logo h2 {
+    font-size: 22px;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.login-logo p {
+    font-size: 13px;
+    color: var(--text-light);
+}
+
 ENDFILE
 
 echo "=== Deploying js/app.js ==="
@@ -169,6 +996,13 @@ cat > js/app.js << 'ENDFILE'
         xhr.onload = function () {
             var data = null;
             try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+            // Global 401 handler: session expired → show login overlay
+            if (xhr.status === 401 && url.indexOf("/api/auth/") === -1) {
+                serverConnected = true;
+                updateConnectionStatus(true);
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             callback(xhr.status, data);
         };
         xhr.onerror = function () { callback(0, null); };
@@ -178,6 +1012,25 @@ cat > js/app.js << 'ENDFILE'
     var TYPE_LABELS = { counter: "ترددشمار", sensor: "سنسور", loop: "حلقه القایی", radar: "رادار" };
     var STATUS_LABELS = { online: "آنلاین", offline: "آفلاین", warning: "هشدار", error: "خطا" };
 
+    var ERROR_BITS = {
+        1:   'MMC_ERR - کارت حافظه',
+        2:   'LP1_ERR - لوپ ۱',
+        4:   'LP2_ERR - لوپ ۲',
+        8:   'LP3_ERR - لوپ ۳',
+        16:  'LP4_ERR - لوپ ۴',
+        32:  'VMN_ERR - ولتاژ شبانه',
+        64:  'SOL_ERR - پنل خورشیدی',
+        128: 'LBT_ERR - باتری ضعیف',
+        256: 'L1D_ERR - جهت لاین ۱',
+        512: 'L2D_ERR - جهت لاین ۲'
+    };
+    function decodeErrorByte(code) {
+        if (!code) return [];
+        return Object.keys(ERROR_BITS).filter(function(bit) {
+            return (code & parseInt(bit, 10)) !== 0;
+        }).map(function(bit) { return ERROR_BITS[bit]; });
+    }
+
     var VIEW_TITLES = {
         dashboard: "داشبورد",
         devices: "دستگاه‌ها",
@@ -185,6 +1038,7 @@ cat > js/app.js << 'ENDFILE'
         rmto: "ارسال به سامانه",
         mehvar: "محورها",
         "test-sender": "ارسال تست",
+        history: "تاریخچه",
         settings: "تنظیمات"
     };
 
@@ -315,7 +1169,12 @@ cat > js/app.js << 'ENDFILE'
         else if (view === "rmto") loadRMTO();
         else if (view === "mehvar") loadMehvar();
         else if (view === "test-sender") initTestSender();
+        else if (view === "history") loadHistory(1);
         else if (view === "settings") loadSettings();
+
+        // Auto-refresh server time only on settings page
+        if (view === "settings") startServerTimeRefresh();
+        else stopServerTimeRefresh();
     }
 
     // Sidebar toggle (mobile)
@@ -349,32 +1208,88 @@ cat > js/app.js << 'ENDFILE'
         });
 
         api("GET", "/api/devices", null, function (status, data) {
-            var tbody = $("#dashboard-table-body");
-            if (status !== 200 || !data || !data.length) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">دستگاهی ثبت نشده است</td></tr>';
+            var grid = $("#device-grid");
+            if (!grid) return;
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
+                grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
+                updateDeviceFilterCount(0);
                 return;
             }
-            tbody.innerHTML = data.map(function (d) {
-                var st = d.status || "offline";
-                return "<tr>" +
-                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
-                    "<td>" + escapeHtml(d.name) + "</td>" +
-                    '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
-                    '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
-                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
-                    "</tr>";
-            }).join("");
+
+            var VALID_STATUSES = ["online", "offline", "warning", "error"];
+            var allCards = data.map(function (d) {
+                var st = (d.status && VALID_STATUSES.indexOf(d.status) !== -1) ? d.status : "offline";
+                var statusLabel = escapeHtml(STATUS_LABELS[st] || st);
+                var code = escapeHtml(d.device_code || "");
+                var name = escapeHtml(d.name || d.device_code || "");
+                var route = escapeHtml(d.route1 || d.route || "");
+                var lastSeen = escapeHtml(formatTime(d.last_seen));
+                var dotColor = { online: "#22c55e", offline: "#94a3b8", warning: "#f59e0b", error: "#ef4444" }[st] || "#94a3b8";
+                var cardHtml =
+                    '<div class="device-card device-card-v2 ' + st + '" data-status="' + st + '">' +
+                        '<div class="dcv2-icon">' +
+                            '<svg viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14zm-5 2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-3V7h2v11h-2z"/></svg>' +
+                        '</div>' +
+                        '<div class="dcv2-body">' +
+                            '<div class="dcv2-code">' + (code || name) + '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">آخرین داده:</span>' +
+                                '<span class="dcv2-val ltr">' + lastSeen + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">وضعیت:</span>' +
+                                '<span class="dcv2-status" style="color:' + dotColor + '">&#9679; ' + statusLabel + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">محور:</span>' +
+                                '<span class="dcv2-val">' + (route || name || '-') + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                return { html: cardHtml, status: st };
+            });
+
+            var activeFilter = ($("#device-filter-bar .dfb-btn.active") || {}).dataset && $("#device-filter-bar .dfb-btn.active").dataset.filter || "all";
+            renderDeviceCards(grid, allCards, activeFilter);
+
+            var filterBar = $("#device-filter-bar");
+            if (filterBar) {
+                filterBar.querySelectorAll(".dfb-btn").forEach(function (btn) {
+                    btn.onclick = function () {
+                        filterBar.querySelectorAll(".dfb-btn").forEach(function (b) { b.classList.remove("active"); });
+                        btn.classList.add("active");
+                        renderDeviceCards(grid, allCards, btn.dataset.filter || "all");
+                    };
+                });
+            }
         });
 
         loadTcpConnected();
         loadLive();
     }
 
+    function renderDeviceCards(grid, allCards, filter) {
+        var visible = filter === "all" ? allCards : allCards.filter(function (c) { return c.status === filter; });
+        if (!visible.length) {
+            grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی یافت نشد</div>';
+        } else {
+            grid.innerHTML = visible.map(function (c) { return c.html; }).join("");
+        }
+        updateDeviceFilterCount(visible.length);
+    }
+
+    function updateDeviceFilterCount(n) {
+        var el = $("#device-filter-count");
+        if (el) el.textContent = n + " دستگاه";
+    }
+
     function loadTcpConnected() {
         api("GET", "/api/tcp/connected", null, function (status, data) {
             var tbody = $("#tcp-table-body");
             if (!tbody) return;
-            if (status !== 200 || !data || !Object.keys(data).length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !Object.keys(data).length) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8">دستگاهی متصل نیست</td></tr>';
                 return;
             }
@@ -494,6 +1409,7 @@ cat > js/app.js << 'ENDFILE'
 
     // Auto-refresh live monitor every 3 seconds
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var autoCheck = $("#live-auto-refresh");
         var activeView = document.querySelector(".view.active");
         if (autoCheck && autoCheck.checked && activeView && activeView.id === "view-dashboard") {
@@ -534,7 +1450,7 @@ cat > js/app.js << 'ENDFILE'
 
         var tbody = $("#devices-table-body");
         if (!paged.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
         } else {
             tbody.innerHTML = paged.map(function (d, i) {
                 var st = d.status || "offline";
@@ -542,6 +1458,11 @@ cat > js/app.js << 'ENDFILE'
                 var r2 = d.route2 || "";
                 var r1Name = getMehvarName(r1);
                 var r2Name = getMehvarName(r2);
+                var errCode = d.last_error_byte || 0;
+                var errLabels = decodeErrorByte(errCode);
+                var errCell = errCode > 0
+                    ? '<span class="status-badge error" title="' + escapeHtml(errLabels.join(' | ')) + '" style="cursor:help">' + escapeHtml(String(errCode)) + '</span>'
+                    : '<span style="color:#94a3b8">—</span>';
                 return "<tr>" +
                     "<td>" + (start + i + 1) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
@@ -550,6 +1471,7 @@ cat > js/app.js << 'ENDFILE'
                     "<td>" + escapeHtml(r1Name || "-") + "</td>" +
                     "<td>" + escapeHtml(r2Name || "-") + "</td>" +
                     '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
+                    "<td>" + errCell + "</td>" +
                     '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
                     "<td>" +
                         '<div class="action-btns">' +
@@ -710,7 +1632,8 @@ cat > js/app.js << 'ENDFILE'
 
         api("GET", url, null, function (status, data) {
             var tbody = $("#reception-table-body");
-            if (status !== 200 || !data || !data.rows || !data.rows.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.rows || !data.rows.length) {
                 tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">داده‌ای دریافت نشده</td></tr>';
                 receptionState.total = 0;
                 renderTableInfo("reception", 0, 0, 0);
@@ -761,6 +1684,18 @@ cat > js/app.js << 'ENDFILE'
     // RMTO Send
     // ============================================================
     var rmtoLogFilter = "all";
+
+    function extractRmtoError(r) {
+        var msg = r.error_message || "";
+        if (!msg) {
+            try {
+                var ro = JSON.parse(r.response_data || "{}");
+                if (ro.ERR) msg = ro.ERR;
+                else if (r.success !== 1 && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") msg = "تاریخ نامعتبر از سامانه (ID=0)";
+            } catch (e) {}
+        }
+        return msg;
+    }
 
     function loadRMTO() {
         loadRMTOQueue();
@@ -813,7 +1748,7 @@ cat > js/app.js << 'ENDFILE'
         api("GET", "/api/rmto/logs?limit=50&filter=" + filter, null, function (status, data) {
             var mbody = $("#rmto-monitor-body");
             if (status !== 200 || !data || !data.length) {
-                mbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                mbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
                 return;
             }
             mbody.innerHTML = data.map(function (r) {
@@ -821,9 +1756,12 @@ cat > js/app.js << 'ENDFILE'
                 var resp = r.response_data || "-";
                 var respShort = resp;
                 if (respShort.length > 80) respShort = respShort.substring(0, 80) + "...";
-                var errMsg = r.error_message || "-";
+
+                // Extract ERR from response_data JSON
+                var errMsg = extractRmtoError(r);
                 var errShort = errMsg;
                 if (errShort.length > 80) errShort = errShort.substring(0, 80) + "...";
+
                 return "<tr class='rmto-log-row " + (ok ? "" : "rmto-error-row") + "'>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px;white-space:nowrap">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     '<td style="font-size:12px">' + escapeHtml(r.method) + "</td>" +
@@ -831,6 +1769,7 @@ cat > js/app.js << 'ENDFILE'
                     '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(resp) + '">' + escapeHtml(respShort) + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (ok ? '#94a3b8' : '#ef4444') + '" title="' + escapeHtml(errMsg) + '">' + escapeHtml(ok ? "-" : errShort) + "</td>" +
+                    '<td dir="ltr" style="font-size:10px;color:#64748b">' + escapeHtml(r.source_ip || "-") + "</td>" +
                     '<td><button class="btn btn-sm btn-secondary btn-rmto-detail" data-id="' + r.id + '">مشاهده</button></td>' +
                     "</tr>";
             }).join("");
@@ -855,10 +1794,13 @@ cat > js/app.js << 'ENDFILE'
                 var ok = r.success === 1;
                 var resp = r.response_data || "";
                 if (resp.length > 60) resp = resp.substring(0, 60) + "...";
+                var errDetail = extractRmtoError(r);
+                var statusCell = '<span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span>" +
+                    (!ok && errDetail ? '<div style="font-size:10px;color:#ef4444;margin-top:2px;white-space:normal;max-width:160px">' + escapeHtml(errDetail.substring(0, 80)) + '</div>' : "");
                 return "<tr>" +
                     "<td>" + escapeHtml(r.method) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
-                    '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
+                    "<td>" + statusCell + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     "</tr>";
@@ -987,7 +1929,44 @@ cat > js/app.js << 'ENDFILE'
     var rmtoRefreshBtn = $("#btn-rmto-refresh");
     if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
 
-    // Monitor filter
+    // Connectivity check
+    var rmtoConnBtn = $("#btn-rmto-connectivity");
+    if (rmtoConnBtn) rmtoConnBtn.addEventListener("click", function () {
+        var panel = $("#panel-connectivity");
+        var resultEl = $("#connectivity-result");
+        var hostEl = $("#connectivity-host");
+        panel.style.display = "";
+        resultEl.innerHTML = '<div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>';
+        if (hostEl) hostEl.textContent = "";
+        rmtoConnBtn.disabled = true;
+        api("GET", "/api/rmto/connectivity-check", null, function (status, data) {
+            rmtoConnBtn.disabled = false;
+            if (status !== 200 || !data) {
+                resultEl.innerHTML = '<div style="color:#ef4444;font-size:13px">خطا در دریافت نتیجه</div>';
+                return;
+            }
+            if (hostEl) hostEl.textContent = data.host + ":" + data.port;
+            var html = '<div style="display:grid;gap:8px">';
+            (data.checks || []).forEach(function (c) {
+                var color = c.ok ? "#16a34a" : "#ef4444";
+                var badge = c.ok
+                    ? '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:12px">✓ متصل</span>'
+                    : '<span style="background:#fee2e2;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:12px">✗ قطع</span>';
+                var latency = c.ok ? ' &nbsp;<span style="color:#64748b;font-size:12px">' + c.latencyMs + 'ms</span>' : "";
+                var errMsg = c.error ? ' &nbsp;<span style="color:#ef4444;font-size:12px;direction:ltr">' + escapeHtml(c.error) + "</span>" : "";
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">' +
+                    '<span style="min-width:160px;font-size:13px">' + escapeHtml(c.label) + "</span>" +
+                    '<span style="color:#64748b;font-size:12px;direction:ltr;min-width:120px">' + escapeHtml(c.ip) + "</span>" +
+                    badge + latency + errMsg +
+                    "</div>";
+            });
+            var ts = data.checkedAt ? ' <span style="font-size:11px;color:#94a3b8">' + escapeHtml(data.checkedAt.replace("T", " ").substring(0, 19)) + "</span>" : "";
+            html += "</div>" + ts;
+            resultEl.innerHTML = html;
+        });
+    });
+
+
     var rmtoFilterEl = $("#rmto-log-filter");
     if (rmtoFilterEl) rmtoFilterEl.addEventListener("change", function () {
         rmtoLogFilter = this.value;
@@ -1003,7 +1982,8 @@ cat > js/app.js << 'ENDFILE'
     function loadMehvar() {
         api("GET", "/api/mehvar", null, function (status, data) {
             var tbody = $("#mehvar-table-body");
-            if (status !== 200 || !data || !data.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">محوری ثبت نشده</td></tr>';
                 return;
             }
@@ -1105,6 +2085,8 @@ cat > js/app.js << 'ENDFILE'
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+            var liveIpEl = $("#setting-rmto-source-ip");
+            if (liveIpEl && data.rmto_source_ip !== undefined) liveIpEl.value = data.rmto_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -1139,11 +2121,13 @@ cat > js/app.js << 'ENDFILE'
             rmto_wsdl: $("#setting-rmto-wsdl").value,
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
-            rmto_password: $("#setting-rmto-pass").value
+            rmto_password: $("#setting-rmto-pass").value,
+            rmto_source_ip: ($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || ""
         }, "تنظیمات سامانه ذخیره شد.");
     });
 
     // Server Time
+    var serverTimeTimer = null;
     function loadServerTime() {
         api("GET", "/api/server/time", null, function (status, data) {
             if (status !== 200 || !data) return;
@@ -1163,7 +2147,17 @@ cat > js/app.js << 'ENDFILE'
                 var mins = Math.floor((sec % 3600) / 60);
                 ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
             }
+            var bv = $("#server-build-version");
+            if (bv && data.build) bv.textContent = data.build;
         });
+    }
+
+    function startServerTimeRefresh() {
+        if (serverTimeTimer) clearInterval(serverTimeTimer);
+        serverTimeTimer = setInterval(loadServerTime, 10000);
+    }
+    function stopServerTimeRefresh() {
+        if (serverTimeTimer) { clearInterval(serverTimeTimer); serverTimeTimer = null; }
     }
 
     var refreshTimeBtn = $("#btn-refresh-server-time");
@@ -1211,6 +2205,12 @@ cat > js/app.js << 'ENDFILE'
         xhr.onload = function () {
             var r;
             try { r = JSON.parse(xhr.responseText); } catch (e) { r = {}; }
+            if (xhr.status === 401) {
+                statusEl.textContent = "نشست منقضی شده. لطفا دوباره وارد شوید";
+                statusEl.style.color = "#ef4444";
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             if (xhr.status === 200) {
                 statusEl.textContent = r.message || "بازیابی انجام شد";
                 statusEl.style.color = "#22c55e";
@@ -1392,12 +2392,167 @@ cat > js/app.js << 'ENDFILE'
     // Auto-refresh every 30s
     // ============================================================
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var activeView = document.querySelector(".view.active");
         if (!activeView) return;
         var id = activeView.id;
         if (id === "view-dashboard") loadDashboard();
         else if (id === "view-reception") loadReception();
     }, 30000);
+
+// ============================================================
+    // History
+    // ============================================================
+    var historyType = "sent";
+    var historyPage = 1;
+
+    (function initHistoryTabs() {
+        var btnSent = $("#hist-tab-sent");
+        var btnReceived = $("#hist-tab-received");
+        if (btnSent) btnSent.addEventListener("click", function () {
+            historyType = "sent";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        if (btnReceived) btnReceived.addEventListener("click", function () {
+            historyType = "received";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        var searchBtn = $("#hist-btn-search");
+        if (searchBtn) searchBtn.addEventListener("click", function () {
+            historyPage = 1;
+            loadHistory(1);
+        });
+    })();
+
+    function renderHistoryHeaders() {
+        var thead = $("#hist-thead");
+        if (!thead) return;
+        if (historyType === "sent") {
+            thead.innerHTML =
+                "<th>#</th><th>زمان ارسال</th><th>دستگاه</th><th>وضعیت</th>" +
+                "<th>IP</th><th>پاسخ</th><th>عملیات</th>";
+        } else {
+            thead.innerHTML =
+                "<th>#</th><th>شروع دوره</th><th>پایان دوره</th><th>دستگاه</th>" +
+                "<th>محور</th><th>مجموع خودرو</th><th>سرعت میانگین</th>" +
+                "<th>وضعیت ارسال</th><th>عملیات</th>";
+        }
+    }
+
+    function loadHistory(page) {
+        historyPage = page || 1;
+        var device = ($("#hist-filter-device") && $("#hist-filter-device").value) || "";
+        var route = ($("#hist-filter-route") && $("#hist-filter-route").value) || "";
+        var from = ($("#hist-filter-from") && $("#hist-filter-from").value) || "";
+        var to = ($("#hist-filter-to") && $("#hist-filter-to").value) || "";
+
+        var url = "/api/history?type=" + historyType +
+            "&page=" + historyPage + "&limit=50" +
+            (device ? "&device=" + encodeURIComponent(device) : "") +
+            (route ? "&route=" + encodeURIComponent(route) : "") +
+            (from ? "&from=" + encodeURIComponent(from) : "") +
+            (to ? "&to=" + encodeURIComponent(to) : "");
+
+        renderHistoryHeaders();
+        var tbody = $("#hist-tbody");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>';
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#hist-tbody");
+            var summary = $("#hist-summary");
+            var pagination = $("#hist-pagination");
+            if (!tbody) return;
+            if (status !== 200 || !data) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#ef4444">خطا در بارگذاری</td></tr>';
+                return;
+            }
+            var total = data.total || 0;
+            var totalPages = Math.ceil(total / 50) || 1;
+            if (summary) summary.textContent = "مجموع: " + total + " رکورد — صفحه " + historyPage + " از " + totalPages;
+            var rows = data.rows || [];
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">رکوردی یافت نشد</td></tr>';
+                if (pagination) pagination.innerHTML = "";
+                return;
+            }
+            if (historyType === "sent") {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var ok = r.success ? '<span class="status-badge online">موفق</span>' : '<span class="status-badge error">ناموفق</span>';
+                    var resp = "";
+                    try {
+                        var rd = JSON.parse(r.response_data || "{}");
+                        resp = (rd && (rd.ID !== undefined)) ? "ID=" + rd.ID + " CFL=" + rd.CFL : (r.error_message || "-");
+                    } catch(e) { resp = r.error_message || "-"; }
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.created_at || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + ok + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.source_ip || "-") + "</td>" +
+                        "<td>" + escapeHtml(resp.substring(0, 40)) + "</td>" +
+                        "<td></td>" +
+                        "</tr>";
+                }).join("");
+            } else {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var total = (r.c1 || 0) + (r.c2 || 0) + (r.c3 || 0) + (r.c4 || 0) + (r.c5 || 0);
+                    var sentBadge = r.sent ? '<span class="status-badge online">ارسال شده</span>' : '<span class="status-badge offline">در صف</span>';
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_start || "-") + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_end || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.route_id || "-") + "</td>" +
+                        "<td>" + total + "</td>" +
+                        "<td>" + Math.round(r.avg_speed || 0) + "</td>" +
+                        "<td>" + sentBadge + "</td>" +
+                        "<td><button class='btn btn-secondary' style='padding:3px 10px;font-size:12px' onclick='histLoadToTestSender(" + r.id + ")'>📤 بارگذاری</button></td>" +
+                        "</tr>";
+                }).join("");
+            }
+            // Pagination
+            if (pagination) {
+                var pages = [];
+                var start = Math.max(1, historyPage - 2);
+                var end = Math.min(totalPages, start + 4);
+                if (historyPage > 1) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage - 1) + ')">‹</button>');
+                for (var p = start; p <= end; p++) {
+                    pages.push('<button class="btn ' + (p === historyPage ? 'btn-primary' : 'btn-secondary') + '" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + p + ')">' + p + '</button>');
+                }
+                if (historyPage < totalPages) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage + 1) + ')">›</button>');
+                pagination.innerHTML = pages.join("");
+            }
+        });
+    }
+
+    // Expose for inline onclick in history table
+    window.loadHistory = loadHistory;
+    window.histLoadToTestSender = function (id) {
+        api("GET", "/api/history/record/" + id, null, function (status, row) {
+            if (status !== 200 || !row) { alert("خطا در بارگذاری رکورد"); return; }
+            switchView("test-sender");
+            // Pre-fill test-sender form with the historical record
+            var ridEl = $("#test-rid");
+            var stEl = $("#test-st");
+            var etEl = $("#test-et");
+            var c1El = $("#test-c1"); var c2El = $("#test-c2"); var c3El = $("#test-c3");
+            var c4El = $("#test-c4"); var c5El = $("#test-c5");
+            var aspEl = $("#test-asp");
+            if (ridEl) ridEl.value = row.route_id || "";
+            if (stEl) stEl.value = (row.period_start || "").replace(" ", "T").substring(0, 16);
+            if (etEl) etEl.value = (row.period_end || "").replace(" ", "T").substring(0, 16);
+            if (c1El) c1El.value = row.c1 || 0;
+            if (c2El) c2El.value = row.c2 || 0;
+            if (c3El) c3El.value = row.c3 || 0;
+            if (c4El) c4El.value = row.c4 || 0;
+            if (c5El) c5El.value = row.c5 || 0;
+            if (aspEl) aspEl.value = Math.round(row.avg_speed || 0);
+        });
+    };
 
     // ============================================================
     // Test Sender
@@ -1480,7 +2635,258 @@ cat > js/app.js << 'ENDFILE'
                 }
             });
         });
+
+        // ---- Archive Send ----
+        function toLocalInputVal(d) {
+            return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" +
+                String(d.getDate()).padStart(2,"0") + "T" +
+                String(d.getHours()).padStart(2,"0") + ":" +
+                String(d.getMinutes()).padStart(2,"0");
+        }
+
+        function applyArchivePreset(minutes) {
+            var now = new Date();
+            var to = new Date(now);
+            to.setSeconds(0, 0);
+            var from = new Date(to.getTime() - minutes * 60 * 1000);
+            var fromEl = $("#arch-from"), toEl = $("#arch-to");
+            if (fromEl) fromEl.value = toLocalInputVal(from);
+            if (toEl) toEl.value = toLocalInputVal(to);
+        }
+
+        var presets = { "arch-preset-15m": 15, "arch-preset-1h": 60, "arch-preset-6h": 360,
+            "arch-preset-1d": 1440, "arch-preset-3d": 4320, "arch-preset-7d": 10080, "arch-preset-15d": 21600 };
+        Object.keys(presets).forEach(function (id) {
+            var el = $("#" + id);
+            if (el) el.addEventListener("click", function () { applyArchivePreset(presets[id]); });
+        });
+
+        var archPreviewBtn = $("#btn-arch-preview");
+        if (archPreviewBtn) archPreviewBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : "";
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var url = "/api/rmto/archive-records?from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to);
+            if (rid) url += "&rid=" + rid;
+            if (infoEl) infoEl.textContent = "در حال بارگذاری...";
+            api("GET", url, null, function (status, data) {
+                if (!data || !infoEl) return;
+                infoEl.innerHTML = '🔎 <strong>' + escapeHtml(String(data.total || 0)) + '</strong> رکورد یافت شد' +
+                    (rid ? ' برای محور <strong>' + escapeHtml(String(rid)) + '</strong>' : '') +
+                    ' در بازه انتخابی';
+            });
+        });
+
+        var archSendBtn = $("#btn-arch-send");
+        if (archSendBtn) archSendBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : null;
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var body = { from: from, to: to };
+            if (rid) body.rid = rid;
+            archSendBtn.disabled = true;
+            archSendBtn.textContent = "در حال شروع...";
+            api("POST", "/api/rmto/archive-send", body, function (status, data) {
+                archSendBtn.disabled = false;
+                archSendBtn.textContent = "📤 شروع ارسال";
+                if (!data || status !== 200) {
+                    if (infoEl) infoEl.textContent = "❌ خطا: " + ((data && data.error) || "ارتباط با سرور برقرار نشد");
+                    return;
+                }
+                if (infoEl) infoEl.innerHTML = '✅ ارسال آرشیو شروع شد — شناسه کار: <strong>' + escapeHtml(String(data.jobId)) + '</strong> / ' + escapeHtml(String(data.total)) + ' رکورد';
+                refreshArchiveJobs();
+            });
+        });
+
+        var archRefreshBtn = $("#btn-arch-refresh");
+        if (archRefreshBtn) archRefreshBtn.addEventListener("click", refreshArchiveJobs);
+
+        function refreshArchiveJobs() {
+            api("GET", "/api/rmto/archive-jobs", null, function (status, jobs) {
+                var tbody = $("#arch-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسالی شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var pct = j.total > 0 ? Math.round(j.sent / j.total * 100) : 0;
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : '<span class="status-badge online">تمام شد</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopArchiveJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(j.rid ? String(j.rid) : "همه") + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.from || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.to || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sent)) + " / " + escapeHtml(String(j.total)) + " (" + escapeHtml(String(pct)) + "%)</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.success)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failed)) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
+
+        // Auto-refresh jobs table every 3 seconds while on test-sender view
+        setInterval(function () {
+            if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
+            var v = document.querySelector(".view.active");
+            if (v && v.id === "view-test-sender") {
+                refreshArchiveJobs();
+                refreshSchedJobs();
+            }
+        }, 3000);
+
+        // ---- Scheduled Test Send ----
+        var schedCopyBtn = $("#btn-sched-copy");
+        if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
+            var fields = ["c1", "c2", "c3", "c4", "c5", "asp"];
+            fields.forEach(function (f) {
+                var src = $("#test-" + f);
+                var dst = $("#sched-" + f);
+                if (src && dst) dst.value = src.value;
+            });
+            var ridSrc = $("#test-rid");
+            var ridDst = $("#sched-rid");
+            if (ridSrc && ridDst) ridDst.value = ridSrc.value;
+            var resultEl = $("#sched-result");
+            if (resultEl) {
+                resultEl.style.display = "block";
+                resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:8px;border-radius:6px;color:#166534;font-size:13px">✅ مقادیر از بخش ارسال تست کپی شد</div>';
+                setTimeout(function () { resultEl.style.display = "none"; }, 3000);
+            }
+        });
+
+        var schedStartBtn = $("#btn-sched-start");
+        if (schedStartBtn) schedStartBtn.addEventListener("click", function () {
+            var rid = parseInt(($("#sched-rid") && $("#sched-rid").value) || "", 10);
+            if (!rid || rid <= 0) { alert("کد محور (RID) الزامی است"); return; }
+            var days = parseInt(($("#sched-days") && $("#sched-days").value) || "1", 10);
+            if (days < 1 || days > 15) { alert("مدت ارسال باید بین ۱ تا ۱۵ روز باشد"); return; }
+            if (!confirm("آیا از شروع ارسال زمانبندی شده هر ۵ دقیقه برای " + days + " روز مطمئن هستید؟")) return;
+
+            var body = {
+                rid: rid,
+                durationDays: days,
+                c1: parseInt(($("#sched-c1") && $("#sched-c1").value) || "0", 10),
+                c2: parseInt(($("#sched-c2") && $("#sched-c2").value) || "0", 10),
+                c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
+                c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
+                c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10)
+            };
+
+            schedStartBtn.disabled = true;
+            schedStartBtn.textContent = "در حال شروع...";
+            var resultEl = $("#sched-result");
+
+            api("POST", "/api/rmto/test-schedule", body, function (status, data) {
+                schedStartBtn.disabled = false;
+                schedStartBtn.textContent = "⏱ شروع ارسال زمانبندی شده";
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    if (data && data.success) {
+                        resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message || "شروع شد") + ' — شناسه: ' + escapeHtml(String(data.jobId)) + '</div>';
+                    } else {
+                        resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا: ' + escapeHtml((data && data.error) || "ارتباط برقرار نشد") + '</div>';
+                    }
+                }
+                refreshSchedJobs();
+            });
+        });
+
+        var schedRefreshBtn = $("#btn-sched-refresh");
+        if (schedRefreshBtn) schedRefreshBtn.addEventListener("click", refreshSchedJobs);
+
+        function refreshSchedJobs() {
+            api("GET", "/api/rmto/test-schedule", null, function (status, jobs) {
+                var tbody = $("#sched-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : j.status === "expired"
+                                ? '<span class="status-badge online">پایان یافت</span>'
+                                : '<span class="status-badge">' + escapeHtml(j.status) + '</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopSchedJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    var lastSend = j.lastSendAt ? j.lastSendAt.replace("T", " ").substring(0, 19) : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.rid)) + "</td>" +
+                        "<td>" + escapeHtml(String(j.durationDays)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sendCount)) + "</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.successCount)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failedCount)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(lastSend) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
     }
+
+    // Expose stop job function globally for inline onclick
+    window.stopArchiveJob = function (jobId) {
+        api("DELETE", "/api/rmto/archive-send/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var infoEl = $("#arch-preview-info");
+                if (infoEl) infoEl.textContent = "⏹ ارسال شناسه " + jobId + " متوقف شد";
+                // force refresh
+                var tbody = $("#arch-jobs-tbody");
+                if (tbody) {
+                    api("GET", "/api/rmto/archive-jobs", null, function (s, jobs) {
+                        if (!jobs) return;
+                        var evt = document.createEvent("Event");
+                        evt.initEvent("click", true, true);
+                        var rb = $("#btn-arch-refresh");
+                        if (rb) rb.dispatchEvent(evt);
+                    });
+                }
+            }
+        });
+    };
+
+    window.stopSchedJob = function (jobId) {
+        api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var resultEl = $("#sched-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #fde68a;padding:8px;border-radius:6px;color:#854d0e;font-size:13px">⏹ ارسال زمانبندی شده شناسه ' + escapeHtml(String(jobId)) + ' متوقف شد</div>';
+                }
+                var rb = $("#btn-sched-refresh");
+                if (rb) {
+                    var evt = document.createEvent("Event");
+                    evt.initEvent("click", true, true);
+                    rb.dispatchEvent(evt);
+                }
+            }
+        });
+    };
 
     // ============================================================
     // Settings: Bale, Server Restart, Log Monitor
@@ -1608,16 +3014,6 @@ cat > js/app.js << 'ENDFILE'
         }
     });
 
-    // ============================================================
-    // Auto-refresh every 30s
-    // ============================================================
-    setInterval(function () {
-        var activeView = document.querySelector(".view.active");
-        if (!activeView) return;
-        var id = activeView.id;
-        if (id === "view-dashboard") loadDashboard();
-        else if (id === "view-reception") loadReception();
-    }, 30000);
 
 })();
 

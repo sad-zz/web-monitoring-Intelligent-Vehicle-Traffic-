@@ -95,6 +95,10 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95A5.469 5.469 0 0 1 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11A2.98 2.98 0 0 1 22 15c0 1.65-1.35 3-3 3zM8 13h2.55v3h2.9v-3H16l-4-4-4 4z"/></svg>
                 <span>ارسال تست</span>
             </button>
+            <button class="nav-item" data-view="history">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span>تاریخچه</span>
+            </button>
             <button class="nav-item" data-view="settings">
                 <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>
                 <span>تنظیمات</span>
@@ -227,7 +231,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                     </div>
                 </div>
 
-                <!-- Device Status Table -->
+                <!-- Device Status Grid -->
                 <div class="panel">
                     <div class="panel-header">
                         <h3 class="panel-title">وضعیت دستگاه‌ها</h3>
@@ -235,21 +239,18 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             <button class="btn btn-sm btn-primary" id="btn-refresh-dashboard">بروزرسانی</button>
                         </div>
                     </div>
-                    <div class="table-wrapper">
-                        <table class="data-table" id="dashboard-table">
-                            <thead>
-                                <tr>
-                                    <th>کد</th>
-                                    <th>نام دستگاه</th>
-                                    <th>نوع</th>
-                                    <th>وضعیت</th>
-                                    <th>آخرین اتصال</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dashboard-table-body">
-                                <tr><td colspan="5" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
-                            </tbody>
-                        </table>
+                    <div class="panel-body" style="padding:12px">
+                        <div class="device-filter-bar" id="device-filter-bar">
+                            <button class="dfb-btn active" data-filter="all">همه</button>
+                            <button class="dfb-btn" data-filter="online">آنلاین</button>
+                            <button class="dfb-btn" data-filter="offline">آفلاین</button>
+                            <button class="dfb-btn" data-filter="warning">هشدار</button>
+                            <button class="dfb-btn" data-filter="error">خطا</button>
+                            <span class="dfb-count" id="device-filter-count"></span>
+                        </div>
+                        <div id="device-grid" class="device-grid">
+                            <div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">در حال بارگذاری...</div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -280,12 +281,13 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                                     <th>محور اول (لاین ۱)</th>
                                     <th>محور دوم (لاین ۲)</th>
                                     <th>وضعیت</th>
+                                    <th>کد خطا</th>
                                     <th>آخرین اتصال</th>
                                     <th>عملیات</th>
                                 </tr>
                             </thead>
                             <tbody id="devices-table-body">
-                                <tr><td colspan="9" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                                <tr><td colspan="10" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -383,7 +385,21 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                     <button class="btn btn-primary" id="btn-rmto-send-now">ارسال الان</button>
                     <button class="btn btn-secondary" id="btn-rmto-aggregate">تجمیع و ارسال</button>
                     <button class="btn btn-secondary" id="btn-rmto-refresh">بروزرسانی</button>
+                    <button class="btn btn-secondary" id="btn-rmto-connectivity">🔌 بررسی اتصال</button>
                     <div id="rmto-send-result" style="font-size:13px;margin-right:12px;display:none"></div>
+                </div>
+
+                <!-- Connectivity Check Panel -->
+                <div class="panel" id="panel-connectivity" style="margin-bottom:16px;display:none">
+                    <div class="panel-header">
+                        <h3 class="panel-title">🔌 بررسی اتصال به سرور RMTO</h3>
+                        <div class="panel-tools">
+                            <span id="connectivity-host" style="font-size:12px;color:#64748b;direction:ltr"></span>
+                        </div>
+                    </div>
+                    <div id="connectivity-result" style="padding:12px">
+                        <div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>
+                    </div>
                 </div>
 
                 <!-- Unsent Queue -->
@@ -432,6 +448,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                                     <th>وضعیت</th>
                                     <th>پاسخ RMTO</th>
                                     <th>خطا</th>
+                                    <th>IP ارسال</th>
                                     <th>جزئیات</th>
                                 </tr>
                             </thead>
@@ -564,6 +581,94 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                         </div>
                     </div>
                 </div>
+
+                <!-- Scheduled Test Send Panel -->
+                <div class="panel" style="margin-top:20px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">⏱ ارسال زمانبندی شده (تکرار هر ۵ دقیقه)</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده تست را با کد محور دلخواه و مدت زمان مشخص (تا ۱۵ روز) هر ۵ دقیقه به سامانه ارسال کنید.</p>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0"><label>کد محور (RID) <span style="color:#ef4444">*</span></label><input type="number" id="sched-rid" dir="ltr" placeholder="مثال: 12345" min="1"></div>
+                            <div class="form-group" style="margin:0"><label>مدت ارسال (روز) <span style="color:#ef4444">*</span></label><input type="number" id="sched-days" value="1" min="1" max="15" dir="ltr"></div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0"><label>C1 موتور</label><input type="number" id="sched-c1" value="10" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C2 سواری</label><input type="number" id="sched-c2" value="50" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C3 وانت</label><input type="number" id="sched-c3" value="5" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C4 اتوبوس</label><input type="number" id="sched-c4" value="2" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C5 کامیون</label><input type="number" id="sched-c5" value="3" min="0" dir="ltr"></div>
+                        </div>
+                        <div class="form-group" style="margin-bottom:12px"><label>میانگین سرعت (ASP) km/h</label><input type="number" id="sched-asp" value="80" min="0" dir="ltr"></div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-primary" id="btn-sched-start" style="padding:10px 24px;font-size:14px">⏱ شروع ارسال زمانبندی شده</button>
+                            <button class="btn btn-secondary" id="btn-sched-copy" style="padding:10px 16px;font-size:13px">📋 کپی از ارسال تست بالا</button>
+                        </div>
+                        <div id="sched-result" style="margin-top:12px;display:none"></div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top:16px" id="sched-jobs-panel">
+                    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 class="panel-title">📊 وضعیت ارسال‌های زمانبندی شده</h3>
+                        <button class="btn btn-secondary" id="btn-sched-refresh" style="font-size:12px;padding:5px 12px">🔄 بروزرسانی</button>
+                    </div>
+                    <div class="panel-body">
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="sched-jobs-table">
+                                <thead><tr><th>شناسه</th><th>محور</th><th>مدت (روز)</th><th>ارسال شده</th><th>موفق</th><th>خطا</th><th>آخرین ارسال</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                                <tbody id="sched-jobs-tbody"><tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== History ===== -->
+            <section class="view" id="view-history">
+                <div class="panel">
+                    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
+                        <h3 class="panel-title">📋 تاریخچه دریافت و ارسال</h3>
+                        <div style="display:flex;gap:8px;margin-right:auto;flex-wrap:wrap">
+                            <button class="btn btn-secondary" id="hist-tab-sent" style="padding:6px 14px;font-size:13px">📤 ارسال به سامانه</button>
+                            <button class="btn btn-secondary" id="hist-tab-received" style="padding:6px 14px;font-size:13px">📥 دریافت از دستگاه</button>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px">
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">دستگاه</label>
+                                <input type="text" id="hist-filter-device" dir="ltr" placeholder="کد دستگاه" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">کد محور (received)</label>
+                                <input type="text" id="hist-filter-route" dir="ltr" placeholder="RID" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">از تاریخ</label>
+                                <input type="datetime-local" id="hist-filter-from" dir="ltr" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label style="font-size:12px">تا تاریخ</label>
+                                <input type="datetime-local" id="hist-filter-to" dir="ltr" style="font-size:13px;padding:6px 10px">
+                            </div>
+                            <div class="form-group" style="margin:0;align-self:flex-end">
+                                <button class="btn btn-primary" id="hist-btn-search" style="width:100%;padding:7px 10px;font-size:13px">🔍 جستجو</button>
+                            </div>
+                        </div>
+                        <div id="hist-summary" style="font-size:13px;color:#64748b;margin-bottom:8px"></div>
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="hist-table">
+                                <thead><tr id="hist-thead"></tr></thead>
+                                <tbody id="hist-tbody">
+                                    <tr><td colspan="8" style="text-align:center;color:#94a3b8">برای مشاهده جستجو کنید</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="hist-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap"></div>
+                    </div>
+                </div>
             </section>
 
             <!-- ===== Settings ===== -->
@@ -586,6 +691,10 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             <div class="form-group">
                                 <label>مدت روشن بودن سرور</label>
                                 <div id="server-uptime" dir="ltr" style="color:#475569">-</div>
+                            </div>
+                            <div class="form-group">
+                                <label>نسخه نرم‌افزار</label>
+                                <div id="server-build-version" dir="ltr" style="color:#475569;font-family:monospace">-</div>
                             </div>
                             <button class="btn btn-secondary" id="btn-refresh-server-time">بروزرسانی</button>
                         </div>
@@ -613,6 +722,11 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                                 <label>رمز عبور سامانه</label>
                                 <input type="password" id="setting-rmto-pass" dir="ltr">
                             </div>
+                            <div class="form-group">
+                                <label>IP مبدا ارسال به سامانه (اختیاری)</label>
+                                <input type="text" id="setting-rmto-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
+                            </div>
+                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود. تمام ارسال‌ها (لحظه‌ای و بک‌لاگ) از این IP خواهند بود.</small>
                             <button class="btn btn-primary" id="btn-save-rmto">ذخیره تنظیمات سامانه</button>
                         </div>
                     </div>
@@ -746,7 +860,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                         </div>
                         <div class="panel-body about-info">
                             <p><strong>نوآوران جنوب شرق</strong></p>
-                            <p>نسخه: <span dir="ltr">1.3.0</span></p>
+                            <p>نسخه: <span dir="ltr">2.0.0</span></p>
                             <p>سامانه مدیریت ترددشمار هوشمند</p>
                             <p>سازگار با سامانه RMTO</p>
                         </div>
@@ -1207,6 +1321,213 @@ body {
 .status-badge.warning { background: rgba(245,158,11,.1); color: var(--warning); }
 .status-badge.error { background: rgba(239,68,68,.1); color: var(--error); }
 
+/* === Device Card Grid (Dashboard) === */
+.device-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+/* New v2 device card layout (image-style) */
+.device-card-v2 {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.dcv2-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.dcv2-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--primary);
+}
+
+.dcv2-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.dcv2-code {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+}
+
+.dcv2-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.dcv2-label {
+    color: var(--text-light);
+    flex-shrink: 0;
+    font-size: 10px;
+}
+
+.dcv2-val {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.dcv2-val.ltr {
+    direction: ltr;
+    text-align: left;
+    font-family: monospace;
+    font-size: 10.5px;
+}
+
+.dcv2-status {
+    font-weight: 700;
+    font-size: 11px;
+}
+
+/* Filter bar above device grid */
+.device-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.dfb-btn {
+    padding: 3px 12px;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--white);
+    color: var(--text-light);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.dfb-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.dfb-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.dfb-count {
+    font-size: 12px;
+    color: var(--text-light);
+    margin-right: auto;
+}
+
+.device-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: box-shadow 0.15s, transform 0.1s;
+    border-right: 3px solid var(--border);
+    cursor: default;
+}
+
+.device-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+
+.device-card.online  { border-right-color: var(--success); }
+.device-card.offline { border-right-color: var(--text-light); }
+.device-card.warning { border-right-color: var(--warning); }
+.device-card.error   { border-right-color: var(--error); }
+
+.device-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.device-card-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    background: #e0eaff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.device-card-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--primary);
+}
+
+.device-card-code {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    direction: ltr;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-name {
+    font-size: 11px;
+    color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-light);
+}
+
+.device-card-time {
+    font-size: 11px;
+    color: var(--text-light);
+    direction: ltr;
+    text-align: left;
+}
+
+.rmto-error-row { background: rgba(239,68,68,.04); }
+.rmto-error-row:hover { background: rgba(239,68,68,.08); }
+.rmto-log-row { cursor: default; }
+
 .type-badge {
     font-size: 11px;
     padding: 2px 8px;
@@ -1541,6 +1862,7 @@ body {
     font-size: 13px;
     color: var(--text-light);
 }
+
 ENDOFFILE_CSS_STYLE_CSS
 
 echo "[+] js/app.js"
@@ -1592,6 +1914,25 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     var TYPE_LABELS = { counter: "ترددشمار", sensor: "سنسور", loop: "حلقه القایی", radar: "رادار" };
     var STATUS_LABELS = { online: "آنلاین", offline: "آفلاین", warning: "هشدار", error: "خطا" };
 
+    var ERROR_BITS = {
+        1:   'MMC_ERR - کارت حافظه',
+        2:   'LP1_ERR - لوپ ۱',
+        4:   'LP2_ERR - لوپ ۲',
+        8:   'LP3_ERR - لوپ ۳',
+        16:  'LP4_ERR - لوپ ۴',
+        32:  'VMN_ERR - ولتاژ شبانه',
+        64:  'SOL_ERR - پنل خورشیدی',
+        128: 'LBT_ERR - باتری ضعیف',
+        256: 'L1D_ERR - جهت لاین ۱',
+        512: 'L2D_ERR - جهت لاین ۲'
+    };
+    function decodeErrorByte(code) {
+        if (!code) return [];
+        return Object.keys(ERROR_BITS).filter(function(bit) {
+            return (code & parseInt(bit, 10)) !== 0;
+        }).map(function(bit) { return ERROR_BITS[bit]; });
+    }
+
     var VIEW_TITLES = {
         dashboard: "داشبورد",
         devices: "دستگاه‌ها",
@@ -1599,6 +1940,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         rmto: "ارسال به سامانه",
         mehvar: "محورها",
         "test-sender": "ارسال تست",
+        history: "تاریخچه",
         settings: "تنظیمات"
     };
 
@@ -1729,6 +2071,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         else if (view === "rmto") loadRMTO();
         else if (view === "mehvar") loadMehvar();
         else if (view === "test-sender") initTestSender();
+        else if (view === "history") loadHistory(1);
         else if (view === "settings") loadSettings();
     }
 
@@ -1763,25 +2106,79 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         });
 
         api("GET", "/api/devices", null, function (status, data) {
-            var tbody = $("#dashboard-table-body");
+            var grid = $("#device-grid");
+            if (!grid) return;
             if (status !== 200 || !data || !data.length) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">دستگاهی ثبت نشده است</td></tr>';
+                grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
+                updateDeviceFilterCount(0);
                 return;
             }
-            tbody.innerHTML = data.map(function (d) {
-                var st = d.status || "offline";
-                return "<tr>" +
-                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
-                    "<td>" + escapeHtml(d.name) + "</td>" +
-                    '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
-                    '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
-                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
-                    "</tr>";
-            }).join("");
+
+            var VALID_STATUSES = ["online", "offline", "warning", "error"];
+            var allCards = data.map(function (d) {
+                var st = (d.status && VALID_STATUSES.indexOf(d.status) !== -1) ? d.status : "offline";
+                var statusLabel = escapeHtml(STATUS_LABELS[st] || st);
+                var code = escapeHtml(d.device_code || "");
+                var name = escapeHtml(d.name || d.device_code || "");
+                var route = escapeHtml(d.route1 || d.route || "");
+                var lastSeen = escapeHtml(formatTime(d.last_seen));
+                var dotColor = { online: "#22c55e", offline: "#94a3b8", warning: "#f59e0b", error: "#ef4444" }[st] || "#94a3b8";
+                var cardHtml =
+                    '<div class="device-card device-card-v2 ' + st + '" data-status="' + st + '">' +
+                        '<div class="dcv2-icon">' +
+                            '<svg viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14zm-5 2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-3V7h2v11h-2z"/></svg>' +
+                        '</div>' +
+                        '<div class="dcv2-body">' +
+                            '<div class="dcv2-code">' + (code || name) + '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">آخرین داده:</span>' +
+                                '<span class="dcv2-val ltr">' + lastSeen + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">وضعیت:</span>' +
+                                '<span class="dcv2-status" style="color:' + dotColor + '">&#9679; ' + statusLabel + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">محور:</span>' +
+                                '<span class="dcv2-val">' + (route || name || '-') + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                return { html: cardHtml, status: st };
+            });
+
+            var activeFilter = ($("#device-filter-bar .dfb-btn.active") || {}).dataset && $("#device-filter-bar .dfb-btn.active").dataset.filter || "all";
+            renderDeviceCards(grid, allCards, activeFilter);
+
+            var filterBar = $("#device-filter-bar");
+            if (filterBar) {
+                filterBar.querySelectorAll(".dfb-btn").forEach(function (btn) {
+                    btn.onclick = function () {
+                        filterBar.querySelectorAll(".dfb-btn").forEach(function (b) { b.classList.remove("active"); });
+                        btn.classList.add("active");
+                        renderDeviceCards(grid, allCards, btn.dataset.filter || "all");
+                    };
+                });
+            }
         });
 
         loadTcpConnected();
         loadLive();
+    }
+
+    function renderDeviceCards(grid, allCards, filter) {
+        var visible = filter === "all" ? allCards : allCards.filter(function (c) { return c.status === filter; });
+        if (!visible.length) {
+            grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی یافت نشد</div>';
+        } else {
+            grid.innerHTML = visible.map(function (c) { return c.html; }).join("");
+        }
+        updateDeviceFilterCount(visible.length);
+    }
+
+    function updateDeviceFilterCount(n) {
+        var el = $("#device-filter-count");
+        if (el) el.textContent = n + " دستگاه";
     }
 
     function loadTcpConnected() {
@@ -1948,7 +2345,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
 
         var tbody = $("#devices-table-body");
         if (!paged.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
         } else {
             tbody.innerHTML = paged.map(function (d, i) {
                 var st = d.status || "offline";
@@ -1956,6 +2353,11 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 var r2 = d.route2 || "";
                 var r1Name = getMehvarName(r1);
                 var r2Name = getMehvarName(r2);
+                var errCode = d.last_error_byte || 0;
+                var errLabels = decodeErrorByte(errCode);
+                var errCell = errCode > 0
+                    ? '<span class="status-badge error" title="' + escapeHtml(errLabels.join(' | ')) + '" style="cursor:help">' + escapeHtml(String(errCode)) + '</span>'
+                    : '<span style="color:#94a3b8">—</span>';
                 return "<tr>" +
                     "<td>" + (start + i + 1) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
@@ -1964,6 +2366,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                     "<td>" + escapeHtml(r1Name || "-") + "</td>" +
                     "<td>" + escapeHtml(r2Name || "-") + "</td>" +
                     '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
+                    "<td>" + errCell + "</td>" +
                     '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
                     "<td>" +
                         '<div class="action-btns">' +
@@ -2176,6 +2579,18 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     // ============================================================
     var rmtoLogFilter = "all";
 
+    function extractRmtoError(r) {
+        var msg = r.error_message || "";
+        if (!msg) {
+            try {
+                var ro = JSON.parse(r.response_data || "{}");
+                if (ro.ERR) msg = ro.ERR;
+                else if (r.success !== 1 && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") msg = "تاریخ نامعتبر از سامانه (ID=0)";
+            } catch (e) {}
+        }
+        return msg;
+    }
+
     function loadRMTO() {
         loadRMTOQueue();
         loadRMTOMonitor();
@@ -2227,7 +2642,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         api("GET", "/api/rmto/logs?limit=50&filter=" + filter, null, function (status, data) {
             var mbody = $("#rmto-monitor-body");
             if (status !== 200 || !data || !data.length) {
-                mbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                mbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
                 return;
             }
             mbody.innerHTML = data.map(function (r) {
@@ -2235,9 +2650,12 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 var resp = r.response_data || "-";
                 var respShort = resp;
                 if (respShort.length > 80) respShort = respShort.substring(0, 80) + "...";
-                var errMsg = r.error_message || "-";
+
+                // Extract ERR from response_data JSON
+                var errMsg = extractRmtoError(r);
                 var errShort = errMsg;
                 if (errShort.length > 80) errShort = errShort.substring(0, 80) + "...";
+
                 return "<tr class='rmto-log-row " + (ok ? "" : "rmto-error-row") + "'>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px;white-space:nowrap">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     '<td style="font-size:12px">' + escapeHtml(r.method) + "</td>" +
@@ -2245,6 +2663,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                     '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(resp) + '">' + escapeHtml(respShort) + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (ok ? '#94a3b8' : '#ef4444') + '" title="' + escapeHtml(errMsg) + '">' + escapeHtml(ok ? "-" : errShort) + "</td>" +
+                    '<td dir="ltr" style="font-size:10px;color:#64748b">' + escapeHtml(r.source_ip || "-") + "</td>" +
                     '<td><button class="btn btn-sm btn-secondary btn-rmto-detail" data-id="' + r.id + '">مشاهده</button></td>' +
                     "</tr>";
             }).join("");
@@ -2269,10 +2688,13 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 var ok = r.success === 1;
                 var resp = r.response_data || "";
                 if (resp.length > 60) resp = resp.substring(0, 60) + "...";
+                var errDetail = extractRmtoError(r);
+                var statusCell = '<span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span>" +
+                    (!ok && errDetail ? '<div style="font-size:10px;color:#ef4444;margin-top:2px;white-space:normal;max-width:160px">' + escapeHtml(errDetail.substring(0, 80)) + '</div>' : "");
                 return "<tr>" +
                     "<td>" + escapeHtml(r.method) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
-                    '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
+                    "<td>" + statusCell + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     "</tr>";
@@ -2401,7 +2823,44 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     var rmtoRefreshBtn = $("#btn-rmto-refresh");
     if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
 
-    // Monitor filter
+    // Connectivity check
+    var rmtoConnBtn = $("#btn-rmto-connectivity");
+    if (rmtoConnBtn) rmtoConnBtn.addEventListener("click", function () {
+        var panel = $("#panel-connectivity");
+        var resultEl = $("#connectivity-result");
+        var hostEl = $("#connectivity-host");
+        panel.style.display = "";
+        resultEl.innerHTML = '<div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>';
+        if (hostEl) hostEl.textContent = "";
+        rmtoConnBtn.disabled = true;
+        api("GET", "/api/rmto/connectivity-check", null, function (status, data) {
+            rmtoConnBtn.disabled = false;
+            if (status !== 200 || !data) {
+                resultEl.innerHTML = '<div style="color:#ef4444;font-size:13px">خطا در دریافت نتیجه</div>';
+                return;
+            }
+            if (hostEl) hostEl.textContent = data.host + ":" + data.port;
+            var html = '<div style="display:grid;gap:8px">';
+            (data.checks || []).forEach(function (c) {
+                var color = c.ok ? "#16a34a" : "#ef4444";
+                var badge = c.ok
+                    ? '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:12px">✓ متصل</span>'
+                    : '<span style="background:#fee2e2;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:12px">✗ قطع</span>';
+                var latency = c.ok ? ' &nbsp;<span style="color:#64748b;font-size:12px">' + c.latencyMs + 'ms</span>' : "";
+                var errMsg = c.error ? ' &nbsp;<span style="color:#ef4444;font-size:12px;direction:ltr">' + escapeHtml(c.error) + "</span>" : "";
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">' +
+                    '<span style="min-width:160px;font-size:13px">' + escapeHtml(c.label) + "</span>" +
+                    '<span style="color:#64748b;font-size:12px;direction:ltr;min-width:120px">' + escapeHtml(c.ip) + "</span>" +
+                    badge + latency + errMsg +
+                    "</div>";
+            });
+            var ts = data.checkedAt ? ' <span style="font-size:11px;color:#94a3b8">' + escapeHtml(data.checkedAt.replace("T", " ").substring(0, 19)) + "</span>" : "";
+            html += "</div>" + ts;
+            resultEl.innerHTML = html;
+        });
+    });
+
+
     var rmtoFilterEl = $("#rmto-log-filter");
     if (rmtoFilterEl) rmtoFilterEl.addEventListener("change", function () {
         rmtoLogFilter = this.value;
@@ -2519,6 +2978,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+            var liveIpEl = $("#setting-rmto-source-ip");
+            if (liveIpEl && data.rmto_source_ip !== undefined) liveIpEl.value = data.rmto_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -2553,7 +3014,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             rmto_wsdl: $("#setting-rmto-wsdl").value,
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
-            rmto_password: $("#setting-rmto-pass").value
+            rmto_password: $("#setting-rmto-pass").value,
+            rmto_source_ip: ($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || ""
         }, "تنظیمات سامانه ذخیره شد.");
     });
 
@@ -2577,6 +3039,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 var mins = Math.floor((sec % 3600) / 60);
                 ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
             }
+            var bv = $("#server-build-version");
+            if (bv && data.build) bv.textContent = data.build;
         });
     }
 
@@ -2813,6 +3277,160 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         else if (id === "view-reception") loadReception();
     }, 30000);
 
+// ============================================================
+    // History
+    // ============================================================
+    var historyType = "sent";
+    var historyPage = 1;
+
+    (function initHistoryTabs() {
+        var btnSent = $("#hist-tab-sent");
+        var btnReceived = $("#hist-tab-received");
+        if (btnSent) btnSent.addEventListener("click", function () {
+            historyType = "sent";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        if (btnReceived) btnReceived.addEventListener("click", function () {
+            historyType = "received";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        var searchBtn = $("#hist-btn-search");
+        if (searchBtn) searchBtn.addEventListener("click", function () {
+            historyPage = 1;
+            loadHistory(1);
+        });
+    })();
+
+    function renderHistoryHeaders() {
+        var thead = $("#hist-thead");
+        if (!thead) return;
+        if (historyType === "sent") {
+            thead.innerHTML =
+                "<th>#</th><th>زمان ارسال</th><th>دستگاه</th><th>وضعیت</th>" +
+                "<th>IP</th><th>پاسخ</th><th>عملیات</th>";
+        } else {
+            thead.innerHTML =
+                "<th>#</th><th>شروع دوره</th><th>پایان دوره</th><th>دستگاه</th>" +
+                "<th>محور</th><th>مجموع خودرو</th><th>سرعت میانگین</th>" +
+                "<th>وضعیت ارسال</th><th>عملیات</th>";
+        }
+    }
+
+    function loadHistory(page) {
+        historyPage = page || 1;
+        var device = ($("#hist-filter-device") && $("#hist-filter-device").value) || "";
+        var route = ($("#hist-filter-route") && $("#hist-filter-route").value) || "";
+        var from = ($("#hist-filter-from") && $("#hist-filter-from").value) || "";
+        var to = ($("#hist-filter-to") && $("#hist-filter-to").value) || "";
+
+        var url = "/api/history?type=" + historyType +
+            "&page=" + historyPage + "&limit=50" +
+            (device ? "&device=" + encodeURIComponent(device) : "") +
+            (route ? "&route=" + encodeURIComponent(route) : "") +
+            (from ? "&from=" + encodeURIComponent(from) : "") +
+            (to ? "&to=" + encodeURIComponent(to) : "");
+
+        renderHistoryHeaders();
+        var tbody = $("#hist-tbody");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>';
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#hist-tbody");
+            var summary = $("#hist-summary");
+            var pagination = $("#hist-pagination");
+            if (!tbody) return;
+            if (status !== 200 || !data) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#ef4444">خطا در بارگذاری</td></tr>';
+                return;
+            }
+            var total = data.total || 0;
+            var totalPages = Math.ceil(total / 50) || 1;
+            if (summary) summary.textContent = "مجموع: " + total + " رکورد — صفحه " + historyPage + " از " + totalPages;
+            var rows = data.rows || [];
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">رکوردی یافت نشد</td></tr>';
+                if (pagination) pagination.innerHTML = "";
+                return;
+            }
+            if (historyType === "sent") {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var ok = r.success ? '<span class="status-badge online">موفق</span>' : '<span class="status-badge error">ناموفق</span>';
+                    var resp = "";
+                    try {
+                        var rd = JSON.parse(r.response_data || "{}");
+                        resp = (rd && (rd.ID !== undefined)) ? "ID=" + rd.ID + " CFL=" + rd.CFL : (r.error_message || "-");
+                    } catch(e) { resp = r.error_message || "-"; }
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.created_at || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + ok + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.source_ip || "-") + "</td>" +
+                        "<td>" + escapeHtml(resp.substring(0, 40)) + "</td>" +
+                        "<td></td>" +
+                        "</tr>";
+                }).join("");
+            } else {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var total = (r.c1 || 0) + (r.c2 || 0) + (r.c3 || 0) + (r.c4 || 0) + (r.c5 || 0);
+                    var sentBadge = r.sent ? '<span class="status-badge online">ارسال شده</span>' : '<span class="status-badge offline">در صف</span>';
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_start || "-") + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_end || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.route_id || "-") + "</td>" +
+                        "<td>" + total + "</td>" +
+                        "<td>" + Math.round(r.avg_speed || 0) + "</td>" +
+                        "<td>" + sentBadge + "</td>" +
+                        "<td><button class='btn btn-secondary' style='padding:3px 10px;font-size:12px' onclick='histLoadToTestSender(" + r.id + ")'>📤 بارگذاری</button></td>" +
+                        "</tr>";
+                }).join("");
+            }
+            // Pagination
+            if (pagination) {
+                var pages = [];
+                var start = Math.max(1, historyPage - 2);
+                var end = Math.min(totalPages, start + 4);
+                if (historyPage > 1) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage - 1) + ')">‹</button>');
+                for (var p = start; p <= end; p++) {
+                    pages.push('<button class="btn ' + (p === historyPage ? 'btn-primary' : 'btn-secondary') + '" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + p + ')">' + p + '</button>');
+                }
+                if (historyPage < totalPages) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage + 1) + ')">›</button>');
+                pagination.innerHTML = pages.join("");
+            }
+        });
+    }
+
+    // Expose for inline onclick in history table
+    window.loadHistory = loadHistory;
+    window.histLoadToTestSender = function (id) {
+        api("GET", "/api/history/record/" + id, null, function (status, row) {
+            if (status !== 200 || !row) { alert("خطا در بارگذاری رکورد"); return; }
+            switchView("test-sender");
+            // Pre-fill test-sender form with the historical record
+            var ridEl = $("#test-rid");
+            var stEl = $("#test-st");
+            var etEl = $("#test-et");
+            var c1El = $("#test-c1"); var c2El = $("#test-c2"); var c3El = $("#test-c3");
+            var c4El = $("#test-c4"); var c5El = $("#test-c5");
+            var aspEl = $("#test-asp");
+            if (ridEl) ridEl.value = row.route_id || "";
+            if (stEl) stEl.value = (row.period_start || "").replace(" ", "T").substring(0, 16);
+            if (etEl) etEl.value = (row.period_end || "").replace(" ", "T").substring(0, 16);
+            if (c1El) c1El.value = row.c1 || 0;
+            if (c2El) c2El.value = row.c2 || 0;
+            if (c3El) c3El.value = row.c3 || 0;
+            if (c4El) c4El.value = row.c4 || 0;
+            if (c5El) c5El.value = row.c5 || 0;
+            if (aspEl) aspEl.value = Math.round(row.avg_speed || 0);
+        });
+    };
+
     // ============================================================
     // Test Sender
     // ============================================================
@@ -2894,7 +3512,80 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 }
             });
         });
+
+        // ---- Scheduled Test Send ----
+        var schedCopyBtn = $("#btn-sched-copy");
+        if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
+            ["c1","c2","c3","c4","c5","asp"].forEach(function (f) {
+                var src = $("#test-" + f), dst = $("#sched-" + f);
+                if (src && dst) dst.value = src.value;
+            });
+            var ridSrc = $("#test-rid"), ridDst = $("#sched-rid");
+            if (ridSrc && ridDst) ridDst.value = ridSrc.value;
+        });
+
+        var schedStartBtn = $("#btn-sched-start");
+        if (schedStartBtn) schedStartBtn.addEventListener("click", function () {
+            var rid = parseInt(($("#sched-rid") && $("#sched-rid").value) || "", 10);
+            if (!rid || rid <= 0) { alert("کد محور (RID) الزامی است"); return; }
+            var days = parseInt(($("#sched-days") && $("#sched-days").value) || "1", 10);
+            if (days < 1 || days > 15) { alert("مدت ارسال باید بین ۱ تا ۱۵ روز باشد"); return; }
+            if (!confirm("آیا از شروع ارسال زمانبندی شده هر ۵ دقیقه برای " + days + " روز مطمئن هستید؟")) return;
+            var body = { rid: rid, durationDays: days,
+                c1: parseInt(($("#sched-c1") && $("#sched-c1").value) || "0", 10),
+                c2: parseInt(($("#sched-c2") && $("#sched-c2").value) || "0", 10),
+                c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
+                c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
+                c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10) };
+            schedStartBtn.disabled = true;
+            api("POST", "/api/rmto/test-schedule", body, function (status, data) {
+                schedStartBtn.disabled = false;
+                schedStartBtn.textContent = "⏱ شروع ارسال زمانبندی شده";
+                var resultEl = $("#sched-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = data && data.success
+                        ? '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message) + '</div>'
+                        : '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا</div>';
+                }
+                refreshSchedJobs();
+            });
+        });
+
+        var schedRefreshBtn = $("#btn-sched-refresh");
+        if (schedRefreshBtn) schedRefreshBtn.addEventListener("click", refreshSchedJobs);
+
+        function refreshSchedJobs() {
+            api("GET", "/api/rmto/test-schedule", null, function (status, jobs) {
+                var tbody = $("#sched-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>'; return; }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var statusHtml = j.status === "running" ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped" ? '<span class="status-badge offline">متوقف</span>'
+                        : '<span class="status-badge online">پایان یافت</span>';
+                    var stopBtn = j.status === "running" ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopSchedJob(' + j.id + ')">⏹ توقف</button>' : "-";
+                    html += "<tr><td dir='ltr'>" + j.id + "</td><td dir='ltr'>" + j.rid + "</td><td>" + j.durationDays + "</td><td dir='ltr'>" + j.sendCount + "</td><td style='color:#166534'>" + j.successCount + "</td><td style='color:#991b1b'>" + j.failedCount + "</td><td dir='ltr' style='font-size:11px'>" + (j.lastSendAt ? j.lastSendAt.replace("T"," ").substring(0,19) : "-") + "</td><td>" + statusHtml + "</td><td>" + stopBtn + "</td></tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
+
+        setInterval(function () {
+            if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
+            var v = document.querySelector(".view.active");
+            if (v && v.id === "view-test-sender") refreshSchedJobs();
+        }, 3000);
     }
+
+    window.stopSchedJob = function (jobId) {
+        api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function () {
+            var rb = $("#btn-sched-refresh");
+            if (rb) { var evt = document.createEvent("Event"); evt.initEvent("click", true, true); rb.dispatchEvent(evt); }
+        });
+    };
 
     // ============================================================
     // Settings: Bale, Server Restart, Log Monitor
@@ -3068,6 +3759,9 @@ var scheduler = require("./scheduler");
 var app = express();
 var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
+
+// Build version for deployment verification
+var BUILD_VERSION = "2026.04.07-v3";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -3315,7 +4009,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "bale_bot_token", "bale_chat_id"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_source_ip", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -3335,7 +4029,8 @@ app.get("/api/server/time", requireAuth, function (req, res) {
         time: now.toISOString(),
         local: now.toLocaleString("fa-IR", { timeZone: process.env.TZ || "Asia/Tehran" }),
         timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tehran",
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        build: BUILD_VERSION
     });
 });
 
@@ -3353,8 +4048,13 @@ app.post("/api/server/restart", requireAuth, function (req, res) {
 // ============================================================
 app.post("/api/bale/test", requireAuth, function (req, res) {
     var text = req.body.text || "🔔 تست اطلاع‌رسانی از TC Manager";
-    scheduler.sendBaleNotification(text);
-    res.json({ success: true, message: "پیام ارسال شد (در صورت تنظیم توکن)" });
+    scheduler.sendBaleNotification(text, function (err) {
+        if (err) {
+            res.json({ success: false, message: "خطا در ارسال: " + err.message });
+        } else {
+            res.json({ success: true, message: "پیام با موفقیت ارسال شد" });
+        }
+    });
 });
 
 // ============================================================
@@ -3388,6 +4088,10 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
     var st = b.st || localISO(periodStart);
     var et = b.et || localISO(periodEnd);
 
+    // Load source IP from settings for consistency with scheduler
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
     rmto.sendAddData5({
         FID: fid,
         RID: rid,
@@ -3397,14 +4101,15 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
         ASP: asp,
         S1: asp, S2: asp, S3: asp, S4: asp, S5: asp,
         SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
-        OO: 0, ESD: 0
+        OO: 0, ESD: 0,
+        sourceIp: sourceIp
     }, function (err, response, soapXml) {
         var success = !err && response && (response.ID > 0 || response.CFL === 100);
         db.prepare(
-            "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
-            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
+            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
         res.json({
             success: success,
             response: response,
@@ -3413,6 +4118,78 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
             sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }
         });
     });
+});
+
+// ============================================================
+// API: Scheduled Test Send
+// ============================================================
+var testScheduleJobs = {};
+var testScheduleSeq = 0;
+
+app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var b = req.body;
+    var rid = parseInt(b.rid, 10) || 0;
+    if (!rid || rid <= 0) return res.status(400).json({ error: "کد محور (RID) الزامی است" });
+    var durationDays = Math.min(Math.max(parseInt(b.durationDays, 10) || 1, 1), 15);
+    var c1 = parseInt(b.c1) || 0, c2 = parseInt(b.c2) || 0, c3 = parseInt(b.c3) || 0;
+    var c4 = parseInt(b.c4) || 0, c5 = parseInt(b.c5) || 0, asp = parseInt(b.asp) || 60;
+    var s1 = parseInt(b.s1) || asp, s2 = parseInt(b.s2) || asp, s3 = parseInt(b.s3) || asp;
+    var s4 = parseInt(b.s4) || asp, s5 = parseInt(b.s5) || asp;
+    var jobId = ++testScheduleSeq;
+    var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+    function localISO(d) {
+        return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0") + "T" + String(d.getHours()).padStart(2, "0") + ":" +
+            String(d.getMinutes()).padStart(2, "0") + ":00";
+    }
+    var job = { id: jobId, rid: rid, data: { c1:c1,c2:c2,c3:c3,c4:c4,c5:c5,asp:asp },
+        durationDays: durationDays, expiresAt: expiresAt.toISOString(), startedAt: new Date().toISOString(),
+        sendCount: 0, successCount: 0, failedCount: 0, lastSendAt: null, lastError: null, stopped: false, status: "running" };
+    function sendOnce() {
+        if (job.stopped || new Date() >= expiresAt) {
+            job.status = job.stopped ? "stopped" : "expired";
+            if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+            return;
+        }
+        var now = new Date(); var periodEnd = new Date(now);
+        periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
+        var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+        job.sendCount++;
+        rmto.sendAddData5({ FID: 0, RID: rid, ST: localISO(periodStart), ET: localISO(periodEnd),
+            C1:c1,C2:c2,C3:c3,C4:c4,C5:c5, ASP:asp, S1:s1,S2:s2,S3:s3,S4:s4,S5:s5,
+            SSO:0,SO1:0,SO2:0,SO3:0,SO4:0,SO5:0, OO:0, ESD:0, sourceIp: sourceIp
+        }, function (err, response) {
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
+            job.lastSendAt = new Date().toISOString();
+            if (success) { job.successCount++; job.lastError = null; }
+            else { job.failedCount++; job.lastError = err ? err.message : "خطا"; }
+        });
+    }
+    sendOnce();
+    job.timerId = setInterval(sendOnce, 5 * 60 * 1000);
+    testScheduleJobs[jobId] = job;
+    res.json({ success: true, jobId: jobId, message: "ارسال زمانبندی شده شروع شد (" + durationDays + " روز)" });
+});
+
+app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var jobs = Object.keys(testScheduleJobs).map(function (k) {
+        var j = testScheduleJobs[k];
+        return { id:j.id, rid:j.rid, data:j.data, durationDays:j.durationDays, expiresAt:j.expiresAt,
+            startedAt:j.startedAt, sendCount:j.sendCount, successCount:j.successCount, failedCount:j.failedCount,
+            lastSendAt:j.lastSendAt, lastError:j.lastError, stopped:j.stopped, status:j.status };
+    });
+    res.json(jobs);
+});
+
+app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = testScheduleJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true; job.status = "stopped";
+    if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+    res.json({ success: true, message: "ارسال زمانبندی شده متوقف شد" });
 });
 
 // ============================================================
@@ -3575,6 +4352,81 @@ app.post("/api/rmto/aggregate", function (req, res) {
     res.json({ success: true, message: "تجمیع انجام شد. ارسال در پس‌زمینه ادامه دارد." });
 });
 
+// ============================================================
+// API: RMTO Connectivity Check
+// Tests TCP reachability of the RMTO host from each configured source IP.
+// ============================================================
+app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
+    var net = require("net");
+    var url = require("url");
+
+    // Reload latest settings from DB
+    var settingsRows = db.prepare(
+        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_source_ip')"
+    ).all();
+    var cfg = {};
+    settingsRows.forEach(function (r) { cfg[r.key] = r.value || ""; });
+
+    var rmtoUrl = cfg.rmto_url || (cfg.rmto_wsdl
+        ? cfg.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "")
+        : "http://otf.rmto.ir/Companies/Companies.asmx");
+
+    var parsedUrl = url.parse(rmtoUrl);
+    var host = parsedUrl.hostname || "otf.rmto.ir";
+    var port = parseInt(parsedUrl.port, 10) || 80;
+
+    var ipsToCheck = [
+        { label: "IP پیش‌فرض سرور", ip: "" },
+        { label: "IP ارسال (rmto_source_ip)", ip: cfg.rmto_source_ip || "" }
+    ];
+
+    var results = [];
+    var remaining = ipsToCheck.length;
+    var TIMEOUT_MS = 8000;
+
+    function checkOne(entry, done) {
+        var start = Date.now();
+        var timedOut = false;
+        var sock = new net.Socket();
+
+        var connectOpts = { host: host, port: port };
+        if (entry.ip) connectOpts.localAddress = entry.ip;
+
+        var timer = setTimeout(function () {
+            timedOut = true;
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: false, latencyMs: null, error: "timeout (" + TIMEOUT_MS + "ms)" });
+        }, TIMEOUT_MS);
+
+        sock.connect(connectOpts, function () {
+            clearTimeout(timer);
+            var latency = Date.now() - start;
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: true, latencyMs: latency, error: null });
+        });
+
+        sock.on("error", function (err) {
+            if (timedOut) return;
+            clearTimeout(timer);
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: false, latencyMs: null, error: err.message });
+        });
+    }
+
+    ipsToCheck.forEach(function (entry) {
+        checkOne(entry, function (result) {
+            results.push(result);
+            remaining--;
+            if (remaining === 0) {
+                res.json({ host: host, port: port, url: rmtoUrl, checks: results, checkedAt: new Date().toISOString() });
+            }
+        });
+    });
+});
+
 app.get("/api/rmto/queue", function (req, res) {
     var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
     var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();
@@ -3586,6 +4438,74 @@ app.get("/api/rmto/queue", function (req, res) {
         todayErrors = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?").get(todayStart.toISOString()).c;
     } catch (e) { /* ok */ }
     res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
+});
+
+// ============================================================
+// API: History (received data + RMTO send log, searchable, paginated)
+// ============================================================
+app.get("/api/history", requireAuth, function (req, res) {
+    var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    var limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    var offset = (page - 1) * limit;
+    var type = req.query.type === "received" ? "received" : "sent";
+    var device = (req.query.device || "").trim();
+    var route = (req.query.route || "").trim();
+    var from = (req.query.from || "").trim();
+    var to = (req.query.to || "").trim();
+
+    var conds = [];
+    var params = [];
+
+    if (type === "received") {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (route) { conds.push("route_id = ?"); params.push(route); }
+        if (from) { conds.push("period_start >= ?"); params.push(from); }
+        if (to) { conds.push("period_start <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where), params);
+        var rows = db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    } else {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (from) { conds.push("created_at >= ?"); params.push(from); }
+        if (to) { conds.push("created_at <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM send_log " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM send_log " + where), params);
+        var rows = db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    }
+});
+
+// Load full detail of a history record for re-send in test-sender
+app.get("/api/history/record/:id", requireAuth, function (req, res) {
+    var id = parseInt(req.params.id, 10);
+    var row = db.prepare("SELECT * FROM rmto_queue_5class WHERE id = ?").get(id);
+    if (!row) return res.status(404).json({ error: "not found" });
+    return res.json(row);
 });
 
 // ============================================================
@@ -3920,6 +4840,29 @@ function parseRATCX1Interval(intervalStr) {
         solar: solar,
         error_byte: errorByte
     };
+}
+
+/** RATCX1 error_byte bitmask — from firmware/Main/Variables.h */
+var ERROR_BITS = {
+    1:   'MMC_ERR  - خطای کارت حافظه',
+    2:   'LP1_ERR  - خطای لوپ ۱',
+    4:   'LP2_ERR  - خطای لوپ ۲',
+    8:   'LP3_ERR  - خطای لوپ ۳',
+    16:  'LP4_ERR  - خطای لوپ ۴',
+    32:  'VMN_ERR  - خطای ولتاژ شبانه',
+    64:  'SOL_ERR  - خطای پنل خورشیدی',
+    128: 'LBT_ERR  - خطای باتری ضعیف',
+    256: 'L1D_ERR  - خطای جهت لاین ۱',
+    512: 'L2D_ERR  - خطای جهت لاین ۲'
+};
+
+/** Decode an error_byte integer into a readable list of active error names */
+function decodeErrorByte(code) {
+    var active = [];
+    Object.keys(ERROR_BITS).forEach(function(bit) {
+        if ((code & parseInt(bit, 10)) !== 0) active.push(ERROR_BITS[bit]);
+    });
+    return active.length ? active.join('\n  ') : '';
 }
 
 /** Convert RATCX1 parsed interval to irawdata rows (one per lane) */
@@ -4347,10 +5290,8 @@ var tcpServer = net.createServer(function (socket) {
             clearTimeout(pendingSyncs[deviceId].timer);
             delete pendingSyncs[deviceId];
         }
-        // Mark device offline when it disconnects
-        if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
-        }
+        // Do NOT mark device offline immediately on disconnect.
+        // The scheduler will mark it offline after 2×INTERVAL minutes of inactivity.
         console.log("[TCP] Disconnected " + clientIP + (deviceId ? " (device " + deviceId + ")" : ""));
     });
 
@@ -4366,7 +5307,7 @@ var tcpServer = net.createServer(function (socket) {
             delete pendingSyncs[deviceId];
         }
         if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
+            // Do NOT mark offline on error; scheduler handles it after 2×INTERVAL minutes
         }
         console.error("[TCP] Error from " + clientIP + (deviceId ? " (device " + deviceId + ")" : "") + ": " + err.message);
     });
@@ -4376,7 +5317,7 @@ function storeIrawdata(parsed) {
     var total = (parsed.a||0) + (parsed.b||0) + (parsed.c||0) + (parsed.d||0) + (parsed.e||0) + (parsed.x||0);
     console.log("[DB] INSERT irawdata: device=" + parsed.device_code + " create_at=" + parsed.create_at + " stop=" + parsed.stop + " lane=" + parsed.lane + " total=" + total);
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     insertRaw.run(
@@ -4509,6 +5450,32 @@ function processRawData(raw, ip) {
             // Update device battery/solar info
             db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(parsed.device_code);
             console.log("[TCP] RATCX1 stored: device=" + parsed.device_code + " vehicles=" + totalAll + " lanes=" + rows.length + " bat=" + parsed.battery + " sol=" + parsed.solar + (timestampCorrected ? " (timestamp corrected)" : ""));
+
+            // Send Bale notification when error_byte transitions from 0 to non-zero
+            if (parsed.error_byte > 0) {
+                var devRow = db.prepare("SELECT name, last_error_byte FROM devices WHERE device_code = ?").get(parsed.device_code);
+                var prevErr = devRow ? (devRow.last_error_byte || 0) : 0;
+                if (prevErr === 0) {
+                    // New error onset — notify
+                    var devName = devRow ? (devRow.name || parsed.device_code) : parsed.device_code;
+                    var errLabels = decodeErrorByte(parsed.error_byte);
+                    scheduler.sendBaleNotification && scheduler.sendBaleNotification(
+                        "⚠️ خطا از دستگاه\n" +
+                        "کد: " + parsed.device_code + "\n" +
+                        "نام: " + devName + "\n" +
+                        "کد خطا: " + parsed.error_byte + "\n" +
+                        (errLabels ? "خطاها:\n  " + errLabels + "\n" : "") +
+                        "باتری: " + parsed.battery + "  سولار: " + parsed.solar + "\n" +
+                        "تردد: " + totalAll + "\n" +
+                        "IP: " + ip
+                    );
+                    console.log("[TCP] Bale error notification sent for device=" + parsed.device_code + " error=" + parsed.error_byte);
+                }
+                db.prepare("UPDATE devices SET last_error_byte = ? WHERE device_code = ?").run(parsed.error_byte, parsed.device_code);
+            } else if (parsed.error_byte === 0) {
+                // Error cleared — reset so next error triggers a new notification
+                db.prepare("UPDATE devices SET last_error_byte = 0 WHERE device_code = ?").run(parsed.device_code);
+            }
         } catch (e) {
             console.error("[TCP] DB error: " + e.message);
         }
@@ -4676,6 +5643,8 @@ var httpServer = null;
 
 var TCP_RETRY_COUNT = 0;
 var TCP_MAX_RETRIES = 5;
+var HTTP_RETRY_COUNT = 0;
+var HTTP_MAX_RETRIES = 5;
 
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     TCP_RETRY_COUNT = 0;
@@ -4697,27 +5666,43 @@ tcpServer.on("error", function (err) {
 // ============================================================
 // Start HTTP Server
 // ============================================================
-httpServer = app.listen(PORT, HOST, function () {
-    console.log("============================================");
-    console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
-    console.log("  HTTP: http://" + HOST + ":" + PORT);
-    console.log("  TCP:  port " + TCP_PORT + " (device data)");
-    console.log("  Login: admin / admin123");
-    console.log("============================================");
+function startHttpServer() {
+    httpServer = app.listen(PORT, HOST, function () {
+        HTTP_RETRY_COUNT = 0;
+        console.log("============================================");
+        console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
+        console.log("  Build: " + BUILD_VERSION);
+        console.log("  HTTP: http://" + HOST + ":" + PORT);
+        console.log("  TCP:  port " + TCP_PORT + " (device data)");
+        console.log("  Login: admin / admin123");
+        console.log("============================================");
 
-    rmto.initClient(function (err) {
-        if (err) console.error("[RMTO] Will retry on first send");
+        rmto.initClient(function (err) {
+            if (err) console.error("[RMTO] Will retry on first send");
+        });
+
+        scheduler.start();
+
+        // Send Bale startup notification (if configured)
+        try {
+            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
+        } catch (e) { /* ignore startup notification errors */ }
     });
 
-    scheduler.start();
-});
+    httpServer.on("error", function (err) {
+        if (err.code === "EADDRINUSE") {
+            HTTP_RETRY_COUNT++;
+            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
+                console.error("[HTTP] Port " + PORT + " still in use after " + HTTP_MAX_RETRIES + " retries, exiting.");
+                process.exit(1);
+            }
+            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
+            setTimeout(startHttpServer, 5000);
+        }
+    });
+}
 
-httpServer.on("error", function (err) {
-    if (err.code === "EADDRINUSE") {
-        console.error("[HTTP] Port " + PORT + " already in use. Exiting so PM2 can retry.");
-        process.exit(1);
-    }
-});
+startHttpServer();
 
 // ============================================================
 // Graceful Shutdown
@@ -4727,7 +5712,14 @@ function gracefulShutdown(signal) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
-    scheduler.stop && scheduler.stop();
+    scheduler.stop();
+
+    // Stop all scheduled test-send jobs
+    Object.keys(testScheduleJobs).forEach(function (k) {
+        var job = testScheduleJobs[k];
+        if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+        job.stopped = true; job.status = "stopped";
+    });
 
     // Close all active TCP device connections first
     Object.keys(connectedDevices).forEach(function (key) {
@@ -4863,6 +5855,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
+    "  retry_count INTEGER DEFAULT 0,",
     "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
@@ -5019,7 +6012,24 @@ try {
         console.log("[DB] Adding soap_xml column to send_log...");
         db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
     }
+    if (slColNames.length > 0 && slColNames.indexOf("source_ip") === -1) {
+        console.log("[DB] Adding source_ip column to send_log...");
+        db.exec("ALTER TABLE send_log ADD COLUMN source_ip TEXT");
+    }
 } catch(e) {}
+
+// Migration: add retry_count column to rmto_queue_5class if missing
+try {
+    var rmto5Cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
+    var rmto5ColNames = rmto5Cols.map(function(c) { return c.name; });
+    if (rmto5ColNames.length > 0 && rmto5ColNames.indexOf("retry_count") === -1) {
+        console.log("[DB] Adding retry_count column to rmto_queue_5class...");
+        db.exec("ALTER TABLE rmto_queue_5class ADD COLUMN retry_count INTEGER DEFAULT 0");
+        console.log("[DB] rmto_queue_5class retry_count migration done");
+    }
+} catch(e) {
+    console.error("[DB] rmto_queue_5class retry_count migration error:", e.message);
+}
 
 // Migration: add route1, route2, active columns to devices (replace single route column)
 try {
@@ -5046,8 +6056,31 @@ try {
         db.exec("ALTER TABLE devices ADD COLUMN rid2 TEXT DEFAULT ''");
         console.log("[DB] devices rid1/rid2 migration done");
     }
+    // Migration: add last_error_byte to track device error state for Bale notifications
+    if (devColNames.indexOf("last_error_byte") === -1) {
+        console.log("[DB] Adding last_error_byte column to devices...");
+        db.exec("ALTER TABLE devices ADD COLUMN last_error_byte INTEGER DEFAULT 0");
+        console.log("[DB] devices last_error_byte migration done");
+    }
 } catch(e) {
     console.error("[DB] devices migration error:", e.message);
+}
+
+// Migration: consolidate dual-lane source IPs into single rmto_source_ip
+try {
+    var liveIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_live_source_ip'").get();
+    if (liveIpRow) {
+        var liveVal = (liveIpRow.value || "").trim();
+        // Copy live IP to new unified key if not already set
+        var existingUnified = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+        if (!existingUnified && liveVal) {
+            db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('rmto_source_ip', ?)").run(liveVal);
+        }
+        db.prepare("DELETE FROM settings WHERE key IN ('rmto_live_source_ip', 'rmto_backlog_source_ip')").run();
+        console.log("[DB] Migrated rmto_live/backlog_source_ip -> rmto_source_ip");
+    }
+} catch(e) {
+    // ignore
 }
 
 // Insert default settings if not exists
@@ -5066,6 +6099,7 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
+    rmto_source_ip: "",
     bale_bot_token: "",
     bale_chat_id: ""
 };
@@ -5081,193 +6115,335 @@ ENDOFFILE_SERVER_DB_JS
 echo "[+] server/rmto-client.js"
 cat > "$APP_DIR/server/rmto-client.js" << 'ENDOFFILE_SERVER_RMTO-CLIENT_JS'
 /**
- * RMTO SOAP Client
+ * RMTO SOAP Client - Raw HTTP implementation
  * Sends traffic data to otf.rmto.ir/Companies/Companies.asmx
  *
- * Methods:
- *   - AddData  (v1.02): Simple total count + avg speed per 15-min period
- *   - AddData5 (v1.01): 5-class volume + 5-class speed + violations
- *   - AddData8 (v1.00): 8-class volume + 8-class speed + violations
+ * Uses raw SOAP XML (not node-soap) to guarantee exact format matching RMTO docs:
+ *   - ADD DATA_WEB SERVICE_1.02.pdf (Add method)
+ *   - ADD DATA5_WEB SERVICE_1.01.pdf (Add5 method)
+ *
+ * Callback signature: callback(err, response, soapXml)
  */
-var soap = require("soap");
+var http = require("http");
+var db = require("./db");
 
-var WSDL_URL = process.env.RMTO_WSDL || "http://otf.rmto.ir/Companies/Companies.asmx?WSDL";
+var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.asmx";
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
-
-var soapClient = null;
+var SOURCE_IP = "";
 
 /**
- * Initialize SOAP client (called once at startup).
+ * Load RMTO settings from database (overrides env vars).
  */
-function initClient(callback) {
-    if (soapClient) return callback(null, soapClient);
-
-    soap.createClient(WSDL_URL, function (err, client) {
-        if (err) {
-            console.error("[RMTO] Failed to create SOAP client:", err.message);
-            return callback(err);
-        }
-        soapClient = client;
-        console.log("[RMTO] SOAP client initialized");
-        console.log("[RMTO] Available methods:", Object.keys(client.describe().CompanySoap || {}));
-        callback(null, client);
-    });
+function loadDbSettings() {
+    try {
+        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_source_ip')").all();
+        var s = {};
+        rows.forEach(function (r) { s[r.key] = r.value; });
+        if (s.rmto_company_code) COMPANY_CODE = s.rmto_company_code;
+        if (s.rmto_username !== undefined) USERNAME = s.rmto_username;
+        if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
+        if (s.rmto_url) RMTO_URL = s.rmto_url;
+        else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
+        if (s.rmto_source_ip !== undefined) SOURCE_IP = s.rmto_source_ip || "";
+    } catch (e) {
+        console.error("[RMTO] Failed to load DB settings:", e.message);
+    }
 }
 
 /**
- * AddData (v1.02) - Simple traffic data
- * @param {object} data
- * @param {string} data.deviceCode - 4-digit device code
- * @param {string} data.dateTime   - Period date/time "YYYY/MM/DD HH:mm"
- * @param {number} data.totalCount - Total vehicles in period
- * @param {number} data.avgSpeed   - Average speed in period
+ * Returns the configured source IP.
+ */
+function getSourceIp() {
+    return SOURCE_IP || "";
+}
+
+/**
+ * Escape XML special characters.
+ */
+function xmlEscape(str) {
+    if (str == null) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/**
+ * Format datetime for RMTO SOAP: "YYYY-MM-DDTHH:mm:ss" (local, no Z, no timezone).
+ * Input is already stored as local ISO string in DB: "2026-03-10T08:45:00"
+ */
+function formatDateTime(str) {
+    if (!str) return "";
+    // Already in correct format? Return as-is
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(str)) return str;
+    // Remove Z suffix, milliseconds, timezone offset
+    return str.replace(/\.\d+/, "").replace(/Z$/, "").replace(/[+-]\d{2}:\d{2}$/, "");
+}
+
+/**
+ * Build a SOAP XML element. If value is null, emit xsi:nil="true".
+ */
+function xmlElement(name, value) {
+    if (value === null || value === undefined) {
+        return "<" + name + " xsi:nil=\"true\"/>";
+    }
+    return "<" + name + ">" + xmlEscape(value) + "</" + name + ">";
+}
+
+/**
+ * Send raw SOAP request to RMTO and parse response.
+ * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
+ * @param {string} bodyXml - the inner SOAP body XML
+ * @param {string|null} sourceIp - local IP to bind (overrides SOURCE_IP); null = use module default
+ * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
+ */
+function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
+    // Allow legacy 3-arg call: sendSoapRequest(action, body, callback)
+    if (typeof sourceIp === "function") { callback = sourceIp; sourceIp = null; }
+    var soapEnvelope =
+        '<?xml version="1.0" encoding="utf-8"?>' +
+        '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
+        'xmlns:xsd="http://www.w3.org/2001/XMLSchema" ' +
+        'xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">' +
+        '<soap:Body>' + bodyXml + '</soap:Body>' +
+        '</soap:Envelope>';
+
+    var urlObj = require("url").parse(RMTO_URL);
+    var options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || 80,
+        path: urlObj.path,
+        method: "POST",
+        headers: {
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": '"' + soapAction + '"',
+            "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
+        }
+    };
+    // sourceIp param overrides module-level SOURCE_IP (null = OS default, "" = OS default)
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : SOURCE_IP;
+    if (effectiveIp) {
+        options.localAddress = effectiveIp;
+        console.log("[RMTO] Using source IP: " + effectiveIp);
+    }
+
+    console.log("[RMTO] SOAP " + soapAction + " to " + RMTO_URL);
+    console.log("[RMTO] Request XML:\n" + bodyXml.substring(0, 500));
+
+    var req = http.request(options, function (res) {
+        var data = "";
+        res.on("data", function (chunk) { data += chunk; });
+        res.on("end", function () {
+            console.log("[RMTO] Response status: " + res.statusCode);
+            console.log("[RMTO] Response body:\n" + data.substring(0, 1000));
+
+            if (res.statusCode !== 200) {
+                return callback(new Error("HTTP " + res.statusCode + ": " + data.substring(0, 500)), null, soapEnvelope);
+            }
+
+            // Parse response XML to extract Re fields
+            var parsed = parseReResponse(data);
+            if (parsed.error) {
+                return callback(new Error(parsed.error), null, soapEnvelope);
+            }
+            callback(null, parsed, soapEnvelope);
+        });
+    });
+
+    req.on("error", function (err) {
+        console.error("[RMTO] Request error:", err.message);
+        callback(err, null, soapEnvelope);
+    });
+
+    req.setTimeout(30000, function () {
+        req.destroy();
+        callback(new Error("RMTO request timeout (30s)"), null, soapEnvelope);
+    });
+
+    req.write(soapEnvelope);
+    req.end();
+}
+
+/**
+ * Parse RMTO SOAP response XML to extract Re object fields.
+ * Fields: ID, FID, CFL, SRVDT, DLY, BIL, ERR
+ */
+function parseReResponse(xml) {
+    function extractTag(tag) {
+        var re = new RegExp("<" + tag + ">([^<]*)</" + tag + ">", "i");
+        var m = xml.match(re);
+        return m ? m[1] : null;
+    }
+
+    // Check for SOAP fault
+    var faultMatch = xml.match(/<faultstring>([^<]*)<\/faultstring>/i);
+    if (faultMatch) {
+        return { error: faultMatch[1], ID: 0, FID: 0, CFL: 0 };
+    }
+
+    // Check for more detailed error
+    var detailMatch = xml.match(/<(?:\w+:)?Text[^>]*>([^<]*)<\/(?:\w+:)?Text>/i);
+
+    return {
+        ID: parseInt(extractTag("ID")) || 0,
+        FID: parseInt(extractTag("FID")) || 0,
+        CFL: parseInt(extractTag("CFL")) || 0,
+        SRVDT: extractTag("SRVDT") || "",
+        DLY: parseInt(extractTag("DLY")) || 0,
+        BIL: parseInt(extractTag("BIL")) || 0,
+        ERR: extractTag("ERR") || (detailMatch ? detailMatch[1] : "")
+    };
+}
+
+/**
+ * Add - Simple traffic data (per PDF: ADD DATA_WEB SERVICE_1.02)
+ *
+ * SOAP body example from PDF:
+ *   <Add xmlns="ITS">
+ *     <CID>30</CID><UID>USER NAME</UID><PWD>PASSWORD</PWD>
+ *     <FID>102030</FID><RID>405060</RID>
+ *     <ST>2014-09-07T09:45:00</ST><ET>2014-09-07T10:00:00</ET>
+ *     <C1>15</C1><C2>8</C2><C3>17</C3><C4>6</C4><C5>11</C5>
+ *     <ASP>91</ASP><SO>3</SO><OO>0</OO><ESD>7</ESD>
+ *   </Add>
+ *
+ * callback(err, response, soapXml)
  */
 function sendAddData(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
+    loadDbSettings();
 
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            Count: data.totalCount,
-            Speed: Math.round(data.avgSpeed)
-        };
+    var cid = parseInt(COMPANY_CODE, 10) || 0;
+    var fid = parseInt(data.FID, 10) || 0;
+    var rid = parseInt(data.RID, 10) || 0;
+    var st = formatDateTime(data.ST);
+    var et = formatDateTime(data.ET);
 
-        console.log("[RMTO] AddData request:", JSON.stringify(args));
+    // Validate RID - must be a positive integer (RMTO route code)
+    if (!rid || rid <= 0) {
+        return callback(new Error("RID نامعتبر: '" + data.RID + "' - کد محور باید عدد مثبت باشد. لطفا محور دستگاه را بررسی کنید"), null, null);
+    }
 
-        soapClient.AddData(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddDataResult;
-            console.log("[RMTO] AddData response:", response);
-            callback(null, response);
-        });
-    });
+    var bodyXml =
+        '<Add xmlns="ITS">' +
+        '<CID>' + cid + '</CID>' +
+        '<UID>' + xmlEscape(USERNAME) + '</UID>' +
+        '<PWD>' + xmlEscape(PASSWORD) + '</PWD>' +
+        '<FID>' + fid + '</FID>' +
+        '<RID>' + rid + '</RID>' +
+        '<ST>' + st + '</ST>' +
+        '<ET>' + et + '</ET>' +
+        '<C1>' + (parseInt(data.C1) || 0) + '</C1>' +
+        '<C2>' + (parseInt(data.C2) || 0) + '</C2>' +
+        '<C3>' + (parseInt(data.C3) || 0) + '</C3>' +
+        '<C4>' + (parseInt(data.C4) || 0) + '</C4>' +
+        '<C5>' + (parseInt(data.C5) || 0) + '</C5>' +
+        '<ASP>' + (parseInt(data.ASP) || 0) + '</ASP>' +
+        '<SO>' + (parseInt(data.SO) || 0) + '</SO>' +
+        '<OO>' + (parseInt(data.OO) || 0) + '</OO>' +
+        '<ESD>' + (parseInt(data.ESD) || 0) + '</ESD>' +
+        '</Add>';
+
+    console.log("[RMTO] Add request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et);
+
+    sendSoapRequest("ITS/Add", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
- * AddData5 (v1.01) - 5-class traffic data
- * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class5Count  (volume by vehicle class)
- * @param {number} data.speed1Count .. data.speed5Count  (count by speed range)
- * @param {number} data.violations
- * @param {number} data.avgSpeed
+ * Add5 - 5-class traffic data (per PDF: ADD DATA5_WEB SERVICE_1.01)
+ *
+ * SOAP body example from PDF:
+ *   <Add5 xmlns="ITS">
+ *     <CID>6</CID><UID>USERNAME</UID><PWD>PASSWORD</PWD>
+ *     <FID>0</FID><RID>102030</RID>
+ *     <ST>2009-02-24T14:55:00</ST><ET>2009-02-24T15:00:00</ET>
+ *     <C1>500</C1><C2>50</C2><C3>0</C3><C4>10</C4><C5>5</C5>
+ *     <ASP>74</ASP>
+ *     <S1>80</S1><S2>70</S2><S3>60</S3><S4>50</S4><S5>40</S5>
+ *     <SSO>50</SSO><SO1>25</SO1><SO2>13</SO2><SO3>7</SO3><SO4>5</SO4>
+ *     <SO5 xsi:nil="true"/>
+ *     <OO>7</OO><ESD>7</ESD>
+ *   </Add5>
+ *
+ * Per PDF: All numeric fields are Nullable<ushort>.
+ * null = device did not measure this field (all fields null = skip record).
+ * 0 = device measured but found no instances.
+ * Per C# reference: SO5 should be numeric (not null) when data exists.
+ * SSO must equal SO1+SO2+SO3+SO4+SO5 (RMTO validates this sum).
+ *
+ * callback(err, response, soapXml)
  */
 function sendAddData5(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
+    loadDbSettings();
 
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            // 5 volume classes
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            // 5 speed classes
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            // Violation & speed
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
-        };
+    var cid = parseInt(COMPANY_CODE, 10) || 0;
+    var fid = parseInt(data.FID, 10) || 0;
+    var rid = parseInt(data.RID, 10) || 0;
+    var st = formatDateTime(data.ST);
+    var et = formatDateTime(data.ET);
 
-        console.log("[RMTO] AddData5 request:", JSON.stringify(args));
+    // Validate RID - must be a positive integer (RMTO route code)
+    if (!rid || rid <= 0) {
+        return callback(new Error("RID نامعتبر: '" + data.RID + "' - کد محور باید عدد مثبت باشد. لطفا محور دستگاه را بررسی کنید"), null, null);
+    }
 
-        soapClient.AddData5(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData5 error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddData5Result;
-            console.log("[RMTO] AddData5 response:", response);
-            callback(null, response);
-        });
-    });
+    var bodyXml =
+        '<Add5 xmlns="ITS">' +
+        '<CID>' + cid + '</CID>' +
+        '<UID>' + xmlEscape(USERNAME) + '</UID>' +
+        '<PWD>' + xmlEscape(PASSWORD) + '</PWD>' +
+        '<FID>' + fid + '</FID>' +
+        '<RID>' + rid + '</RID>' +
+        '<ST>' + st + '</ST>' +
+        '<ET>' + et + '</ET>' +
+        xmlElement("C1", valOrNull(data.C1)) +
+        xmlElement("C2", valOrNull(data.C2)) +
+        xmlElement("C3", valOrNull(data.C3)) +
+        xmlElement("C4", valOrNull(data.C4)) +
+        xmlElement("C5", valOrNull(data.C5)) +
+        xmlElement("ASP", valOrNull(data.ASP)) +
+        xmlElement("S1", valOrNull(data.S1)) +
+        xmlElement("S2", valOrNull(data.S2)) +
+        xmlElement("S3", valOrNull(data.S3)) +
+        xmlElement("S4", valOrNull(data.S4)) +
+        xmlElement("S5", valOrNull(data.S5)) +
+        xmlElement("SSO", valOrNull(data.SSO)) +
+        xmlElement("SO1", valOrNull(data.SO1)) +
+        xmlElement("SO2", valOrNull(data.SO2)) +
+        xmlElement("SO3", valOrNull(data.SO3)) +
+        xmlElement("SO4", valOrNull(data.SO4)) +
+        xmlElement("SO5", valOrNull(data.SO5)) +
+        xmlElement("OO", valOrNull(data.OO)) +
+        xmlElement("ESD", valOrNull(data.ESD)) +
+        '</Add5>';
+
+    console.log("[RMTO] Add5 request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et +
+        " C1=" + data.C1 + " C2=" + data.C2 + " C3=" + data.C3 + " C4=" + data.C4 + " C5=" + data.C5);
+
+    sendSoapRequest("ITS/Add5", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
- * AddData8 (v1.00) - 8-class traffic data
- * @param {object} data
- * @param {string} data.deviceCode
- * @param {string} data.dateTime
- * @param {number} data.class1Count .. data.class8Count
- * @param {number} data.speed1Count .. data.speed8Count
- * @param {number} data.violations
- * @param {number} data.avgSpeed
+ * Convert value to integer or null. Keeps 0 as 0 (not null).
  */
-function sendAddData8(data, callback) {
-    ensureClient(function (err) {
-        if (err) return callback(err);
-
-        var args = {
-            CompanyCode: COMPANY_CODE,
-            UserName: USERNAME,
-            Password: PASSWORD,
-            StationCode: data.deviceCode,
-            DateTime: data.dateTime,
-            C1: data.class1Count || 0,
-            C2: data.class2Count || 0,
-            C3: data.class3Count || 0,
-            C4: data.class4Count || 0,
-            C5: data.class5Count || 0,
-            C6: data.class6Count || 0,
-            C7: data.class7Count || 0,
-            C8: data.class8Count || 0,
-            S1: data.speed1Count || 0,
-            S2: data.speed2Count || 0,
-            S3: data.speed3Count || 0,
-            S4: data.speed4Count || 0,
-            S5: data.speed5Count || 0,
-            S6: data.speed6Count || 0,
-            S7: data.speed7Count || 0,
-            S8: data.speed8Count || 0,
-            Violation: data.violations || 0,
-            Speed: Math.round(data.avgSpeed || 0)
-        };
-
-        console.log("[RMTO] AddData8 request:", JSON.stringify(args));
-
-        soapClient.AddData8(args, function (err, result) {
-            if (err) {
-                console.error("[RMTO] AddData8 error:", err.message);
-                return callback(err, null);
-            }
-            var response = result && result.AddData8Result;
-            console.log("[RMTO] AddData8 response:", response);
-            callback(null, response);
-        });
-    });
+function valOrNull(v) {
+    if (v === null || v === undefined) return null;
+    var n = parseInt(v);
+    return isNaN(n) ? null : n;
 }
 
-function ensureClient(callback) {
-    if (soapClient) return callback(null);
-    initClient(function (err) { callback(err); });
+/**
+ * Stub initClient for backward compatibility (no longer needed with raw HTTP).
+ */
+function initClient(callback) {
+    callback(null);
 }
 
 module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    sendAddData8: sendAddData8
+    getSourceIp: getSourceIp
 };
+
 ENDOFFILE_SERVER_RMTO-CLIENT_JS
 
 echo "[+] server/scheduler.js"
@@ -5291,14 +6467,19 @@ var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 5;
  * Send a notification message via Bale messenger bot.
  * Settings: bale_bot_token, bale_chat_id (stored in DB settings table)
  */
-function sendBaleNotification(text) {
+function sendBaleNotification(text, callback) {
     try {
         var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('bale_bot_token','bale_chat_id')").all();
         var s = {};
         rows.forEach(function (r) { s[r.key] = r.value; });
         var token = s.bale_bot_token || "";
         var chatId = s.bale_chat_id || "";
-        if (!token || !chatId) return; // Bale not configured
+        if (!token || !chatId) {
+            var msg = !token ? "توکن بات بله تنظیم نشده" : "شناسه چت بله تنظیم نشده";
+            console.warn("[Bale] " + msg);
+            if (callback) callback(new Error(msg));
+            return;
+        }
         var body = JSON.stringify({ chat_id: chatId, text: text });
         var options = {
             hostname: "tapi.bale.ai",
@@ -5311,16 +6492,31 @@ function sendBaleNotification(text) {
             var data = "";
             res.on("data", function (c) { data += c; });
             res.on("end", function () {
-                if (res.statusCode !== 200) console.error("[Bale] sendMessage failed: " + res.statusCode + " " + data.substring(0, 200));
-                else console.log("[Bale] Notification sent: " + text.substring(0, 80));
+                if (res.statusCode !== 200) {
+                    var errMsg = "Bale API error: " + res.statusCode + " " + data.substring(0, 200);
+                    console.error("[Bale] sendMessage failed: " + errMsg);
+                    if (callback) callback(new Error(errMsg));
+                } else {
+                    console.log("[Bale] Notification sent: " + text.substring(0, 80));
+                    if (callback) callback(null);
+                }
             });
         });
-        req.on("error", function (e) { console.error("[Bale] Request error:", e.message); });
-        req.setTimeout(10000, function () { req.destroy(); console.error("[Bale] Notification request timed out"); });
+        req.on("error", function (e) {
+            console.error("[Bale] Request error:", e.message);
+            if (callback) callback(e);
+        });
+        req.setTimeout(10000, function () {
+            req.destroy();
+            var errMsg = "Bale notification request timed out";
+            console.error("[Bale] " + errMsg);
+            if (callback) callback(new Error(errMsg));
+        });
         req.write(body);
         req.end();
     } catch (e) {
         console.error("[Bale] sendBaleNotification error:", e.message);
+        if (callback) callback(e);
     }
 }
 
@@ -5387,8 +6583,21 @@ function aggregateAndSend() {
 
 /**
  * Aggregate a single period for a single device.
+ * RMTO rule: period must be 5, 10, or 15 minutes; must start on a multiple of the
+ * interval from the top of the hour; must not span across an hour boundary.
  */
 function aggregatePeriod(code, startStr, endStr) {
+    // RMTO validation: reject periods that cross an hour boundary (e.g. 7:55–8:10 → خطای D).
+    // A period ending exactly at :00:00 of the next hour (e.g. 7:55–8:00) is valid per RMTO rules.
+    var pStart = new Date(startStr);
+    var pEnd = new Date(endStr);
+    var endsExactlyOnHour = (pEnd.getMinutes() === 0 && pEnd.getSeconds() === 0);
+    if (pStart.getHours() !== pEnd.getHours() && !endsExactlyOnHour) {
+        console.log("[Scheduler] RMTO: device " + code + " period " + startStr + "-" + endStr + " crosses hour boundary - skipping (خطای D RMTO)");
+        db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0")
+            .run(code, startStr, endStr);
+        return;
+    }
     // Get device route info and RID (RMTO route number per lane)
     var devInfo = db.prepare("SELECT route, route1, route2, rid1, rid2 FROM devices WHERE device_code = ?").get(code);
     var route1 = (devInfo && (devInfo.route1 || devInfo.route)) || "";
@@ -5421,6 +6630,15 @@ function aggregatePeriod(code, startStr, endStr) {
             console.log("[Scheduler] Device " + code + " lane " + lane + " period " + startStr + ": no route assigned, skipping");
             db.prepare("UPDATE irawdata SET is_read = 1 WHERE device_code = ? AND create_at >= ? AND create_at < ? AND is_read = 0 AND lane = ?")
                 .run(code, startStr, endStr, lane);
+            // Log once per hour per device+lane so it shows in the RMTO monitor
+            var recentSkip = db.prepare(
+                "SELECT id FROM send_log WHERE device_code = ? AND method = 'Skipped' AND error_message LIKE ? AND created_at >= datetime('now','-1 hour')"
+            ).get(code, "%lane=" + lane + "%");
+            if (!recentSkip) {
+                db.prepare(
+                    "INSERT INTO send_log (method, device_code, request_data, success, error_message) VALUES (?, ?, ?, ?, ?)"
+                ).run("Skipped", code, JSON.stringify({ period: startStr, lane: lane }), 0, "محور ارسال تنظیم نشده (rid/route خالی) lane=" + lane);
+            }
             return;
         }
 
@@ -5485,8 +6703,7 @@ function aggregatePeriod(code, startStr, endStr) {
         });
 
         if (totalVehicles === 0) {
-            console.log("[Scheduler] Device " + code + " route " + routeIdNum + " period " + startStr + ": 0 vehicles, skipping");
-            return;
+            console.log("[Scheduler] Device " + code + " route " + routeIdNum + " period " + startStr + ": 0 vehicles, sending zero record to keep route active");
         }
 
         // Average speed per class
@@ -5498,7 +6715,7 @@ function aggregatePeriod(code, startStr, endStr) {
         var s5 = c5count > 0 ? Math.round(((iraw.se||0) + (iraw.sx_sum||0)) / c5count) : 0;
 
         var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
-        var avgSpeed = Math.round(totalSpeedSum / totalVehicles);
+        var avgSpeed = totalVehicles > 0 ? Math.round(totalSpeedSum / totalVehicles) : 0;
 
         var so1 = iraw.sao||0, so2 = iraw.sbo||0, so3 = iraw.sco||0;
         var so4 = iraw.sdo||0, so5 = (iraw.seo||0) + (iraw.sxo||0);
@@ -5539,10 +6756,57 @@ function sendUnsentData(onComplete) {
     // The rmto_queue table lacks C1-C5 columns needed by the WSDL Add method
     db.prepare("UPDATE rmto_queue SET sent = 1, sent_at = datetime('now','localtime') WHERE sent = 0").run();
 
-    // --- Send 5-class AddData5 (primary method, matching C# reference) ---
-    var unsent5 = db.prepare("SELECT * FROM rmto_queue_5class WHERE sent = 0 ORDER BY period_start LIMIT 50").all();
+    // Load single source IP from DB
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
 
-    var pending = unsent5.length;
+    // --- Send 5-class AddData5 (primary method, matching C# reference) ---
+
+    // Log records permanently abandoned (retry_count >= 5)
+    var abandoned = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0 AND retry_count >= 5").get();
+    if (abandoned && abandoned.c > 0) {
+        console.log("[Scheduler] " + abandoned.c + " record(s) in rmto_queue_5class permanently abandoned after 5 failed retries (sent=0, retry_count>=5)");
+    }
+
+    // LIVE LANE: most recent unsent record PER DEVICE (highest priority)
+    var liveRecords = db.prepare(
+        "SELECT q.* FROM rmto_queue_5class q " +
+        "INNER JOIN (" +
+        "  SELECT device_code, MAX(period_start) AS max_start " +
+        "  FROM rmto_queue_5class " +
+        "  WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+        "  GROUP BY device_code" +
+        ") latest ON q.device_code = latest.device_code AND q.period_start = latest.max_start " +
+        "WHERE q.sent = 0 AND (q.retry_count IS NULL OR q.retry_count < 5)"
+    ).all();
+    var liveIds = liveRecords.map(function (r) { return r.id; });
+
+    // BACKLOG LANE: oldest unsent records, excluding live records
+    // Limit to 10 per cycle to avoid flooding the RMTO server
+    var backlogRecords;
+    if (liveIds.length > 0) {
+        var placeholders = liveIds.map(function () { return "?"; }).join(",");
+        var bStmt = db.prepare(
+            "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+            "AND id NOT IN (" + placeholders + ") ORDER BY period_start ASC LIMIT 10"
+        );
+        backlogRecords = bStmt.all.apply(bStmt, liveIds);
+    } else {
+        backlogRecords = db.prepare(
+            "SELECT * FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+            "ORDER BY period_start ASC LIMIT 10"
+        ).all();
+    }
+
+    if (liveRecords.length > 0) {
+        console.log("[Scheduler] Live lane: " + liveRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
+    }
+    if (backlogRecords.length > 0) {
+        console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
+    }
+
+    var allRecords = liveRecords.concat(backlogRecords);
+    var pending = allRecords.length;
     results.total = pending;
 
     if (pending === 0) {
@@ -5550,22 +6814,29 @@ function sendUnsentData(onComplete) {
         return;
     }
 
-    function checkDone() {
-        pending--;
-        if (pending <= 0 && onComplete) {
-            onComplete(results);
-        }
-    }
+    // Send records one-by-one with a 800ms delay between each to avoid
+    // triggering flood/DDoS detection on the RMTO firewall.
+    var SEND_DELAY_MS = 800;
+    var recordIndex = 0;
 
-    unsent5.forEach(function (row) {
-        // Skip records without a valid route_id (never fall back to device_code)
+    function sendNext() {
+        if (recordIndex >= allRecords.length) {
+            if (onComplete) onComplete(results);
+            return;
+        }
+        var row = allRecords[recordIndex++];
+
+        // Skip records without a valid route_id
         if (!row.route_id) {
             console.log("[Scheduler] Skipping Add5 for device " + row.device_code + " id=" + row.id + ": no route_id");
             db.prepare("UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?")
                 .run('{"skipped":"no route_id"}', row.id);
-            checkDone();
+            results.total--;
+            setTimeout(sendNext, SEND_DELAY_MS);
             return;
         }
+
+        var isLive = liveIds.indexOf(row.id) !== -1;
         rmto.sendAddData5({
             FID: row.id,
             RID: row.route_id,
@@ -5577,25 +6848,36 @@ function sendUnsentData(onComplete) {
             SSO: row.sso,
             SO1: row.so1, SO2: row.so2, SO3: row.so3, SO4: row.so4, SO5: row.so5,
             OO: row.oo,
-            ESD: row.esd
+            ESD: row.esd,
+            sourceIp: sourceIp
         }, function (err, response, soapXml) {
             // Match C# reference success check: ID > 0 || CFL == 100
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             var responseStr = JSON.stringify(response || (err && err.message));
 
             if (!err && response) {
-                console.log("[Scheduler] Add5 response for device " + row.device_code + ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL + " ERR=" + (response.ERR || "none"));
+                console.log("[Scheduler] Add5 " + (isLive ? "[LIVE]" : "[BACKLOG]") + " response for device " + row.device_code +
+                    ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL +
+                    " DLY=" + response.DLY + " ERR=" + (response.ERR || "none"));
+            }
+
+            if (success) {
+                db.prepare(
+                    "UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                ).run(responseStr, row.id);
+            } else {
+                db.prepare(
+                    "UPDATE rmto_queue_5class SET sent = 0, retry_count = COALESCE(retry_count, 0) + 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                ).run(responseStr, row.id);
             }
 
             db.prepare(
-                "UPDATE rmto_queue_5class SET sent = ?, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-            ).run(success ? 1 : 0, responseStr, row.id);
-
-            db.prepare(
-                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             ).run("Add5", row.device_code, JSON.stringify(row),
-                JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
+                JSON.stringify(response), success ? 1 : 0,
+                err ? err.message : (response && response.ERR ? response.ERR : null),
+                soapXml || null, sourceIp || null);
 
             if (success) {
                 results.success++;
@@ -5609,9 +6891,13 @@ function sendUnsentData(onComplete) {
                     response: responseStr
                 });
             }
-            checkDone();
+
+            // Wait before sending the next record
+            setTimeout(sendNext, SEND_DELAY_MS);
         });
-    });
+    }
+
+    sendNext();
 }
 
 /**
@@ -5631,10 +6917,12 @@ function formatDateTime(isoStr) {
  * Start the scheduler.
  */
 /**
- * Mark devices as offline if they haven't been seen for more than 15 minutes.
+ * Mark devices as offline if they haven't been seen for more than 2×INTERVAL minutes.
+ * Uses 2× the poll interval (default 10 min) so transient disconnects don't flip status.
  */
 function checkOfflineDevices() {
-    var cutoff = toLocalISOString(new Date(Date.now() - 15 * 60 * 1000));
+    var cutoffMs = 2 * INTERVAL * 60 * 1000;
+    var cutoff = toLocalISOString(new Date(Date.now() - cutoffMs));
     var stale = db.prepare(
         "SELECT device_code, name FROM devices WHERE status = 'online' AND last_seen < ?"
     ).all(cutoff);
@@ -5646,25 +6934,36 @@ function checkOfflineDevices() {
     });
 }
 
+var scheduledTasks = [];
+
 function start() {
     // Run every INTERVAL minutes
     var cronExpr = "*/" + INTERVAL + " * * * *";
     console.log("[Scheduler] Starting with cron:", cronExpr);
 
-    cron.schedule(cronExpr, function () {
+    scheduledTasks.push(cron.schedule(cronExpr, function () {
         try { checkOfflineDevices(); } catch (e) { console.error("[Scheduler] checkOfflineDevices error:", e.message); }
-        aggregateAndSend();
-    });
+        try { aggregateAndSend(); } catch (e) { console.error("[Scheduler] aggregateAndSend error:", e.message, e.stack); }
+    }));
 
     // Also allow manual retry of unsent data every hour
-    cron.schedule("5 * * * *", function () {
+    scheduledTasks.push(cron.schedule("5 * * * *", function () {
         console.log("[Scheduler] Retry unsent data...");
-        sendUnsentData();
+        try { sendUnsentData(); } catch (e) { console.error("[Scheduler] sendUnsentData error:", e.message, e.stack); }
+    }));
+}
+
+function stop() {
+    console.log("[Scheduler] Stopping " + scheduledTasks.length + " scheduled tasks...");
+    scheduledTasks.forEach(function (task) {
+        try { task.stop(); } catch (e) { /* ignore */ }
     });
+    scheduledTasks = [];
 }
 
 module.exports = {
     start: start,
+    stop: stop,
     aggregateAndSend: aggregateAndSend,
     aggregatePeriod: aggregatePeriod,
     sendUnsentData: sendUnsentData,
@@ -5741,9 +7040,14 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
 ExecStart=/usr/bin/node index.js
-Restart=always
-RestartSec=10
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=10
+KillMode=mixed
+StartLimitBurst=10
+StartLimitIntervalSec=300
 Environment=NODE_ENV=production
 
 [Install]
@@ -5763,18 +7067,19 @@ server {
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade ;
+        proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
-        proxy_set_header Host ;
-        proxy_set_header X-Real-IP ;
-        proxy_set_header X-Forwarded-For ;
-        proxy_cache_bypass ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_cache_bypass $http_upgrade;
     }
 }
 ENDNGINX
 ln -sf /etc/nginx/sites-available/tc-manager /etc/nginx/sites-enabled/tc-manager
 rm -f /etc/nginx/sites-enabled/default
-nginx -t 2>/dev/null && systemctl reload nginx
+systemctl enable nginx
+nginx -t && systemctl restart nginx
 
 echo "[7/7] Starting..."
 systemctl restart tc-manager

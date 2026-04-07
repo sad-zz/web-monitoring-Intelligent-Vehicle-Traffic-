@@ -90,6 +90,7 @@ db.exec([
     "  sent INTEGER DEFAULT 0,",
     "  sent_at TEXT,",
     "  rmto_response TEXT,",
+    "  retry_count INTEGER DEFAULT 0,",
     "  created_at TEXT DEFAULT (datetime('now','localtime'))",
     ");",
 
@@ -246,7 +247,24 @@ try {
         console.log("[DB] Adding soap_xml column to send_log...");
         db.exec("ALTER TABLE send_log ADD COLUMN soap_xml TEXT");
     }
+    if (slColNames.length > 0 && slColNames.indexOf("source_ip") === -1) {
+        console.log("[DB] Adding source_ip column to send_log...");
+        db.exec("ALTER TABLE send_log ADD COLUMN source_ip TEXT");
+    }
 } catch(e) {}
+
+// Migration: add retry_count column to rmto_queue_5class if missing
+try {
+    var rmto5Cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
+    var rmto5ColNames = rmto5Cols.map(function(c) { return c.name; });
+    if (rmto5ColNames.length > 0 && rmto5ColNames.indexOf("retry_count") === -1) {
+        console.log("[DB] Adding retry_count column to rmto_queue_5class...");
+        db.exec("ALTER TABLE rmto_queue_5class ADD COLUMN retry_count INTEGER DEFAULT 0");
+        console.log("[DB] rmto_queue_5class retry_count migration done");
+    }
+} catch(e) {
+    console.error("[DB] rmto_queue_5class retry_count migration error:", e.message);
+}
 
 // Migration: add route1, route2, active columns to devices (replace single route column)
 try {
@@ -273,8 +291,31 @@ try {
         db.exec("ALTER TABLE devices ADD COLUMN rid2 TEXT DEFAULT ''");
         console.log("[DB] devices rid1/rid2 migration done");
     }
+    // Migration: add last_error_byte to track device error state for Bale notifications
+    if (devColNames.indexOf("last_error_byte") === -1) {
+        console.log("[DB] Adding last_error_byte column to devices...");
+        db.exec("ALTER TABLE devices ADD COLUMN last_error_byte INTEGER DEFAULT 0");
+        console.log("[DB] devices last_error_byte migration done");
+    }
 } catch(e) {
     console.error("[DB] devices migration error:", e.message);
+}
+
+// Migration: consolidate dual-lane source IPs into single rmto_source_ip
+try {
+    var liveIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_live_source_ip'").get();
+    if (liveIpRow) {
+        var liveVal = (liveIpRow.value || "").trim();
+        // Copy live IP to new unified key if not already set
+        var existingUnified = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+        if (!existingUnified && liveVal) {
+            db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('rmto_source_ip', ?)").run(liveVal);
+        }
+        db.prepare("DELETE FROM settings WHERE key IN ('rmto_live_source_ip', 'rmto_backlog_source_ip')").run();
+        console.log("[DB] Migrated rmto_live/backlog_source_ip -> rmto_source_ip");
+    }
+} catch(e) {
+    // ignore
 }
 
 // Insert default settings if not exists
@@ -293,6 +334,7 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
+    rmto_source_ip: "",
     bale_bot_token: "",
     bale_chat_id: ""
 };

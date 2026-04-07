@@ -10,6 +10,24 @@
 // This ensures all new Date() calls return Iran local time
 process.env.TZ = "Asia/Tehran";
 
+// Global error handlers to prevent silent server crashes
+process.on("uncaughtException", function (err) {
+    console.error("[FATAL] Uncaught Exception:", err.message);
+    console.error(err.stack);
+    // Only exit on truly fatal errors (EADDRINUSE, out of memory, etc.)
+    // For other errors, log and continue to avoid restart loops
+    if (err.code === "EADDRINUSE" || err.code === "ERR_IPC_CHANNEL_CLOSED" ||
+        err.message && err.message.indexOf("Cannot allocate memory") !== -1) {
+        setTimeout(function () { process.exit(1); }, 1000);
+    } else {
+        console.error("[FATAL] Server continuing despite uncaught exception to avoid restart loop");
+    }
+});
+
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled Promise Rejection:", reason);
+});
+
 require("dotenv").config();
 
 var express = require("express");
@@ -27,6 +45,9 @@ var scheduler = require("./scheduler");
 var app = express();
 var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
+
+// Build version for deployment verification
+var BUILD_VERSION = "2026.04.07-v3";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -61,11 +82,14 @@ app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
 }));
 
 // Multer for file uploads (backup restore)
-var upload = multer({ dest: path.join(__dirname, "uploads/"), limits: { fileSize: 500 * 1024 * 1024 } });
+var uploadsDir = path.join(__dirname, "uploads/");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+var upload = multer({ dest: uploadsDir, limits: { fileSize: 500 * 1024 * 1024 } });
 
 // ============================================================
 // Auth Middleware
@@ -222,9 +246,19 @@ app.post("/api/irawdata", function (req, res) {
     }
 
     if (b.records && Array.isArray(b.records)) {
-        db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        try {
+            db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        } catch (txErr) {
+            console.error("[HTTP] Transaction error for device " + code + ":", txErr.message);
+            return res.status(500).json({ success: false, error: txErr.message });
+        }
     } else {
-        insertOne(b);
+        try {
+            insertOne(b);
+        } catch (insertErr) {
+            console.error("[HTTP] Insert error for device " + code + ":", insertErr.message);
+            return res.status(500).json({ success: false, error: insertErr.message });
+        }
     }
     res.json({ success: true, received: count });
 });
@@ -274,7 +308,7 @@ app.get("/api/settings", function (req, res) {
 app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
-    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "bale_bot_token", "bale_chat_id"];
+    var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_source_ip", "bale_bot_token", "bale_chat_id"];
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -294,7 +328,8 @@ app.get("/api/server/time", requireAuth, function (req, res) {
         time: now.toISOString(),
         local: now.toLocaleString("fa-IR", { timeZone: process.env.TZ || "Asia/Tehran" }),
         timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tehran",
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        build: BUILD_VERSION
     });
 });
 
@@ -312,8 +347,13 @@ app.post("/api/server/restart", requireAuth, function (req, res) {
 // ============================================================
 app.post("/api/bale/test", requireAuth, function (req, res) {
     var text = req.body.text || "🔔 تست اطلاع‌رسانی از TC Manager";
-    scheduler.sendBaleNotification(text);
-    res.json({ success: true, message: "پیام ارسال شد (در صورت تنظیم توکن)" });
+    scheduler.sendBaleNotification(text, function (err) {
+        if (err) {
+            res.json({ success: false, message: "خطا در ارسال: " + err.message });
+        } else {
+            res.json({ success: true, message: "پیام با موفقیت ارسال شد" });
+        }
+    });
 });
 
 // ============================================================
@@ -347,6 +387,10 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
     var st = b.st || localISO(periodStart);
     var et = b.et || localISO(periodEnd);
 
+    // Load source IP from settings for consistency with scheduler
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
     rmto.sendAddData5({
         FID: fid,
         RID: rid,
@@ -356,14 +400,15 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
         ASP: asp,
         S1: asp, S2: asp, S3: asp, S4: asp, S5: asp,
         SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
-        OO: 0, ESD: 0
+        OO: 0, ESD: 0,
+        sourceIp: sourceIp
     }, function (err, response, soapXml) {
         var success = !err && response && (response.ID > 0 || response.CFL === 100);
         db.prepare(
-            "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
-            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
+            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
         res.json({
             success: success,
             response: response,
@@ -372,6 +417,291 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
             sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }
         });
     });
+});
+
+// ============================================================
+// API: Archive Test Send - send historical records from rmto_queue_5class
+// ============================================================
+
+// In-memory job tracking for archive send operations
+var archiveSendJobs = {};
+var archiveJobSeq = 0;
+
+// GET /api/rmto/archive-records - preview records matching route/date range
+app.get("/api/rmto/archive-records", requireAuth, function (req, res) {
+    var rid = req.query.rid ? parseInt(req.query.rid, 10) : null;
+    var from = req.query.from || "";
+    var to = req.query.to || "";
+    var limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+
+    var sql = "SELECT id, device_code, route_id, period_start, period_end, " +
+        "c1, c2, c3, c4, c5, avg_speed, sso, oo, esd, sent, sent_at " +
+        "FROM rmto_queue_5class WHERE 1=1";
+    var params = [];
+    if (rid) { sql += " AND route_id = ?"; params.push(String(rid)); }
+    if (from) { sql += " AND period_start >= ?"; params.push(from); }
+    if (to) { sql += " AND period_start <= ?"; params.push(to); }
+    sql += " ORDER BY period_start ASC LIMIT ?";
+    params.push(limit);
+
+    var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
+    res.json({ total: rows.length, rows: rows });
+});
+
+// POST /api/rmto/archive-send - start an archive batch send job
+app.post("/api/rmto/archive-send", requireAuth, function (req, res) {
+    var b = req.body;
+    var from = b.from || "";
+    var to = b.to || "";
+    var rid = b.rid ? parseInt(b.rid, 10) : null;
+
+    if (!from || !to) return res.status(400).json({ error: "from و to الزامی است" });
+
+    var sql = "SELECT * FROM rmto_queue_5class WHERE 1=1";
+    var params = [];
+    if (rid) { sql += " AND route_id = ?"; params.push(String(rid)); }
+    sql += " AND period_start >= ? AND period_start <= ? ORDER BY period_start ASC";
+    params.push(from, to);
+
+    var rawRecords = db.prepare(sql).all.apply(db.prepare(sql), params);
+    if (rawRecords.length === 0) return res.status(404).json({ error: "رکوردی در بازه مشخص‌شده یافت نشد" });
+
+    // Merge records sharing the same route_id + period_start to prevent RMTO duplicates
+    var mergeMap = {};
+    rawRecords.forEach(function (r) {
+        if (!r.route_id) return;
+        var key = r.route_id + "|" + r.period_start;
+        if (!mergeMap[key]) {
+            mergeMap[key] = JSON.parse(JSON.stringify(r));
+        } else {
+            var e = mergeMap[key];
+            var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
+            var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
+            var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
+            var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
+            var ns4 = (e.c4||0) + (r.c4||0) > 0 ? Math.round(((e.c4||0) * (e.s4||0) + (r.c4||0) * (r.s4||0)) / ((e.c4||0) + (r.c4||0))) : 0;
+            var ns5 = (e.c5||0) + (r.c5||0) > 0 ? Math.round(((e.c5||0) * (e.s5||0) + (r.c5||0) * (r.s5||0)) / ((e.c5||0) + (r.c5||0))) : 0;
+            var nTotal = eTotal + rTotal;
+            e.avg_speed = nTotal > 0 ? Math.round((eTotal * (e.avg_speed||0) + rTotal * (r.avg_speed||0)) / nTotal) : 0;
+            e.c1 = (e.c1||0) + (r.c1||0); e.c2 = (e.c2||0) + (r.c2||0); e.c3 = (e.c3||0) + (r.c3||0);
+            e.c4 = (e.c4||0) + (r.c4||0); e.c5 = (e.c5||0) + (r.c5||0);
+            e.s1 = ns1; e.s2 = ns2; e.s3 = ns3; e.s4 = ns4; e.s5 = ns5;
+            e.sso = (e.sso||0) + (r.sso||0);
+            e.so1 = (e.so1||0) + (r.so1||0); e.so2 = (e.so2||0) + (r.so2||0); e.so3 = (e.so3||0) + (r.so3||0);
+            e.so4 = (e.so4||0) + (r.so4||0); e.so5 = (e.so5||0) + (r.so5||0);
+            e.oo = (e.oo||0) + (r.oo||0); e.esd = (e.esd||0) + (r.esd||0);
+            e.device_code = e.device_code + "+" + r.device_code;
+        }
+    });
+    var records = Object.keys(mergeMap).map(function (k) { return mergeMap[k]; });
+    if (records.length < rawRecords.length) {
+        console.log("[ArchiveSend] Merged " + rawRecords.length + " records into " + records.length + " (same-route dedup)");
+    }
+
+    var jobId = ++archiveJobSeq;
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
+    var job = {
+        id: jobId,
+        rid: rid,
+        from: from,
+        to: to,
+        total: records.length,
+        sent: 0,
+        success: 0,
+        failed: 0,
+        stopped: false,
+        status: "running",
+        startedAt: new Date().toISOString(),
+        errors: []
+    };
+    archiveSendJobs[jobId] = job;
+
+    var SEND_DELAY_MS = 800;
+    var idx = 0;
+
+    function sendNextArchive() {
+        if (job.stopped || idx >= records.length) {
+            job.status = job.stopped ? "stopped" : "done";
+            console.log("[ArchiveSend] Job #" + jobId + " " + job.status + " (" + job.success + "/" + job.total + " success)");
+            return;
+        }
+        var row = records[idx++];
+        if (!row.route_id) {
+            job.sent++;
+            setTimeout(sendNextArchive, SEND_DELAY_MS);
+            return;
+        }
+        rmto.sendAddData5({
+            FID: row.id,
+            RID: parseInt(row.route_id, 10),
+            ST: row.period_start,
+            ET: row.period_end,
+            C1: row.c1, C2: row.c2, C3: row.c3, C4: row.c4, C5: row.c5,
+            ASP: Math.round(row.avg_speed || 0),
+            S1: row.s1 || 0, S2: row.s2 || 0, S3: row.s3 || 0, S4: row.s4 || 0, S5: row.s5 || 0,
+            SSO: row.sso || 0,
+            SO1: row.so1 || 0, SO2: row.so2 || 0, SO3: row.so3 || 0, SO4: row.so4 || 0, SO5: row.so5 || 0,
+            OO: row.oo || 0,
+            ESD: row.esd || 0,
+            sourceIp: sourceIp
+        }, function (err, response, soapXml) {
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
+            job.sent++;
+            if (success) { job.success++; } else { job.failed++; job.errors.push({ id: row.id, rid: row.route_id, error: err ? err.message : (response && response.ERR ? response.ERR : "خطا") }); }
+            db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                .run("Add5-Archive", row.device_code, JSON.stringify(row), JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
+            setTimeout(sendNextArchive, SEND_DELAY_MS);
+        });
+    }
+
+    res.json({ jobId: jobId, total: records.length, message: "ارسال آرشیو شروع شد" });
+    setTimeout(sendNextArchive, 100);
+});
+
+// GET /api/rmto/archive-jobs - list all active/recent jobs
+app.get("/api/rmto/archive-jobs", requireAuth, function (req, res) {
+    var jobs = Object.keys(archiveSendJobs).map(function (k) { return archiveSendJobs[k]; });
+    res.json(jobs);
+});
+
+// DELETE /api/rmto/archive-send/:jobId - stop a job
+app.delete("/api/rmto/archive-send/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = archiveSendJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true;
+    job.status = "stopped";
+    res.json({ success: true, message: "ارسال متوقف شد" });
+});
+
+// ============================================================
+// API: Scheduled Test Send - replay data every 5 min for up to 15 days
+// ============================================================
+var testScheduleJobs = {};
+var testScheduleSeq = 0;
+
+// POST /api/rmto/test-schedule - start a scheduled test send
+app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var b = req.body;
+    var rid = parseInt(b.rid, 10) || 0;
+    if (!rid || rid <= 0) return res.status(400).json({ error: "کد محور (RID) الزامی است" });
+
+    var durationDays = Math.min(Math.max(parseInt(b.durationDays, 10) || 1, 1), 15);
+    var c1 = parseInt(b.c1) || 0;
+    var c2 = parseInt(b.c2) || 0;
+    var c3 = parseInt(b.c3) || 0;
+    var c4 = parseInt(b.c4) || 0;
+    var c5 = parseInt(b.c5) || 0;
+    var asp = parseInt(b.asp) || 60;
+    var s1 = parseInt(b.s1) || asp;
+    var s2 = parseInt(b.s2) || asp;
+    var s3 = parseInt(b.s3) || asp;
+    var s4 = parseInt(b.s4) || asp;
+    var s5 = parseInt(b.s5) || asp;
+
+    var jobId = ++testScheduleSeq;
+    var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
+    function localISO(d) {
+        return d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0") + "T" +
+            String(d.getHours()).padStart(2, "0") + ":" +
+            String(d.getMinutes()).padStart(2, "0") + ":00";
+    }
+
+    var job = {
+        id: jobId,
+        rid: rid,
+        data: { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5 },
+        durationDays: durationDays,
+        expiresAt: expiresAt.toISOString(),
+        startedAt: new Date().toISOString(),
+        sendCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        lastSendAt: null,
+        lastError: null,
+        stopped: false,
+        status: "running"
+    };
+
+    function sendOnce() {
+        if (job.stopped || new Date() >= expiresAt) {
+            job.status = job.stopped ? "stopped" : "expired";
+            if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+            console.log("[TestSchedule] Job #" + jobId + " " + job.status + " (" + job.successCount + "/" + job.sendCount + " success)");
+            return;
+        }
+        var now = new Date();
+        var periodEnd = new Date(now);
+        periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
+        var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+        var st = localISO(periodStart);
+        var et = localISO(periodEnd);
+
+        job.sendCount++;
+        rmto.sendAddData5({
+            FID: 0, RID: rid, ST: st, ET: et,
+            C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
+            ASP: asp, S1: s1, S2: s2, S3: s3, S4: s4, S5: s5,
+            SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
+            OO: 0, ESD: 0, sourceIp: sourceIp
+        }, function (err, response, soapXml) {
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
+            job.lastSendAt = new Date().toISOString();
+            if (success) {
+                job.successCount++;
+                job.lastError = null;
+            } else {
+                job.failedCount++;
+                job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا");
+            }
+            try {
+                db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                    .run("Add5-Scheduled", "test-schedule-" + jobId,
+                        JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+                        JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
+            } catch (e) { console.error("[TestSchedule] Log error:", e.message); }
+        });
+    }
+
+    // Send immediately, then every 5 minutes
+    sendOnce();
+    job.timerId = setInterval(sendOnce, 5 * 60 * 1000);
+    testScheduleJobs[jobId] = job;
+
+    console.log("[TestSchedule] Job #" + jobId + " started: RID=" + rid + " for " + durationDays + " days");
+    res.json({ success: true, jobId: jobId, message: "ارسال زمانبندی شده شروع شد (" + durationDays + " روز)" });
+});
+
+// GET /api/rmto/test-schedule - list active scheduled jobs
+app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var jobs = Object.keys(testScheduleJobs).map(function (k) {
+        var j = testScheduleJobs[k];
+        return { id: j.id, rid: j.rid, data: j.data, durationDays: j.durationDays,
+            expiresAt: j.expiresAt, startedAt: j.startedAt, sendCount: j.sendCount,
+            successCount: j.successCount, failedCount: j.failedCount,
+            lastSendAt: j.lastSendAt, lastError: j.lastError, stopped: j.stopped, status: j.status };
+    });
+    res.json(jobs);
+});
+
+// DELETE /api/rmto/test-schedule/:jobId - stop a scheduled job
+app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = testScheduleJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true;
+    job.status = "stopped";
+    if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+    res.json({ success: true, message: "ارسال زمانبندی شده متوقف شد" });
 });
 
 // ============================================================
@@ -534,6 +864,81 @@ app.post("/api/rmto/aggregate", function (req, res) {
     res.json({ success: true, message: "تجمیع انجام شد. ارسال در پس‌زمینه ادامه دارد." });
 });
 
+// ============================================================
+// API: RMTO Connectivity Check
+// Tests TCP reachability of the RMTO host from each configured source IP.
+// ============================================================
+app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
+    var net = require("net");
+    var url = require("url");
+
+    // Reload latest settings from DB
+    var settingsRows = db.prepare(
+        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_source_ip')"
+    ).all();
+    var cfg = {};
+    settingsRows.forEach(function (r) { cfg[r.key] = r.value || ""; });
+
+    var rmtoUrl = cfg.rmto_url || (cfg.rmto_wsdl
+        ? cfg.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "")
+        : "http://otf.rmto.ir/Companies/Companies.asmx");
+
+    var parsedUrl = url.parse(rmtoUrl);
+    var host = parsedUrl.hostname || "otf.rmto.ir";
+    var port = parseInt(parsedUrl.port, 10) || 80;
+
+    var ipsToCheck = [
+        { label: "IP پیش‌فرض سرور", ip: "" },
+        { label: "IP ارسال (rmto_source_ip)", ip: cfg.rmto_source_ip || "" }
+    ];
+
+    var results = [];
+    var remaining = ipsToCheck.length;
+    var TIMEOUT_MS = 8000;
+
+    function checkOne(entry, done) {
+        var start = Date.now();
+        var timedOut = false;
+        var sock = new net.Socket();
+
+        var connectOpts = { host: host, port: port };
+        if (entry.ip) connectOpts.localAddress = entry.ip;
+
+        var timer = setTimeout(function () {
+            timedOut = true;
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: false, latencyMs: null, error: "timeout (" + TIMEOUT_MS + "ms)" });
+        }, TIMEOUT_MS);
+
+        sock.connect(connectOpts, function () {
+            clearTimeout(timer);
+            var latency = Date.now() - start;
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: true, latencyMs: latency, error: null });
+        });
+
+        sock.on("error", function (err) {
+            if (timedOut) return;
+            clearTimeout(timer);
+            sock.destroy();
+            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
+                   ok: false, latencyMs: null, error: err.message });
+        });
+    }
+
+    ipsToCheck.forEach(function (entry) {
+        checkOne(entry, function (result) {
+            results.push(result);
+            remaining--;
+            if (remaining === 0) {
+                res.json({ host: host, port: port, url: rmtoUrl, checks: results, checkedAt: new Date().toISOString() });
+            }
+        });
+    });
+});
+
 app.get("/api/rmto/queue", function (req, res) {
     var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
     var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();
@@ -545,6 +950,74 @@ app.get("/api/rmto/queue", function (req, res) {
         todayErrors = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?").get(todayStart.toISOString()).c;
     } catch (e) { /* ok */ }
     res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
+});
+
+// ============================================================
+// API: History (received data + RMTO send log, searchable, paginated)
+// ============================================================
+app.get("/api/history", requireAuth, function (req, res) {
+    var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    var limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    var offset = (page - 1) * limit;
+    var type = req.query.type === "received" ? "received" : "sent";
+    var device = (req.query.device || "").trim();
+    var route = (req.query.route || "").trim();
+    var from = (req.query.from || "").trim();
+    var to = (req.query.to || "").trim();
+
+    var conds = [];
+    var params = [];
+
+    if (type === "received") {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (route) { conds.push("route_id = ?"); params.push(route); }
+        if (from) { conds.push("period_start >= ?"); params.push(from); }
+        if (to) { conds.push("period_start <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class " + where), params);
+        var rows = db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, device_code, route_id, period_start, period_end, " +
+            "c1, c2, c3, c4, c5, avg_speed, sso, sent, sent_at, retry_count, created_at " +
+            "FROM rmto_queue_5class " + where +
+            " ORDER BY period_start DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    } else {
+        if (device) { conds.push("device_code = ?"); params.push(device); }
+        if (from) { conds.push("created_at >= ?"); params.push(from); }
+        if (to) { conds.push("created_at <= ?"); params.push(to); }
+
+        var where = conds.length ? "WHERE " + conds.join(" AND ") : "";
+        var totalRow = db.prepare("SELECT COUNT(*) as c FROM send_log " + where).get.apply(
+            db.prepare("SELECT COUNT(*) as c FROM send_log " + where), params);
+        var rows = db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ).all.apply(db.prepare(
+            "SELECT id, method, device_code, success, error_message, source_ip, created_at, response_data " +
+            "FROM send_log " + where +
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        ), params.concat([limit, offset]));
+
+        return res.json({ total: totalRow.c, page: page, limit: limit, rows: rows });
+    }
+});
+
+// Load full detail of a history record for re-send in test-sender
+app.get("/api/history/record/:id", requireAuth, function (req, res) {
+    var id = parseInt(req.params.id, 10);
+    var row = db.prepare("SELECT * FROM rmto_queue_5class WHERE id = ?").get(id);
+    if (!row) return res.status(404).json({ error: "not found" });
+    return res.json(row);
 });
 
 // ============================================================
@@ -762,12 +1235,16 @@ app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
     try {
         if (origName.endsWith(".db")) {
             // Direct SQLite DB file - replace
-            db.pragma("wal_checkpoint(TRUNCATE)");
+            try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch (e) { /* ok */ }
             db.close();
             fs.copyFileSync(tmpPath, dbPath);
-            // Re-require db (Node caches modules, so we need to clear)
+            try { fs.unlinkSync(tmpPath); } catch (e) { /* ok */ }
+            // Re-open database
             delete require.cache[require.resolve("./db")];
-            res.json({ success: true, message: "بازیابی انجام شد. سرویس باید ریستارت شود." });
+            db = require("./db");
+            res.json({ success: true, message: "بازیابی انجام شد. سرویس در حال ریستارت..." });
+            // Auto-restart to ensure clean state
+            setTimeout(function () { process.exit(0); }, 2000);
         } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz") || origName.endsWith(".sql")) {
             // PostgreSQL dump - decompress and parse
             var destPath = path.join(__dirname, "uploads", origName);
@@ -879,6 +1356,29 @@ function parseRATCX1Interval(intervalStr) {
         solar: solar,
         error_byte: errorByte
     };
+}
+
+/** RATCX1 error_byte bitmask — from firmware/Main/Variables.h */
+var ERROR_BITS = {
+    1:   'MMC_ERR  - خطای کارت حافظه',
+    2:   'LP1_ERR  - خطای لوپ ۱',
+    4:   'LP2_ERR  - خطای لوپ ۲',
+    8:   'LP3_ERR  - خطای لوپ ۳',
+    16:  'LP4_ERR  - خطای لوپ ۴',
+    32:  'VMN_ERR  - خطای ولتاژ شبانه',
+    64:  'SOL_ERR  - خطای پنل خورشیدی',
+    128: 'LBT_ERR  - خطای باتری ضعیف',
+    256: 'L1D_ERR  - خطای جهت لاین ۱',
+    512: 'L2D_ERR  - خطای جهت لاین ۲'
+};
+
+/** Decode an error_byte integer into a readable list of active error names */
+function decodeErrorByte(code) {
+    var active = [];
+    Object.keys(ERROR_BITS).forEach(function(bit) {
+        if ((code & parseInt(bit, 10)) !== 0) active.push(ERROR_BITS[bit]);
+    });
+    return active.length ? active.join('\n  ') : '';
 }
 
 /** Convert RATCX1 parsed interval to irawdata rows (one per lane) */
@@ -1306,10 +1806,8 @@ var tcpServer = net.createServer(function (socket) {
             clearTimeout(pendingSyncs[deviceId].timer);
             delete pendingSyncs[deviceId];
         }
-        // Mark device offline when it disconnects
-        if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
-        }
+        // Do NOT mark device offline immediately on disconnect.
+        // The scheduler will mark it offline after 2×INTERVAL minutes of inactivity.
         console.log("[TCP] Disconnected " + clientIP + (deviceId ? " (device " + deviceId + ")" : ""));
     });
 
@@ -1325,7 +1823,7 @@ var tcpServer = net.createServer(function (socket) {
             delete pendingSyncs[deviceId];
         }
         if (deviceId) {
-            try { db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(deviceId); } catch(e){}
+            // Do NOT mark offline on error; scheduler handles it after 2×INTERVAL minutes
         }
         console.error("[TCP] Error from " + clientIP + (deviceId ? " (device " + deviceId + ")" : "") + ": " + err.message);
     });
@@ -1335,7 +1833,7 @@ function storeIrawdata(parsed) {
     var total = (parsed.a||0) + (parsed.b||0) + (parsed.c||0) + (parsed.d||0) + (parsed.e||0) + (parsed.x||0);
     console.log("[DB] INSERT irawdata: device=" + parsed.device_code + " create_at=" + parsed.create_at + " stop=" + parsed.stop + " lane=" + parsed.lane + " total=" + total);
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     insertRaw.run(
@@ -1468,6 +1966,32 @@ function processRawData(raw, ip) {
             // Update device battery/solar info
             db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(parsed.device_code);
             console.log("[TCP] RATCX1 stored: device=" + parsed.device_code + " vehicles=" + totalAll + " lanes=" + rows.length + " bat=" + parsed.battery + " sol=" + parsed.solar + (timestampCorrected ? " (timestamp corrected)" : ""));
+
+            // Send Bale notification when error_byte transitions from 0 to non-zero
+            if (parsed.error_byte > 0) {
+                var devRow = db.prepare("SELECT name, last_error_byte FROM devices WHERE device_code = ?").get(parsed.device_code);
+                var prevErr = devRow ? (devRow.last_error_byte || 0) : 0;
+                if (prevErr === 0) {
+                    // New error onset — notify
+                    var devName = devRow ? (devRow.name || parsed.device_code) : parsed.device_code;
+                    var errLabels = decodeErrorByte(parsed.error_byte);
+                    scheduler.sendBaleNotification && scheduler.sendBaleNotification(
+                        "⚠️ خطا از دستگاه\n" +
+                        "کد: " + parsed.device_code + "\n" +
+                        "نام: " + devName + "\n" +
+                        "کد خطا: " + parsed.error_byte + "\n" +
+                        (errLabels ? "خطاها:\n  " + errLabels + "\n" : "") +
+                        "باتری: " + parsed.battery + "  سولار: " + parsed.solar + "\n" +
+                        "تردد: " + totalAll + "\n" +
+                        "IP: " + ip
+                    );
+                    console.log("[TCP] Bale error notification sent for device=" + parsed.device_code + " error=" + parsed.error_byte);
+                }
+                db.prepare("UPDATE devices SET last_error_byte = ? WHERE device_code = ?").run(parsed.error_byte, parsed.device_code);
+            } else if (parsed.error_byte === 0) {
+                // Error cleared — reset so next error triggers a new notification
+                db.prepare("UPDATE devices SET last_error_byte = 0 WHERE device_code = ?").run(parsed.device_code);
+            }
         } catch (e) {
             console.error("[TCP] DB error: " + e.message);
         }
@@ -1635,6 +2159,8 @@ var httpServer = null;
 
 var TCP_RETRY_COUNT = 0;
 var TCP_MAX_RETRIES = 5;
+var HTTP_RETRY_COUNT = 0;
+var HTTP_MAX_RETRIES = 5;
 
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     TCP_RETRY_COUNT = 0;
@@ -1656,27 +2182,43 @@ tcpServer.on("error", function (err) {
 // ============================================================
 // Start HTTP Server
 // ============================================================
-httpServer = app.listen(PORT, HOST, function () {
-    console.log("============================================");
-    console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
-    console.log("  HTTP: http://" + HOST + ":" + PORT);
-    console.log("  TCP:  port " + TCP_PORT + " (device data)");
-    console.log("  Login: admin / admin123");
-    console.log("============================================");
+function startHttpServer() {
+    httpServer = app.listen(PORT, HOST, function () {
+        HTTP_RETRY_COUNT = 0;
+        console.log("============================================");
+        console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
+        console.log("  Build: " + BUILD_VERSION);
+        console.log("  HTTP: http://" + HOST + ":" + PORT);
+        console.log("  TCP:  port " + TCP_PORT + " (device data)");
+        console.log("  Login: admin / admin123");
+        console.log("============================================");
 
-    rmto.initClient(function (err) {
-        if (err) console.error("[RMTO] Will retry on first send");
+        rmto.initClient(function (err) {
+            if (err) console.error("[RMTO] Will retry on first send");
+        });
+
+        scheduler.start();
+
+        // Send Bale startup notification (if configured)
+        try {
+            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
+        } catch (e) { /* ignore startup notification errors */ }
     });
 
-    scheduler.start();
-});
+    httpServer.on("error", function (err) {
+        if (err.code === "EADDRINUSE") {
+            HTTP_RETRY_COUNT++;
+            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
+                console.error("[HTTP] Port " + PORT + " still in use after " + HTTP_MAX_RETRIES + " retries, exiting.");
+                process.exit(1);
+            }
+            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
+            setTimeout(startHttpServer, 5000);
+        }
+    });
+}
 
-httpServer.on("error", function (err) {
-    if (err.code === "EADDRINUSE") {
-        console.error("[HTTP] Port " + PORT + " already in use. Exiting so PM2 can retry.");
-        process.exit(1);
-    }
-});
+startHttpServer();
 
 // ============================================================
 // Graceful Shutdown
@@ -1686,7 +2228,15 @@ function gracefulShutdown(signal) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
-    scheduler.stop && scheduler.stop();
+    scheduler.stop();
+
+    // Stop all scheduled test-send jobs
+    Object.keys(testScheduleJobs).forEach(function (k) {
+        var job = testScheduleJobs[k];
+        if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+        job.stopped = true;
+        job.status = "stopped";
+    });
 
     // Close all active TCP device connections first
     Object.keys(connectedDevices).forEach(function (key) {

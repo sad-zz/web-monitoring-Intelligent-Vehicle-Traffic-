@@ -36,6 +36,13 @@
         xhr.onload = function () {
             var data = null;
             try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+            // Global 401 handler: session expired → show login overlay
+            if (xhr.status === 401 && url.indexOf("/api/auth/") === -1) {
+                serverConnected = true;
+                updateConnectionStatus(true);
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             callback(xhr.status, data);
         };
         xhr.onerror = function () { callback(0, null); };
@@ -45,6 +52,25 @@
     var TYPE_LABELS = { counter: "ترددشمار", sensor: "سنسور", loop: "حلقه القایی", radar: "رادار" };
     var STATUS_LABELS = { online: "آنلاین", offline: "آفلاین", warning: "هشدار", error: "خطا" };
 
+    var ERROR_BITS = {
+        1:   'MMC_ERR - کارت حافظه',
+        2:   'LP1_ERR - لوپ ۱',
+        4:   'LP2_ERR - لوپ ۲',
+        8:   'LP3_ERR - لوپ ۳',
+        16:  'LP4_ERR - لوپ ۴',
+        32:  'VMN_ERR - ولتاژ شبانه',
+        64:  'SOL_ERR - پنل خورشیدی',
+        128: 'LBT_ERR - باتری ضعیف',
+        256: 'L1D_ERR - جهت لاین ۱',
+        512: 'L2D_ERR - جهت لاین ۲'
+    };
+    function decodeErrorByte(code) {
+        if (!code) return [];
+        return Object.keys(ERROR_BITS).filter(function(bit) {
+            return (code & parseInt(bit, 10)) !== 0;
+        }).map(function(bit) { return ERROR_BITS[bit]; });
+    }
+
     var VIEW_TITLES = {
         dashboard: "داشبورد",
         devices: "دستگاه‌ها",
@@ -52,6 +78,7 @@
         rmto: "ارسال به سامانه",
         mehvar: "محورها",
         "test-sender": "ارسال تست",
+        history: "تاریخچه",
         settings: "تنظیمات"
     };
 
@@ -182,7 +209,12 @@
         else if (view === "rmto") loadRMTO();
         else if (view === "mehvar") loadMehvar();
         else if (view === "test-sender") initTestSender();
+        else if (view === "history") loadHistory(1);
         else if (view === "settings") loadSettings();
+
+        // Auto-refresh server time only on settings page
+        if (view === "settings") startServerTimeRefresh();
+        else stopServerTimeRefresh();
     }
 
     // Sidebar toggle (mobile)
@@ -216,32 +248,88 @@
         });
 
         api("GET", "/api/devices", null, function (status, data) {
-            var tbody = $("#dashboard-table-body");
-            if (status !== 200 || !data || !data.length) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">دستگاهی ثبت نشده است</td></tr>';
+            var grid = $("#device-grid");
+            if (!grid) return;
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
+                grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
+                updateDeviceFilterCount(0);
                 return;
             }
-            tbody.innerHTML = data.map(function (d) {
-                var st = d.status || "offline";
-                return "<tr>" +
-                    '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
-                    "<td>" + escapeHtml(d.name) + "</td>" +
-                    '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
-                    '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
-                    '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
-                    "</tr>";
-            }).join("");
+
+            var VALID_STATUSES = ["online", "offline", "warning", "error"];
+            var allCards = data.map(function (d) {
+                var st = (d.status && VALID_STATUSES.indexOf(d.status) !== -1) ? d.status : "offline";
+                var statusLabel = escapeHtml(STATUS_LABELS[st] || st);
+                var code = escapeHtml(d.device_code || "");
+                var name = escapeHtml(d.name || d.device_code || "");
+                var route = escapeHtml(d.route1 || d.route || "");
+                var lastSeen = escapeHtml(formatTime(d.last_seen));
+                var dotColor = { online: "#22c55e", offline: "#94a3b8", warning: "#f59e0b", error: "#ef4444" }[st] || "#94a3b8";
+                var cardHtml =
+                    '<div class="device-card device-card-v2 ' + st + '" data-status="' + st + '">' +
+                        '<div class="dcv2-icon">' +
+                            '<svg viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H7V5h10v14zm-5 2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-3V7h2v11h-2z"/></svg>' +
+                        '</div>' +
+                        '<div class="dcv2-body">' +
+                            '<div class="dcv2-code">' + (code || name) + '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">آخرین داده:</span>' +
+                                '<span class="dcv2-val ltr">' + lastSeen + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">وضعیت:</span>' +
+                                '<span class="dcv2-status" style="color:' + dotColor + '">&#9679; ' + statusLabel + '</span>' +
+                            '</div>' +
+                            '<div class="dcv2-row">' +
+                                '<span class="dcv2-label">محور:</span>' +
+                                '<span class="dcv2-val">' + (route || name || '-') + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                return { html: cardHtml, status: st };
+            });
+
+            var activeFilter = ($("#device-filter-bar .dfb-btn.active") || {}).dataset && $("#device-filter-bar .dfb-btn.active").dataset.filter || "all";
+            renderDeviceCards(grid, allCards, activeFilter);
+
+            var filterBar = $("#device-filter-bar");
+            if (filterBar) {
+                filterBar.querySelectorAll(".dfb-btn").forEach(function (btn) {
+                    btn.onclick = function () {
+                        filterBar.querySelectorAll(".dfb-btn").forEach(function (b) { b.classList.remove("active"); });
+                        btn.classList.add("active");
+                        renderDeviceCards(grid, allCards, btn.dataset.filter || "all");
+                    };
+                });
+            }
         });
 
         loadTcpConnected();
         loadLive();
     }
 
+    function renderDeviceCards(grid, allCards, filter) {
+        var visible = filter === "all" ? allCards : allCards.filter(function (c) { return c.status === filter; });
+        if (!visible.length) {
+            grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی یافت نشد</div>';
+        } else {
+            grid.innerHTML = visible.map(function (c) { return c.html; }).join("");
+        }
+        updateDeviceFilterCount(visible.length);
+    }
+
+    function updateDeviceFilterCount(n) {
+        var el = $("#device-filter-count");
+        if (el) el.textContent = n + " دستگاه";
+    }
+
     function loadTcpConnected() {
         api("GET", "/api/tcp/connected", null, function (status, data) {
             var tbody = $("#tcp-table-body");
             if (!tbody) return;
-            if (status !== 200 || !data || !Object.keys(data).length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !Object.keys(data).length) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8">دستگاهی متصل نیست</td></tr>';
                 return;
             }
@@ -361,6 +449,7 @@
 
     // Auto-refresh live monitor every 3 seconds
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var autoCheck = $("#live-auto-refresh");
         var activeView = document.querySelector(".view.active");
         if (autoCheck && autoCheck.checked && activeView && activeView.id === "view-dashboard") {
@@ -401,7 +490,7 @@
 
         var tbody = $("#devices-table-body");
         if (!paged.length) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
         } else {
             tbody.innerHTML = paged.map(function (d, i) {
                 var st = d.status || "offline";
@@ -409,6 +498,11 @@
                 var r2 = d.route2 || "";
                 var r1Name = getMehvarName(r1);
                 var r2Name = getMehvarName(r2);
+                var errCode = d.last_error_byte || 0;
+                var errLabels = decodeErrorByte(errCode);
+                var errCell = errCode > 0
+                    ? '<span class="status-badge error" title="' + escapeHtml(errLabels.join(' | ')) + '" style="cursor:help">' + escapeHtml(String(errCode)) + '</span>'
+                    : '<span style="color:#94a3b8">—</span>';
                 return "<tr>" +
                     "<td>" + (start + i + 1) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
@@ -417,6 +511,7 @@
                     "<td>" + escapeHtml(r1Name || "-") + "</td>" +
                     "<td>" + escapeHtml(r2Name || "-") + "</td>" +
                     '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
+                    "<td>" + errCell + "</td>" +
                     '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(d.last_seen)) + "</td>" +
                     "<td>" +
                         '<div class="action-btns">' +
@@ -577,7 +672,8 @@
 
         api("GET", url, null, function (status, data) {
             var tbody = $("#reception-table-body");
-            if (status !== 200 || !data || !data.rows || !data.rows.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.rows || !data.rows.length) {
                 tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">داده‌ای دریافت نشده</td></tr>';
                 receptionState.total = 0;
                 renderTableInfo("reception", 0, 0, 0);
@@ -628,6 +724,18 @@
     // RMTO Send
     // ============================================================
     var rmtoLogFilter = "all";
+
+    function extractRmtoError(r) {
+        var msg = r.error_message || "";
+        if (!msg) {
+            try {
+                var ro = JSON.parse(r.response_data || "{}");
+                if (ro.ERR) msg = ro.ERR;
+                else if (r.success !== 1 && ro.ID === 0 && ro.SRVDT === "0001-01-01T00:00:00") msg = "تاریخ نامعتبر از سامانه (ID=0)";
+            } catch (e) {}
+        }
+        return msg;
+    }
 
     function loadRMTO() {
         loadRMTOQueue();
@@ -680,7 +788,7 @@
         api("GET", "/api/rmto/logs?limit=50&filter=" + filter, null, function (status, data) {
             var mbody = $("#rmto-monitor-body");
             if (status !== 200 || !data || !data.length) {
-                mbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
+                mbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#94a3b8">هنوز ارسالی انجام نشده</td></tr>';
                 return;
             }
             mbody.innerHTML = data.map(function (r) {
@@ -688,9 +796,12 @@
                 var resp = r.response_data || "-";
                 var respShort = resp;
                 if (respShort.length > 80) respShort = respShort.substring(0, 80) + "...";
-                var errMsg = r.error_message || "-";
+
+                // Extract ERR from response_data JSON
+                var errMsg = extractRmtoError(r);
                 var errShort = errMsg;
                 if (errShort.length > 80) errShort = errShort.substring(0, 80) + "...";
+
                 return "<tr class='rmto-log-row " + (ok ? "" : "rmto-error-row") + "'>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px;white-space:nowrap">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     '<td style="font-size:12px">' + escapeHtml(r.method) + "</td>" +
@@ -698,6 +809,7 @@
                     '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(resp) + '">' + escapeHtml(respShort) + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:' + (ok ? '#94a3b8' : '#ef4444') + '" title="' + escapeHtml(errMsg) + '">' + escapeHtml(ok ? "-" : errShort) + "</td>" +
+                    '<td dir="ltr" style="font-size:10px;color:#64748b">' + escapeHtml(r.source_ip || "-") + "</td>" +
                     '<td><button class="btn btn-sm btn-secondary btn-rmto-detail" data-id="' + r.id + '">مشاهده</button></td>' +
                     "</tr>";
             }).join("");
@@ -722,10 +834,13 @@
                 var ok = r.success === 1;
                 var resp = r.response_data || "";
                 if (resp.length > 60) resp = resp.substring(0, 60) + "...";
+                var errDetail = extractRmtoError(r);
+                var statusCell = '<span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span>" +
+                    (!ok && errDetail ? '<div style="font-size:10px;color:#ef4444;margin-top:2px;white-space:normal;max-width:160px">' + escapeHtml(errDetail.substring(0, 80)) + '</div>' : "");
                 return "<tr>" +
                     "<td>" + escapeHtml(r.method) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
-                    '<td><span class="status-badge ' + (ok ? "online" : "error") + '">' + (ok ? "موفق" : "خطا") + "</span></td>" +
+                    "<td>" + statusCell + "</td>" +
                     '<td dir="ltr" style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(resp) + "</td>" +
                     '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                     "</tr>";
@@ -854,7 +969,44 @@
     var rmtoRefreshBtn = $("#btn-rmto-refresh");
     if (rmtoRefreshBtn) rmtoRefreshBtn.addEventListener("click", loadRMTO);
 
-    // Monitor filter
+    // Connectivity check
+    var rmtoConnBtn = $("#btn-rmto-connectivity");
+    if (rmtoConnBtn) rmtoConnBtn.addEventListener("click", function () {
+        var panel = $("#panel-connectivity");
+        var resultEl = $("#connectivity-result");
+        var hostEl = $("#connectivity-host");
+        panel.style.display = "";
+        resultEl.innerHTML = '<div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>';
+        if (hostEl) hostEl.textContent = "";
+        rmtoConnBtn.disabled = true;
+        api("GET", "/api/rmto/connectivity-check", null, function (status, data) {
+            rmtoConnBtn.disabled = false;
+            if (status !== 200 || !data) {
+                resultEl.innerHTML = '<div style="color:#ef4444;font-size:13px">خطا در دریافت نتیجه</div>';
+                return;
+            }
+            if (hostEl) hostEl.textContent = data.host + ":" + data.port;
+            var html = '<div style="display:grid;gap:8px">';
+            (data.checks || []).forEach(function (c) {
+                var color = c.ok ? "#16a34a" : "#ef4444";
+                var badge = c.ok
+                    ? '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:12px">✓ متصل</span>'
+                    : '<span style="background:#fee2e2;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:12px">✗ قطع</span>';
+                var latency = c.ok ? ' &nbsp;<span style="color:#64748b;font-size:12px">' + c.latencyMs + 'ms</span>' : "";
+                var errMsg = c.error ? ' &nbsp;<span style="color:#ef4444;font-size:12px;direction:ltr">' + escapeHtml(c.error) + "</span>" : "";
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">' +
+                    '<span style="min-width:160px;font-size:13px">' + escapeHtml(c.label) + "</span>" +
+                    '<span style="color:#64748b;font-size:12px;direction:ltr;min-width:120px">' + escapeHtml(c.ip) + "</span>" +
+                    badge + latency + errMsg +
+                    "</div>";
+            });
+            var ts = data.checkedAt ? ' <span style="font-size:11px;color:#94a3b8">' + escapeHtml(data.checkedAt.replace("T", " ").substring(0, 19)) + "</span>" : "";
+            html += "</div>" + ts;
+            resultEl.innerHTML = html;
+        });
+    });
+
+
     var rmtoFilterEl = $("#rmto-log-filter");
     if (rmtoFilterEl) rmtoFilterEl.addEventListener("change", function () {
         rmtoLogFilter = this.value;
@@ -870,7 +1022,8 @@
     function loadMehvar() {
         api("GET", "/api/mehvar", null, function (status, data) {
             var tbody = $("#mehvar-table-body");
-            if (status !== 200 || !data || !data.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">محوری ثبت نشده</td></tr>';
                 return;
             }
@@ -972,6 +1125,8 @@
             if (data.rmto_company_code) $("#setting-rmto-company").value = data.rmto_company_code;
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
+            var liveIpEl = $("#setting-rmto-source-ip");
+            if (liveIpEl && data.rmto_source_ip !== undefined) liveIpEl.value = data.rmto_source_ip;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -1006,11 +1161,13 @@
             rmto_wsdl: $("#setting-rmto-wsdl").value,
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
-            rmto_password: $("#setting-rmto-pass").value
+            rmto_password: $("#setting-rmto-pass").value,
+            rmto_source_ip: ($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || ""
         }, "تنظیمات سامانه ذخیره شد.");
     });
 
     // Server Time
+    var serverTimeTimer = null;
     function loadServerTime() {
         api("GET", "/api/server/time", null, function (status, data) {
             if (status !== 200 || !data) return;
@@ -1030,7 +1187,17 @@
                 var mins = Math.floor((sec % 3600) / 60);
                 ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
             }
+            var bv = $("#server-build-version");
+            if (bv && data.build) bv.textContent = data.build;
         });
+    }
+
+    function startServerTimeRefresh() {
+        if (serverTimeTimer) clearInterval(serverTimeTimer);
+        serverTimeTimer = setInterval(loadServerTime, 10000);
+    }
+    function stopServerTimeRefresh() {
+        if (serverTimeTimer) { clearInterval(serverTimeTimer); serverTimeTimer = null; }
     }
 
     var refreshTimeBtn = $("#btn-refresh-server-time");
@@ -1078,6 +1245,12 @@
         xhr.onload = function () {
             var r;
             try { r = JSON.parse(xhr.responseText); } catch (e) { r = {}; }
+            if (xhr.status === 401) {
+                statusEl.textContent = "نشست منقضی شده. لطفا دوباره وارد شوید";
+                statusEl.style.color = "#ef4444";
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             if (xhr.status === 200) {
                 statusEl.textContent = r.message || "بازیابی انجام شد";
                 statusEl.style.color = "#22c55e";
@@ -1259,12 +1432,167 @@
     // Auto-refresh every 30s
     // ============================================================
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var activeView = document.querySelector(".view.active");
         if (!activeView) return;
         var id = activeView.id;
         if (id === "view-dashboard") loadDashboard();
         else if (id === "view-reception") loadReception();
     }, 30000);
+
+// ============================================================
+    // History
+    // ============================================================
+    var historyType = "sent";
+    var historyPage = 1;
+
+    (function initHistoryTabs() {
+        var btnSent = $("#hist-tab-sent");
+        var btnReceived = $("#hist-tab-received");
+        if (btnSent) btnSent.addEventListener("click", function () {
+            historyType = "sent";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        if (btnReceived) btnReceived.addEventListener("click", function () {
+            historyType = "received";
+            historyPage = 1;
+            renderHistoryHeaders();
+            loadHistory(1);
+        });
+        var searchBtn = $("#hist-btn-search");
+        if (searchBtn) searchBtn.addEventListener("click", function () {
+            historyPage = 1;
+            loadHistory(1);
+        });
+    })();
+
+    function renderHistoryHeaders() {
+        var thead = $("#hist-thead");
+        if (!thead) return;
+        if (historyType === "sent") {
+            thead.innerHTML =
+                "<th>#</th><th>زمان ارسال</th><th>دستگاه</th><th>وضعیت</th>" +
+                "<th>IP</th><th>پاسخ</th><th>عملیات</th>";
+        } else {
+            thead.innerHTML =
+                "<th>#</th><th>شروع دوره</th><th>پایان دوره</th><th>دستگاه</th>" +
+                "<th>محور</th><th>مجموع خودرو</th><th>سرعت میانگین</th>" +
+                "<th>وضعیت ارسال</th><th>عملیات</th>";
+        }
+    }
+
+    function loadHistory(page) {
+        historyPage = page || 1;
+        var device = ($("#hist-filter-device") && $("#hist-filter-device").value) || "";
+        var route = ($("#hist-filter-route") && $("#hist-filter-route").value) || "";
+        var from = ($("#hist-filter-from") && $("#hist-filter-from").value) || "";
+        var to = ($("#hist-filter-to") && $("#hist-filter-to").value) || "";
+
+        var url = "/api/history?type=" + historyType +
+            "&page=" + historyPage + "&limit=50" +
+            (device ? "&device=" + encodeURIComponent(device) : "") +
+            (route ? "&route=" + encodeURIComponent(route) : "") +
+            (from ? "&from=" + encodeURIComponent(from) : "") +
+            (to ? "&to=" + encodeURIComponent(to) : "");
+
+        renderHistoryHeaders();
+        var tbody = $("#hist-tbody");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>';
+
+        api("GET", url, null, function (status, data) {
+            var tbody = $("#hist-tbody");
+            var summary = $("#hist-summary");
+            var pagination = $("#hist-pagination");
+            if (!tbody) return;
+            if (status !== 200 || !data) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#ef4444">خطا در بارگذاری</td></tr>';
+                return;
+            }
+            var total = data.total || 0;
+            var totalPages = Math.ceil(total / 50) || 1;
+            if (summary) summary.textContent = "مجموع: " + total + " رکورد — صفحه " + historyPage + " از " + totalPages;
+            var rows = data.rows || [];
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">رکوردی یافت نشد</td></tr>';
+                if (pagination) pagination.innerHTML = "";
+                return;
+            }
+            if (historyType === "sent") {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var ok = r.success ? '<span class="status-badge online">موفق</span>' : '<span class="status-badge error">ناموفق</span>';
+                    var resp = "";
+                    try {
+                        var rd = JSON.parse(r.response_data || "{}");
+                        resp = (rd && (rd.ID !== undefined)) ? "ID=" + rd.ID + " CFL=" + rd.CFL : (r.error_message || "-");
+                    } catch(e) { resp = r.error_message || "-"; }
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.created_at || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + ok + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.source_ip || "-") + "</td>" +
+                        "<td>" + escapeHtml(resp.substring(0, 40)) + "</td>" +
+                        "<td></td>" +
+                        "</tr>";
+                }).join("");
+            } else {
+                tbody.innerHTML = rows.map(function (r, i) {
+                    var total = (r.c1 || 0) + (r.c2 || 0) + (r.c3 || 0) + (r.c4 || 0) + (r.c5 || 0);
+                    var sentBadge = r.sent ? '<span class="status-badge online">ارسال شده</span>' : '<span class="status-badge offline">در صف</span>';
+                    return "<tr>" +
+                        "<td>" + ((historyPage - 1) * 50 + i + 1) + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_start || "-") + "</td>" +
+                        '<td dir="ltr">' + escapeHtml(r.period_end || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.device_code || "-") + "</td>" +
+                        "<td>" + escapeHtml(r.route_id || "-") + "</td>" +
+                        "<td>" + total + "</td>" +
+                        "<td>" + Math.round(r.avg_speed || 0) + "</td>" +
+                        "<td>" + sentBadge + "</td>" +
+                        "<td><button class='btn btn-secondary' style='padding:3px 10px;font-size:12px' onclick='histLoadToTestSender(" + r.id + ")'>📤 بارگذاری</button></td>" +
+                        "</tr>";
+                }).join("");
+            }
+            // Pagination
+            if (pagination) {
+                var pages = [];
+                var start = Math.max(1, historyPage - 2);
+                var end = Math.min(totalPages, start + 4);
+                if (historyPage > 1) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage - 1) + ')">‹</button>');
+                for (var p = start; p <= end; p++) {
+                    pages.push('<button class="btn ' + (p === historyPage ? 'btn-primary' : 'btn-secondary') + '" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + p + ')">' + p + '</button>');
+                }
+                if (historyPage < totalPages) pages.push('<button class="btn btn-secondary" style="padding:4px 10px;font-size:12px" onclick="loadHistory(' + (historyPage + 1) + ')">›</button>');
+                pagination.innerHTML = pages.join("");
+            }
+        });
+    }
+
+    // Expose for inline onclick in history table
+    window.loadHistory = loadHistory;
+    window.histLoadToTestSender = function (id) {
+        api("GET", "/api/history/record/" + id, null, function (status, row) {
+            if (status !== 200 || !row) { alert("خطا در بارگذاری رکورد"); return; }
+            switchView("test-sender");
+            // Pre-fill test-sender form with the historical record
+            var ridEl = $("#test-rid");
+            var stEl = $("#test-st");
+            var etEl = $("#test-et");
+            var c1El = $("#test-c1"); var c2El = $("#test-c2"); var c3El = $("#test-c3");
+            var c4El = $("#test-c4"); var c5El = $("#test-c5");
+            var aspEl = $("#test-asp");
+            if (ridEl) ridEl.value = row.route_id || "";
+            if (stEl) stEl.value = (row.period_start || "").replace(" ", "T").substring(0, 16);
+            if (etEl) etEl.value = (row.period_end || "").replace(" ", "T").substring(0, 16);
+            if (c1El) c1El.value = row.c1 || 0;
+            if (c2El) c2El.value = row.c2 || 0;
+            if (c3El) c3El.value = row.c3 || 0;
+            if (c4El) c4El.value = row.c4 || 0;
+            if (c5El) c5El.value = row.c5 || 0;
+            if (aspEl) aspEl.value = Math.round(row.avg_speed || 0);
+        });
+    };
 
     // ============================================================
     // Test Sender
@@ -1347,7 +1675,259 @@
                 }
             });
         });
+
+        // ---- Archive Send ----
+        function toLocalInputVal(d) {
+            return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" +
+                String(d.getDate()).padStart(2,"0") + "T" +
+                String(d.getHours()).padStart(2,"0") + ":" +
+                String(d.getMinutes()).padStart(2,"0");
+        }
+
+        function applyArchivePreset(minutes) {
+            var now = new Date();
+            var to = new Date(now);
+            to.setSeconds(0, 0);
+            var from = new Date(to.getTime() - minutes * 60 * 1000);
+            var fromEl = $("#arch-from"), toEl = $("#arch-to");
+            if (fromEl) fromEl.value = toLocalInputVal(from);
+            if (toEl) toEl.value = toLocalInputVal(to);
+        }
+
+        var presets = { "arch-preset-15m": 15, "arch-preset-1h": 60, "arch-preset-6h": 360,
+            "arch-preset-1d": 1440, "arch-preset-3d": 4320, "arch-preset-7d": 10080, "arch-preset-15d": 21600 };
+        Object.keys(presets).forEach(function (id) {
+            var el = $("#" + id);
+            if (el) el.addEventListener("click", function () { applyArchivePreset(presets[id]); });
+        });
+
+        var archPreviewBtn = $("#btn-arch-preview");
+        if (archPreviewBtn) archPreviewBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : "";
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var url = "/api/rmto/archive-records?from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to);
+            if (rid) url += "&rid=" + rid;
+            if (infoEl) infoEl.textContent = "در حال بارگذاری...";
+            api("GET", url, null, function (status, data) {
+                if (!data || !infoEl) return;
+                infoEl.innerHTML = '🔎 <strong>' + escapeHtml(String(data.total || 0)) + '</strong> رکورد یافت شد' +
+                    (rid ? ' برای محور <strong>' + escapeHtml(String(rid)) + '</strong>' : '') +
+                    ' در بازه انتخابی';
+            });
+        });
+
+        var archSendBtn = $("#btn-arch-send");
+        if (archSendBtn) archSendBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : null;
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var body = { from: from, to: to };
+            if (rid) body.rid = rid;
+            archSendBtn.disabled = true;
+            archSendBtn.textContent = "در حال شروع...";
+            api("POST", "/api/rmto/archive-send", body, function (status, data) {
+                archSendBtn.disabled = false;
+                archSendBtn.textContent = "📤 شروع ارسال";
+                if (!data || status !== 200) {
+                    if (infoEl) infoEl.textContent = "❌ خطا: " + ((data && data.error) || "ارتباط با سرور برقرار نشد");
+                    return;
+                }
+                if (infoEl) infoEl.innerHTML = '✅ ارسال آرشیو شروع شد — شناسه کار: <strong>' + escapeHtml(String(data.jobId)) + '</strong> / ' + escapeHtml(String(data.total)) + ' رکورد';
+                refreshArchiveJobs();
+            });
+        });
+
+        var archRefreshBtn = $("#btn-arch-refresh");
+        if (archRefreshBtn) archRefreshBtn.addEventListener("click", refreshArchiveJobs);
+
+        function refreshArchiveJobs() {
+            api("GET", "/api/rmto/archive-jobs", null, function (status, jobs) {
+                var tbody = $("#arch-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسالی شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var pct = j.total > 0 ? Math.round(j.sent / j.total * 100) : 0;
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : '<span class="status-badge online">تمام شد</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopArchiveJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(j.rid ? String(j.rid) : "همه") + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.from || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.to || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sent)) + " / " + escapeHtml(String(j.total)) + " (" + escapeHtml(String(pct)) + "%)</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.success)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failed)) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
+
+        // Auto-refresh jobs table every 3 seconds while on test-sender view
+        setInterval(function () {
+            if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
+            var v = document.querySelector(".view.active");
+            if (v && v.id === "view-test-sender") {
+                refreshArchiveJobs();
+                refreshSchedJobs();
+            }
+        }, 3000);
+
+        // ---- Scheduled Test Send ----
+        var schedCopyBtn = $("#btn-sched-copy");
+        if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
+            var fields = ["c1", "c2", "c3", "c4", "c5", "asp"];
+            fields.forEach(function (f) {
+                var src = $("#test-" + f);
+                var dst = $("#sched-" + f);
+                if (src && dst) dst.value = src.value;
+            });
+            var ridSrc = $("#test-rid");
+            var ridDst = $("#sched-rid");
+            if (ridSrc && ridDst) ridDst.value = ridSrc.value;
+            var resultEl = $("#sched-result");
+            if (resultEl) {
+                resultEl.style.display = "block";
+                resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:8px;border-radius:6px;color:#166534;font-size:13px">✅ مقادیر از بخش ارسال تست کپی شد</div>';
+                setTimeout(function () { resultEl.style.display = "none"; }, 3000);
+            }
+        });
+
+        var schedStartBtn = $("#btn-sched-start");
+        if (schedStartBtn) schedStartBtn.addEventListener("click", function () {
+            var rid = parseInt(($("#sched-rid") && $("#sched-rid").value) || "", 10);
+            if (!rid || rid <= 0) { alert("کد محور (RID) الزامی است"); return; }
+            var days = parseInt(($("#sched-days") && $("#sched-days").value) || "1", 10);
+            if (days < 1 || days > 15) { alert("مدت ارسال باید بین ۱ تا ۱۵ روز باشد"); return; }
+            if (!confirm("آیا از شروع ارسال زمانبندی شده هر ۵ دقیقه برای " + days + " روز مطمئن هستید؟")) return;
+
+            var body = {
+                rid: rid,
+                durationDays: days,
+                c1: parseInt(($("#sched-c1") && $("#sched-c1").value) || "0", 10),
+                c2: parseInt(($("#sched-c2") && $("#sched-c2").value) || "0", 10),
+                c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
+                c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
+                c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10)
+            };
+
+            schedStartBtn.disabled = true;
+            schedStartBtn.textContent = "در حال شروع...";
+            var resultEl = $("#sched-result");
+
+            api("POST", "/api/rmto/test-schedule", body, function (status, data) {
+                schedStartBtn.disabled = false;
+                schedStartBtn.textContent = "⏱ شروع ارسال زمانبندی شده";
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    if (data && data.success) {
+                        resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message || "شروع شد") + ' — شناسه: ' + escapeHtml(String(data.jobId)) + '</div>';
+                    } else {
+                        resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا: ' + escapeHtml((data && data.error) || "ارتباط برقرار نشد") + '</div>';
+                    }
+                }
+                refreshSchedJobs();
+            });
+        });
+
+        var schedRefreshBtn = $("#btn-sched-refresh");
+        if (schedRefreshBtn) schedRefreshBtn.addEventListener("click", refreshSchedJobs);
+
+        function refreshSchedJobs() {
+            api("GET", "/api/rmto/test-schedule", null, function (status, jobs) {
+                var tbody = $("#sched-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : j.status === "expired"
+                                ? '<span class="status-badge online">پایان یافت</span>'
+                                : '<span class="status-badge">' + escapeHtml(j.status) + '</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopSchedJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    var lastSend = j.lastSendAt ? j.lastSendAt.replace("T", " ").substring(0, 19) : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.rid)) + "</td>" +
+                        "<td>" + escapeHtml(String(j.durationDays)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sendCount)) + "</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.successCount)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failedCount)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(lastSend) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
     }
+
+    // Expose stop job function globally for inline onclick
+    window.stopArchiveJob = function (jobId) {
+        api("DELETE", "/api/rmto/archive-send/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var infoEl = $("#arch-preview-info");
+                if (infoEl) infoEl.textContent = "⏹ ارسال شناسه " + jobId + " متوقف شد";
+                // force refresh
+                var tbody = $("#arch-jobs-tbody");
+                if (tbody) {
+                    api("GET", "/api/rmto/archive-jobs", null, function (s, jobs) {
+                        if (!jobs) return;
+                        // trigger re-render by calling refreshArchiveJobs equivalent inline
+                        var evt = document.createEvent("Event");
+                        evt.initEvent("click", true, true);
+                        var rb = $("#btn-arch-refresh");
+                        if (rb) rb.dispatchEvent(evt);
+                    });
+                }
+            }
+        });
+    };
+
+    window.stopSchedJob = function (jobId) {
+        api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var resultEl = $("#sched-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #fde68a;padding:8px;border-radius:6px;color:#854d0e;font-size:13px">⏹ ارسال زمانبندی شده شناسه ' + escapeHtml(String(jobId)) + ' متوقف شد</div>';
+                }
+                var rb = $("#btn-sched-refresh");
+                if (rb) {
+                    var evt = document.createEvent("Event");
+                    evt.initEvent("click", true, true);
+                    rb.dispatchEvent(evt);
+                }
+            }
+        });
+    };
 
     // ============================================================
     // Settings: Bale, Server Restart, Log Monitor
@@ -1475,15 +2055,5 @@
         }
     });
 
-    // ============================================================
-    // Auto-refresh every 30s
-    // ============================================================
-    setInterval(function () {
-        var activeView = document.querySelector(".view.active");
-        if (!activeView) return;
-        var id = activeView.id;
-        if (id === "view-dashboard") loadDashboard();
-        else if (id === "view-reception") loadReception();
-    }, 30000);
 
 })();

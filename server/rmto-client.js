@@ -15,13 +15,14 @@ var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.a
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
+var SOURCE_IP = "";
 
 /**
  * Load RMTO settings from database (overrides env vars).
  */
 function loadDbSettings() {
     try {
-        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url')").all();
+        var rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('rmto_company_code', 'rmto_username', 'rmto_password', 'rmto_wsdl', 'rmto_url', 'rmto_source_ip')").all();
         var s = {};
         rows.forEach(function (r) { s[r.key] = r.value; });
         if (s.rmto_company_code) COMPANY_CODE = s.rmto_company_code;
@@ -29,9 +30,17 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_url) RMTO_URL = s.rmto_url;
         else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
+        if (s.rmto_source_ip !== undefined) SOURCE_IP = s.rmto_source_ip || "";
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
     }
+}
+
+/**
+ * Returns the configured source IP.
+ */
+function getSourceIp() {
+    return SOURCE_IP || "";
 }
 
 /**
@@ -68,9 +77,12 @@ function xmlElement(name, value) {
  * Send raw SOAP request to RMTO and parse response.
  * @param {string} soapAction - e.g. "ITS/Add" or "ITS/Add5"
  * @param {string} bodyXml - the inner SOAP body XML
+ * @param {string|null} sourceIp - local IP to bind (overrides SOURCE_IP); null = use module default
  * @param {function} callback - callback(err, parsedResponse, fullSoapXml)
  */
-function sendSoapRequest(soapAction, bodyXml, callback) {
+function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
+    // Allow legacy 3-arg call: sendSoapRequest(action, body, callback)
+    if (typeof sourceIp === "function") { callback = sourceIp; sourceIp = null; }
     var soapEnvelope =
         '<?xml version="1.0" encoding="utf-8"?>' +
         '<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ' +
@@ -91,6 +103,12 @@ function sendSoapRequest(soapAction, bodyXml, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
+    // sourceIp param overrides module-level SOURCE_IP (null = OS default, "" = OS default)
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : SOURCE_IP;
+    if (effectiveIp) {
+        options.localAddress = effectiveIp;
+        console.log("[RMTO] Using source IP: " + effectiveIp);
+    }
 
     console.log("[RMTO] SOAP " + soapAction + " to " + RMTO_URL);
     console.log("[RMTO] Request XML:\n" + bodyXml.substring(0, 500));
@@ -210,7 +228,7 @@ function sendAddData(data, callback) {
 
     console.log("[RMTO] Add request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et);
 
-    sendSoapRequest("ITS/Add", bodyXml, callback);
+    sendSoapRequest("ITS/Add", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
@@ -284,7 +302,7 @@ function sendAddData5(data, callback) {
     console.log("[RMTO] Add5 request: CID=" + cid + " FID=" + fid + " RID=" + rid + " ST=" + st + " ET=" + et +
         " C1=" + data.C1 + " C2=" + data.C2 + " C3=" + data.C3 + " C4=" + data.C4 + " C5=" + data.C5);
 
-    sendSoapRequest("ITS/Add5", bodyXml, callback);
+    sendSoapRequest("ITS/Add5", bodyXml, data.sourceIp !== undefined ? data.sourceIp : null, callback);
 }
 
 /**
@@ -306,5 +324,6 @@ function initClient(callback) {
 module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
-    sendAddData5: sendAddData5
+    sendAddData5: sendAddData5,
+    getSourceIp: getSourceIp
 };
