@@ -1377,6 +1377,9 @@ var app = express();
 var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
+// Build version for deployment verification
+var BUILD_VERSION = "2026.04.07-v2";
+
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 var ADMIN_USER = process.env.ADMIN_USER || "admin";
@@ -1656,7 +1659,8 @@ app.get("/api/server/time", requireAuth, function (req, res) {
         time: now.toISOString(),
         local: now.toLocaleString("fa-IR", { timeZone: process.env.TZ || "Asia/Tehran" }),
         timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tehran",
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        build: BUILD_VERSION
     });
 });
 
@@ -1714,6 +1718,10 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
     var st = b.st || localISO(periodStart);
     var et = b.et || localISO(periodEnd);
 
+    // Load source IP from settings for consistency with scheduler
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
     rmto.sendAddData5({
         FID: fid,
         RID: rid,
@@ -1723,14 +1731,15 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
         ASP: asp,
         S1: asp, S2: asp, S3: asp, S4: asp, S5: asp,
         SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
-        OO: 0, ESD: 0
+        OO: 0, ESD: 0,
+        sourceIp: sourceIp
     }, function (err, response, soapXml) {
         var success = !err && response && (response.ID > 0 || response.CFL === 100);
         db.prepare(
-            "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
-            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null);
+            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
         res.json({
             success: success,
             response: response,
@@ -3458,6 +3467,7 @@ function startHttpServer() {
         HTTP_RETRY_COUNT = 0;
         console.log("============================================");
         console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
+        console.log("  Build: " + BUILD_VERSION);
         console.log("  HTTP: http://" + HOST + ":" + PORT);
         console.log("  TCP:  port " + TCP_PORT + " (device data)");
         console.log("  Login: admin / admin123");
@@ -3468,6 +3478,11 @@ function startHttpServer() {
         });
 
         scheduler.start();
+
+        // Send Bale startup notification (if configured)
+        try {
+            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
+        } catch (e) { /* ignore startup notification errors */ }
     });
 
     httpServer.on("error", function (err) {

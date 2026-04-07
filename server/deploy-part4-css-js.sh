@@ -2147,6 +2147,8 @@ cat > js/app.js << 'ENDFILE'
                 var mins = Math.floor((sec % 3600) / 60);
                 ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
             }
+            var bv = $("#server-build-version");
+            if (bv && data.build) bv.textContent = data.build;
         });
     }
 

@@ -758,6 +758,10 @@ cat > index.html << 'ENDFILE'
                                 <label>مدت روشن بودن سرور</label>
                                 <div id="server-uptime" dir="ltr" style="color:#475569">-</div>
                             </div>
+                            <div class="form-group">
+                                <label>نسخه نرم‌افزار</label>
+                                <div id="server-build-version" dir="ltr" style="color:#475569;font-family:monospace">-</div>
+                            </div>
                             <button class="btn btn-secondary" id="btn-refresh-server-time">بروزرسانی</button>
                         </div>
                     </div>
