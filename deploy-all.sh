@@ -860,7 +860,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                         </div>
                         <div class="panel-body about-info">
                             <p><strong>نوآوران جنوب شرق</strong></p>
-                            <p>نسخه: <span dir="ltr">1.3.0</span></p>
+                            <p>نسخه: <span dir="ltr">2.0.0</span></p>
                             <p>سامانه مدیریت ترددشمار هوشمند</p>
                             <p>سازگار با سامانه RMTO</p>
                         </div>
