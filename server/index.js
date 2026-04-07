@@ -2188,6 +2188,11 @@ function startHttpServer() {
         });
 
         scheduler.start();
+
+        // Send Bale startup notification (if configured)
+        try {
+            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n⏰ " + new Date().toLocaleString("fa-IR"));
+        } catch (e) { /* ignore startup notification errors */ }
     });
 
     httpServer.on("error", function (err) {
