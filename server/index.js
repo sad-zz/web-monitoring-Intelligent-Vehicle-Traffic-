@@ -106,7 +106,7 @@ var CRASH_COUNT_FILE = path.join(__dirname, ".restart_count");
     try { fs.writeFileSync(CRASH_COUNT_FILE, (restartCount + 1) + "," + Date.now()); } catch (e) {}
 
     if (restartCount >= 3) {
-        var delaySec = Math.min(restartCount * 10, 120); // 30s, 40s, 50s, ... max 120s
+        var delaySec = Math.min(restartCount * 10, 120); // 30s, 40s, 50s, ... max 120s (linear backoff)
         console.error("[STARTUP] ⚠ Crash loop detected (" + restartCount + " restarts in 5 minutes)");
         console.error("[STARTUP] Waiting " + delaySec + " seconds before starting to break the loop...");
         console.error("[STARTUP] Check crash.log for error details");
@@ -135,10 +135,10 @@ try {
             var backupName = dbPath + ".corrupt." + Date.now();
             fs.renameSync(dbPath, backupName);
             console.error("[STARTUP] Corrupt database moved to: " + backupName);
+            // Also rename WAL/SHM files
+            try { if (fs.existsSync(dbPath + "-wal")) fs.renameSync(dbPath + "-wal", backupName + "-wal"); } catch (e) {}
+            try { if (fs.existsSync(dbPath + "-shm")) fs.renameSync(dbPath + "-shm", backupName + "-shm"); } catch (e) {}
         }
-        // Also rename WAL/SHM files
-        try { if (fs.existsSync(dbPath + "-wal")) fs.renameSync(dbPath + "-wal", backupName + "-wal"); } catch (e) {}
-        try { if (fs.existsSync(dbPath + "-shm")) fs.renameSync(dbPath + "-shm", backupName + "-shm"); } catch (e) {}
         // Clear module cache and retry
         delete require.cache[require.resolve("./db")];
         db = require("./db");

@@ -22,10 +22,10 @@ try {
             var backupName = DB_PATH + ".corrupt." + Date.now();
             fs.renameSync(DB_PATH, backupName);
             console.error("[DB] Corrupt database moved to: " + backupName);
+            // Also rename WAL/SHM files if they exist
+            try { if (fs.existsSync(DB_PATH + "-wal")) fs.renameSync(DB_PATH + "-wal", backupName + "-wal"); } catch (e2) {}
+            try { if (fs.existsSync(DB_PATH + "-shm")) fs.renameSync(DB_PATH + "-shm", backupName + "-shm"); } catch (e2) {}
         }
-        // Also rename WAL/SHM files if they exist
-        try { if (fs.existsSync(DB_PATH + "-wal")) fs.renameSync(DB_PATH + "-wal", backupName + "-wal"); } catch (e2) {}
-        try { if (fs.existsSync(DB_PATH + "-shm")) fs.renameSync(DB_PATH + "-shm", backupName + "-shm"); } catch (e2) {}
         db = new Database(DB_PATH);
         console.error("[DB] Fresh database created successfully after corruption recovery");
     } catch (e2) {
