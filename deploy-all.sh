@@ -581,6 +581,48 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                         </div>
                     </div>
                 </div>
+
+                <!-- Scheduled Test Send Panel -->
+                <div class="panel" style="margin-top:20px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">⏱ ارسال زمانبندی شده (تکرار هر ۵ دقیقه)</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده تست را با کد محور دلخواه و مدت زمان مشخص (تا ۱۵ روز) هر ۵ دقیقه به سامانه ارسال کنید.</p>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0"><label>کد محور (RID) <span style="color:#ef4444">*</span></label><input type="number" id="sched-rid" dir="ltr" placeholder="مثال: 12345" min="1"></div>
+                            <div class="form-group" style="margin:0"><label>مدت ارسال (روز) <span style="color:#ef4444">*</span></label><input type="number" id="sched-days" value="1" min="1" max="15" dir="ltr"></div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0"><label>C1 موتور</label><input type="number" id="sched-c1" value="10" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C2 سواری</label><input type="number" id="sched-c2" value="50" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C3 وانت</label><input type="number" id="sched-c3" value="5" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C4 اتوبوس</label><input type="number" id="sched-c4" value="2" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C5 کامیون</label><input type="number" id="sched-c5" value="3" min="0" dir="ltr"></div>
+                        </div>
+                        <div class="form-group" style="margin-bottom:12px"><label>میانگین سرعت (ASP) km/h</label><input type="number" id="sched-asp" value="80" min="0" dir="ltr"></div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-primary" id="btn-sched-start" style="padding:10px 24px;font-size:14px">⏱ شروع ارسال زمانبندی شده</button>
+                            <button class="btn btn-secondary" id="btn-sched-copy" style="padding:10px 16px;font-size:13px">📋 کپی از ارسال تست بالا</button>
+                        </div>
+                        <div id="sched-result" style="margin-top:12px;display:none"></div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top:16px" id="sched-jobs-panel">
+                    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 class="panel-title">📊 وضعیت ارسال‌های زمانبندی شده</h3>
+                        <button class="btn btn-secondary" id="btn-sched-refresh" style="font-size:12px;padding:5px 12px">🔄 بروزرسانی</button>
+                    </div>
+                    <div class="panel-body">
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="sched-jobs-table">
+                                <thead><tr><th>شناسه</th><th>محور</th><th>مدت (روز)</th><th>ارسال شده</th><th>موفق</th><th>خطا</th><th>آخرین ارسال</th><th>وضعیت</th><th>عملیات</th></tr></thead>
+                                <tbody id="sched-jobs-tbody"><tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- ===== History ===== -->
@@ -3464,7 +3506,80 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 }
             });
         });
+
+        // ---- Scheduled Test Send ----
+        var schedCopyBtn = $("#btn-sched-copy");
+        if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
+            ["c1","c2","c3","c4","c5","asp"].forEach(function (f) {
+                var src = $("#test-" + f), dst = $("#sched-" + f);
+                if (src && dst) dst.value = src.value;
+            });
+            var ridSrc = $("#test-rid"), ridDst = $("#sched-rid");
+            if (ridSrc && ridDst) ridDst.value = ridSrc.value;
+        });
+
+        var schedStartBtn = $("#btn-sched-start");
+        if (schedStartBtn) schedStartBtn.addEventListener("click", function () {
+            var rid = parseInt(($("#sched-rid") && $("#sched-rid").value) || "", 10);
+            if (!rid || rid <= 0) { alert("کد محور (RID) الزامی است"); return; }
+            var days = parseInt(($("#sched-days") && $("#sched-days").value) || "1", 10);
+            if (days < 1 || days > 15) { alert("مدت ارسال باید بین ۱ تا ۱۵ روز باشد"); return; }
+            if (!confirm("آیا از شروع ارسال زمانبندی شده هر ۵ دقیقه برای " + days + " روز مطمئن هستید؟")) return;
+            var body = { rid: rid, durationDays: days,
+                c1: parseInt(($("#sched-c1") && $("#sched-c1").value) || "0", 10),
+                c2: parseInt(($("#sched-c2") && $("#sched-c2").value) || "0", 10),
+                c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
+                c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
+                c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10) };
+            schedStartBtn.disabled = true;
+            api("POST", "/api/rmto/test-schedule", body, function (status, data) {
+                schedStartBtn.disabled = false;
+                schedStartBtn.textContent = "⏱ شروع ارسال زمانبندی شده";
+                var resultEl = $("#sched-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = data && data.success
+                        ? '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message) + '</div>'
+                        : '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا</div>';
+                }
+                refreshSchedJobs();
+            });
+        });
+
+        var schedRefreshBtn = $("#btn-sched-refresh");
+        if (schedRefreshBtn) schedRefreshBtn.addEventListener("click", refreshSchedJobs);
+
+        function refreshSchedJobs() {
+            api("GET", "/api/rmto/test-schedule", null, function (status, jobs) {
+                var tbody = $("#sched-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>'; return; }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var statusHtml = j.status === "running" ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped" ? '<span class="status-badge offline">متوقف</span>'
+                        : '<span class="status-badge online">پایان یافت</span>';
+                    var stopBtn = j.status === "running" ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopSchedJob(' + j.id + ')">⏹ توقف</button>' : "-";
+                    html += "<tr><td dir='ltr'>" + j.id + "</td><td dir='ltr'>" + j.rid + "</td><td>" + j.durationDays + "</td><td dir='ltr'>" + j.sendCount + "</td><td style='color:#166534'>" + j.successCount + "</td><td style='color:#991b1b'>" + j.failedCount + "</td><td dir='ltr' style='font-size:11px'>" + (j.lastSendAt ? j.lastSendAt.replace("T"," ").substring(0,19) : "-") + "</td><td>" + statusHtml + "</td><td>" + stopBtn + "</td></tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
+
+        setInterval(function () {
+            if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
+            var v = document.querySelector(".view.active");
+            if (v && v.id === "view-test-sender") refreshSchedJobs();
+        }, 3000);
     }
+
+    window.stopSchedJob = function (jobId) {
+        api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function () {
+            var rb = $("#btn-sched-refresh");
+            if (rb) { var evt = document.createEvent("Event"); evt.initEvent("click", true, true); rb.dispatchEvent(evt); }
+        });
+    };
 
     // ============================================================
     // Settings: Bale, Server Restart, Log Monitor
@@ -3988,6 +4103,78 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
             sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }
         });
     });
+});
+
+// ============================================================
+// API: Scheduled Test Send
+// ============================================================
+var testScheduleJobs = {};
+var testScheduleSeq = 0;
+
+app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var b = req.body;
+    var rid = parseInt(b.rid, 10) || 0;
+    if (!rid || rid <= 0) return res.status(400).json({ error: "کد محور (RID) الزامی است" });
+    var durationDays = Math.min(Math.max(parseInt(b.durationDays, 10) || 1, 1), 15);
+    var c1 = parseInt(b.c1) || 0, c2 = parseInt(b.c2) || 0, c3 = parseInt(b.c3) || 0;
+    var c4 = parseInt(b.c4) || 0, c5 = parseInt(b.c5) || 0, asp = parseInt(b.asp) || 60;
+    var s1 = parseInt(b.s1) || asp, s2 = parseInt(b.s2) || asp, s3 = parseInt(b.s3) || asp;
+    var s4 = parseInt(b.s4) || asp, s5 = parseInt(b.s5) || asp;
+    var jobId = ++testScheduleSeq;
+    var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+    function localISO(d) {
+        return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0") + "T" + String(d.getHours()).padStart(2, "0") + ":" +
+            String(d.getMinutes()).padStart(2, "0") + ":00";
+    }
+    var job = { id: jobId, rid: rid, data: { c1:c1,c2:c2,c3:c3,c4:c4,c5:c5,asp:asp },
+        durationDays: durationDays, expiresAt: expiresAt.toISOString(), startedAt: new Date().toISOString(),
+        sendCount: 0, successCount: 0, failedCount: 0, lastSendAt: null, lastError: null, stopped: false, status: "running" };
+    function sendOnce() {
+        if (job.stopped || new Date() >= expiresAt) {
+            job.status = job.stopped ? "stopped" : "expired";
+            if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+            return;
+        }
+        var now = new Date(); var periodEnd = new Date(now);
+        periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
+        var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+        job.sendCount++;
+        rmto.sendAddData5({ FID: 0, RID: rid, ST: localISO(periodStart), ET: localISO(periodEnd),
+            C1:c1,C2:c2,C3:c3,C4:c4,C5:c5, ASP:asp, S1:s1,S2:s2,S3:s3,S4:s4,S5:s5,
+            SSO:0,SO1:0,SO2:0,SO3:0,SO4:0,SO5:0, OO:0, ESD:0, sourceIp: sourceIp
+        }, function (err, response) {
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
+            job.lastSendAt = new Date().toISOString();
+            if (success) { job.successCount++; job.lastError = null; }
+            else { job.failedCount++; job.lastError = err ? err.message : "خطا"; }
+        });
+    }
+    sendOnce();
+    job.timerId = setInterval(sendOnce, 5 * 60 * 1000);
+    testScheduleJobs[jobId] = job;
+    res.json({ success: true, jobId: jobId, message: "ارسال زمانبندی شده شروع شد (" + durationDays + " روز)" });
+});
+
+app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var jobs = Object.keys(testScheduleJobs).map(function (k) {
+        var j = testScheduleJobs[k];
+        return { id:j.id, rid:j.rid, data:j.data, durationDays:j.durationDays, expiresAt:j.expiresAt,
+            startedAt:j.startedAt, sendCount:j.sendCount, successCount:j.successCount, failedCount:j.failedCount,
+            lastSendAt:j.lastSendAt, lastError:j.lastError, stopped:j.stopped, status:j.status };
+    });
+    res.json(jobs);
+});
+
+app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = testScheduleJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true; job.status = "stopped";
+    if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+    res.json({ success: true, message: "ارسال زمانبندی شده متوقف شد" });
 });
 
 // ============================================================
@@ -5505,6 +5692,13 @@ function gracefulShutdown(signal) {
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
     scheduler.stop();
+
+    // Stop all scheduled test-send jobs
+    Object.keys(testScheduleJobs).forEach(function (k) {
+        var job = testScheduleJobs[k];
+        if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+        job.stopped = true; job.status = "stopped";
+    });
 
     // Close all active TCP device connections first
     Object.keys(connectedDevices).forEach(function (key) {

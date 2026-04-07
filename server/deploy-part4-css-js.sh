@@ -2742,8 +2742,109 @@ cat > js/app.js << 'ENDFILE'
         setInterval(function () {
             if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
             var v = document.querySelector(".view.active");
-            if (v && v.id === "view-test-sender") refreshArchiveJobs();
+            if (v && v.id === "view-test-sender") {
+                refreshArchiveJobs();
+                refreshSchedJobs();
+            }
         }, 3000);
+
+        // ---- Scheduled Test Send ----
+        var schedCopyBtn = $("#btn-sched-copy");
+        if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
+            var fields = ["c1", "c2", "c3", "c4", "c5", "asp"];
+            fields.forEach(function (f) {
+                var src = $("#test-" + f);
+                var dst = $("#sched-" + f);
+                if (src && dst) dst.value = src.value;
+            });
+            var ridSrc = $("#test-rid");
+            var ridDst = $("#sched-rid");
+            if (ridSrc && ridDst) ridDst.value = ridSrc.value;
+            var resultEl = $("#sched-result");
+            if (resultEl) {
+                resultEl.style.display = "block";
+                resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:8px;border-radius:6px;color:#166534;font-size:13px">✅ مقادیر از بخش ارسال تست کپی شد</div>';
+                setTimeout(function () { resultEl.style.display = "none"; }, 3000);
+            }
+        });
+
+        var schedStartBtn = $("#btn-sched-start");
+        if (schedStartBtn) schedStartBtn.addEventListener("click", function () {
+            var rid = parseInt(($("#sched-rid") && $("#sched-rid").value) || "", 10);
+            if (!rid || rid <= 0) { alert("کد محور (RID) الزامی است"); return; }
+            var days = parseInt(($("#sched-days") && $("#sched-days").value) || "1", 10);
+            if (days < 1 || days > 15) { alert("مدت ارسال باید بین ۱ تا ۱۵ روز باشد"); return; }
+            if (!confirm("آیا از شروع ارسال زمانبندی شده هر ۵ دقیقه برای " + days + " روز مطمئن هستید؟")) return;
+
+            var body = {
+                rid: rid,
+                durationDays: days,
+                c1: parseInt(($("#sched-c1") && $("#sched-c1").value) || "0", 10),
+                c2: parseInt(($("#sched-c2") && $("#sched-c2").value) || "0", 10),
+                c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
+                c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
+                c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10)
+            };
+
+            schedStartBtn.disabled = true;
+            schedStartBtn.textContent = "در حال شروع...";
+            var resultEl = $("#sched-result");
+
+            api("POST", "/api/rmto/test-schedule", body, function (status, data) {
+                schedStartBtn.disabled = false;
+                schedStartBtn.textContent = "⏱ شروع ارسال زمانبندی شده";
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    if (data && data.success) {
+                        resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message || "شروع شد") + ' — شناسه: ' + escapeHtml(String(data.jobId)) + '</div>';
+                    } else {
+                        resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا: ' + escapeHtml((data && data.error) || "ارتباط برقرار نشد") + '</div>';
+                    }
+                }
+                refreshSchedJobs();
+            });
+        });
+
+        var schedRefreshBtn = $("#btn-sched-refresh");
+        if (schedRefreshBtn) schedRefreshBtn.addEventListener("click", refreshSchedJobs);
+
+        function refreshSchedJobs() {
+            api("GET", "/api/rmto/test-schedule", null, function (status, jobs) {
+                var tbody = $("#sched-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : j.status === "expired"
+                                ? '<span class="status-badge online">پایان یافت</span>'
+                                : '<span class="status-badge">' + escapeHtml(j.status) + '</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopSchedJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    var lastSend = j.lastSendAt ? j.lastSendAt.replace("T", " ").substring(0, 19) : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.rid)) + "</td>" +
+                        "<td>" + escapeHtml(String(j.durationDays)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sendCount)) + "</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.successCount)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failedCount)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(lastSend) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
     }
 
     // Expose stop job function globally for inline onclick
@@ -2757,12 +2858,29 @@ cat > js/app.js << 'ENDFILE'
                 if (tbody) {
                     api("GET", "/api/rmto/archive-jobs", null, function (s, jobs) {
                         if (!jobs) return;
-                        // trigger re-render by calling refreshArchiveJobs equivalent inline
                         var evt = document.createEvent("Event");
                         evt.initEvent("click", true, true);
                         var rb = $("#btn-arch-refresh");
                         if (rb) rb.dispatchEvent(evt);
                     });
+                }
+            }
+        });
+    };
+
+    window.stopSchedJob = function (jobId) {
+        api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var resultEl = $("#sched-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #fde68a;padding:8px;border-radius:6px;color:#854d0e;font-size:13px">⏹ ارسال زمانبندی شده شناسه ' + escapeHtml(String(jobId)) + ' متوقف شد</div>';
+                }
+                var rb = $("#btn-sched-refresh");
+                if (rb) {
+                    var evt = document.createEvent("Event");
+                    evt.initEvent("click", true, true);
+                    rb.dispatchEvent(evt);
                 }
             }
         });

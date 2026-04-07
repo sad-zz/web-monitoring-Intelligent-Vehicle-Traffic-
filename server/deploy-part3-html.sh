@@ -630,6 +630,65 @@ cat > index.html << 'ENDFILE'
                         </div>
                     </div>
                 </div>
+
+                <!-- Scheduled Test Send Panel -->
+                <div class="panel" style="margin-top:20px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">⏱ ارسال زمانبندی شده (تکرار هر ۵ دقیقه)</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده تست را با کد محور دلخواه و مدت زمان مشخص (تا ۱۵ روز) هر ۵ دقیقه به سامانه ارسال کنید.</p>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0">
+                                <label>کد محور (RID) <span style="color:#ef4444">*</span></label>
+                                <input type="number" id="sched-rid" dir="ltr" placeholder="مثال: 12345" min="1">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>مدت ارسال (روز) <span style="color:#ef4444">*</span></label>
+                                <input type="number" id="sched-days" value="1" min="1" max="15" dir="ltr">
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0"><label>C1 موتور</label><input type="number" id="sched-c1" value="10" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C2 سواری</label><input type="number" id="sched-c2" value="50" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C3 وانت</label><input type="number" id="sched-c3" value="5" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C4 اتوبوس</label><input type="number" id="sched-c4" value="2" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>C5 کامیون</label><input type="number" id="sched-c5" value="3" min="0" dir="ltr"></div>
+                        </div>
+                        <div class="form-group" style="margin-bottom:12px">
+                            <label>میانگین سرعت (ASP) km/h</label>
+                            <input type="number" id="sched-asp" value="80" min="0" dir="ltr">
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-primary" id="btn-sched-start" style="padding:10px 24px;font-size:14px">⏱ شروع ارسال زمانبندی شده</button>
+                            <button class="btn btn-secondary" id="btn-sched-copy" style="padding:10px 16px;font-size:13px">📋 کپی از ارسال تست بالا</button>
+                        </div>
+                        <div id="sched-result" style="margin-top:12px;display:none"></div>
+                    </div>
+                </div>
+
+                <!-- Scheduled Jobs Table -->
+                <div class="panel" style="margin-top:16px" id="sched-jobs-panel">
+                    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 class="panel-title">📊 وضعیت ارسال‌های زمانبندی شده</h3>
+                        <button class="btn btn-secondary" id="btn-sched-refresh" style="font-size:12px;padding:5px 12px">🔄 بروزرسانی</button>
+                    </div>
+                    <div class="panel-body">
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="sched-jobs-table">
+                                <thead>
+                                    <tr>
+                                        <th>شناسه</th><th>محور</th><th>مدت (روز)</th><th>ارسال شده</th>
+                                        <th>موفق</th><th>خطا</th><th>آخرین ارسال</th><th>وضعیت</th><th>عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sched-jobs-tbody">
+                                    <tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- ===== History ===== -->

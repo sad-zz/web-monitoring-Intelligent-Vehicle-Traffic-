@@ -1868,6 +1868,115 @@ app.delete("/api/rmto/archive-send/:jobId", requireAuth, function (req, res) {
 });
 
 // ============================================================
+// API: Scheduled Test Send - replay data every 5 min for up to 15 days
+// ============================================================
+var testScheduleJobs = {};
+var testScheduleSeq = 0;
+
+app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var b = req.body;
+    var rid = parseInt(b.rid, 10) || 0;
+    if (!rid || rid <= 0) return res.status(400).json({ error: "کد محور (RID) الزامی است" });
+
+    var durationDays = Math.min(Math.max(parseInt(b.durationDays, 10) || 1, 1), 15);
+    var c1 = parseInt(b.c1) || 0;
+    var c2 = parseInt(b.c2) || 0;
+    var c3 = parseInt(b.c3) || 0;
+    var c4 = parseInt(b.c4) || 0;
+    var c5 = parseInt(b.c5) || 0;
+    var asp = parseInt(b.asp) || 60;
+    var s1 = parseInt(b.s1) || asp;
+    var s2 = parseInt(b.s2) || asp;
+    var s3 = parseInt(b.s3) || asp;
+    var s4 = parseInt(b.s4) || asp;
+    var s5 = parseInt(b.s5) || asp;
+
+    var jobId = ++testScheduleSeq;
+    var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
+    function localISO(d) {
+        return d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0") + "T" +
+            String(d.getHours()).padStart(2, "0") + ":" +
+            String(d.getMinutes()).padStart(2, "0") + ":00";
+    }
+
+    var job = {
+        id: jobId, rid: rid,
+        data: { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5 },
+        durationDays: durationDays, expiresAt: expiresAt.toISOString(), startedAt: new Date().toISOString(),
+        sendCount: 0, successCount: 0, failedCount: 0, lastSendAt: null, lastError: null, stopped: false, status: "running"
+    };
+
+    function sendOnce() {
+        if (job.stopped || new Date() >= expiresAt) {
+            job.status = job.stopped ? "stopped" : "expired";
+            if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+            console.log("[TestSchedule] Job #" + jobId + " " + job.status);
+            return;
+        }
+        var now = new Date();
+        var periodEnd = new Date(now);
+        periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
+        var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+        var st = localISO(periodStart);
+        var et = localISO(periodEnd);
+
+        job.sendCount++;
+        rmto.sendAddData5({
+            FID: 0, RID: rid, ST: st, ET: et,
+            C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
+            ASP: asp, S1: s1, S2: s2, S3: s3, S4: s4, S5: s5,
+            SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
+            OO: 0, ESD: 0, sourceIp: sourceIp
+        }, function (err, response, soapXml) {
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
+            job.lastSendAt = new Date().toISOString();
+            if (success) { job.successCount++; job.lastError = null; }
+            else { job.failedCount++; job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا"); }
+            try {
+                db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                    .run("Add5-Scheduled", "test-schedule-" + jobId,
+                        JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+                        JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
+            } catch (e) { console.error("[TestSchedule] Log error:", e.message); }
+        });
+    }
+
+    sendOnce();
+    job.timerId = setInterval(sendOnce, 5 * 60 * 1000);
+    testScheduleJobs[jobId] = job;
+
+    console.log("[TestSchedule] Job #" + jobId + " started: RID=" + rid + " for " + durationDays + " days");
+    res.json({ success: true, jobId: jobId, message: "ارسال زمانبندی شده شروع شد (" + durationDays + " روز)" });
+});
+
+app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
+    var jobs = Object.keys(testScheduleJobs).map(function (k) {
+        var j = testScheduleJobs[k];
+        return { id: j.id, rid: j.rid, data: j.data, durationDays: j.durationDays,
+            expiresAt: j.expiresAt, startedAt: j.startedAt, sendCount: j.sendCount,
+            successCount: j.successCount, failedCount: j.failedCount,
+            lastSendAt: j.lastSendAt, lastError: j.lastError, stopped: j.stopped, status: j.status };
+    });
+    res.json(jobs);
+});
+
+app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = testScheduleJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true;
+    job.status = "stopped";
+    if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+    res.json({ success: true, message: "ارسال زمانبندی شده متوقف شد" });
+});
+
+// ============================================================
 // API: Device Management
 // ============================================================
 app.get("/api/devices", function (req, res) {
@@ -3386,6 +3495,14 @@ function gracefulShutdown(signal) {
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
     scheduler.stop();
+
+    // Stop all scheduled test-send jobs
+    Object.keys(testScheduleJobs).forEach(function (k) {
+        var job = testScheduleJobs[k];
+        if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+        job.stopped = true;
+        job.status = "stopped";
+    });
 
     // Close all active TCP device connections first
     Object.keys(connectedDevices).forEach(function (key) {
