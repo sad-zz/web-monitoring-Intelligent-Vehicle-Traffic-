@@ -953,8 +953,7 @@ function aggregatePeriod(code, startStr, endStr) {
         });
 
         if (totalVehicles === 0) {
-            console.log("[Scheduler] Device " + code + " route " + routeIdNum + " period " + startStr + ": 0 vehicles, skipping");
-            return;
+            console.log("[Scheduler] Device " + code + " route " + routeIdNum + " period " + startStr + ": 0 vehicles, sending zero record to keep route active");
         }
 
         // Average speed per class
@@ -966,7 +965,7 @@ function aggregatePeriod(code, startStr, endStr) {
         var s5 = c5count > 0 ? Math.round(((iraw.se||0) + (iraw.sx_sum||0)) / c5count) : 0;
 
         var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
-        var avgSpeed = Math.round(totalSpeedSum / totalVehicles);
+        var avgSpeed = totalVehicles > 0 ? Math.round(totalSpeedSum / totalVehicles) : 0;
 
         var so1 = iraw.sao||0, so2 = iraw.sbo||0, so3 = iraw.sco||0;
         var so4 = iraw.sdo||0, so5 = (iraw.seo||0) + (iraw.sxo||0);
