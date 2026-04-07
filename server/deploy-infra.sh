@@ -71,12 +71,12 @@ User=root
 WorkingDirectory=/opt/tc-manager/server
 ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
+Restart=always
 RestartSec=15
 TimeoutStopSec=10
 KillMode=mixed
-StartLimitBurst=10
-StartLimitIntervalSec=300
+StartLimitBurst=30
+StartLimitIntervalSec=600
 Environment=NODE_ENV=production
 
 [Install]

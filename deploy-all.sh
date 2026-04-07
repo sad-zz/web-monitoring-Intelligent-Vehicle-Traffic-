@@ -3742,6 +3742,69 @@ cat > "$APP_DIR/server/index.js" << 'ENDOFFILE_SERVER_INDEX_JS'
 // This ensures all new Date() calls return Iran local time
 process.env.TZ = "Asia/Tehran";
 
+// Track uncaught error count for crash loop detection within the process
+var _uncaughtErrorCount = 0;
+var _uncaughtErrorResetTimer = null;
+
+// Global error handlers to prevent silent server crashes
+process.on("uncaughtException", function (err) {
+    console.error("[FATAL] Uncaught Exception:", err.message);
+    console.error(err.stack);
+
+    // Log to crash.log file for post-mortem debugging
+    try {
+        var logLine = new Date().toISOString() + " | uncaughtException | " + err.message + " | " + (err.code || "") + " | " + ((err.stack || "").split("\n")[1] || "").trim() + "\n";
+        require("fs").appendFileSync(require("path").join(__dirname, "crash.log"), logLine);
+    } catch (logErr) { /* ignore log write failures */ }
+
+    // Fatal errors that require immediate exit (no point continuing)
+    if (err.code === "EADDRINUSE" || err.code === "ERR_IPC_CHANNEL_CLOSED" ||
+        err.message && err.message.indexOf("Cannot allocate memory") !== -1) {
+        console.error("[FATAL] Unrecoverable error, exiting in 1s...");
+        setTimeout(function () { process.exit(1); }, 1000);
+        return;
+    }
+
+    // Benign network errors - safe to continue (common in TCP/HTTP servers)
+    if (err.code === "ECONNRESET" || err.code === "EPIPE" || err.code === "ECONNREFUSED" ||
+        err.code === "ECONNABORTED" || err.code === "ETIMEDOUT" || err.code === "EHOSTUNREACH" ||
+        err.code === "ENETUNREACH" || err.code === "EAI_AGAIN" ||
+        err.code === "ERR_STREAM_DESTROYED" || err.code === "ERR_STREAM_WRITE_AFTER_END" ||
+        (err.message && (err.message.indexOf("ECONNRESET") !== -1 ||
+            err.message.indexOf("EPIPE") !== -1 ||
+            err.message.indexOf("socket hang up") !== -1 ||
+            err.message.indexOf("write after end") !== -1))) {
+        console.error("[FATAL] Network error (safe to continue): " + (err.code || err.message));
+        return;
+    }
+
+    // Other errors: count them. Too many in 60 seconds = likely a cascading failure
+    _uncaughtErrorCount++;
+    if (!_uncaughtErrorResetTimer) {
+        _uncaughtErrorResetTimer = setTimeout(function () {
+            _uncaughtErrorCount = 0;
+            _uncaughtErrorResetTimer = null;
+        }, 60000);
+    }
+
+    if (_uncaughtErrorCount >= 10) {
+        console.error("[FATAL] Too many uncaught errors (" + _uncaughtErrorCount + " in 60s). Exiting for clean restart...");
+        setTimeout(function () { process.exit(1); }, 1000);
+    } else {
+        console.error("[FATAL] Error #" + _uncaughtErrorCount + " - server continuing to avoid restart loop");
+    }
+});
+
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled Promise Rejection:", reason);
+    // Log to crash.log
+    try {
+        var msg = reason instanceof Error ? reason.message : String(reason);
+        var logLine = new Date().toISOString() + " | unhandledRejection | " + msg + "\n";
+        require("fs").appendFileSync(require("path").join(__dirname, "crash.log"), logLine);
+    } catch (logErr) { /* ignore */ }
+});
+
 require("dotenv").config();
 
 var express = require("express");
@@ -3752,7 +3815,73 @@ var crypto = require("crypto");
 var session = require("express-session");
 var multer = require("multer");
 var bcrypt = require("bcryptjs");
-var db = require("./db");
+
+// ============================================================
+// Crash loop detection: track rapid restarts using a file counter.
+// If the server has restarted too many times in a short period,
+// add an exponential delay before starting to break the loop.
+// ============================================================
+var CRASH_COUNT_FILE = path.join(__dirname, ".restart_count");
+(function detectCrashLoop() {
+    var restartCount = 0;
+    try {
+        var raw = fs.readFileSync(CRASH_COUNT_FILE, "utf8").trim().split(",");
+        var count = parseInt(raw[0]) || 0;
+        var lastTime = parseInt(raw[1]) || 0;
+        // Only count restarts within the last 5 minutes
+        if (Date.now() - lastTime < 300000) {
+            restartCount = count;
+        }
+    } catch (e) { /* file doesn't exist yet, that's fine */ }
+
+    // Write incremented counter
+    try { fs.writeFileSync(CRASH_COUNT_FILE, (restartCount + 1) + "," + Date.now()); } catch (e) {}
+
+    if (restartCount >= 3) {
+        var delaySec = Math.min(restartCount * 10, 120); // 30s, 40s, 50s, ... max 120s
+        console.error("[STARTUP] ⚠ Crash loop detected (" + restartCount + " restarts in 5 minutes)");
+        console.error("[STARTUP] Waiting " + delaySec + " seconds before starting to break the loop...");
+        console.error("[STARTUP] Check crash.log for error details");
+        try {
+            // Synchronous sleep to delay startup without restructuring the entire file
+            require("child_process").spawnSync("sleep", [String(delaySec)]);
+        } catch (e) {
+            // Fallback: busy-wait (less ideal but works)
+            var until = Date.now() + delaySec * 1000;
+            while (Date.now() < until) { /* wait */ }
+        }
+        console.error("[STARTUP] Resuming startup after " + delaySec + "s delay");
+    }
+})();
+
+// Load database module with error recovery
+var db;
+try {
+    db = require("./db");
+} catch (dbErr) {
+    console.error("[STARTUP] Database initialization failed: " + dbErr.message);
+    console.error("[STARTUP] Attempting to recover by creating fresh database...");
+    try {
+        var dbPath = path.join(__dirname, "data.db");
+        if (fs.existsSync(dbPath)) {
+            var backupName = dbPath + ".corrupt." + Date.now();
+            fs.renameSync(dbPath, backupName);
+            console.error("[STARTUP] Corrupt database moved to: " + backupName);
+        }
+        // Also rename WAL/SHM files
+        try { if (fs.existsSync(dbPath + "-wal")) fs.renameSync(dbPath + "-wal", backupName + "-wal"); } catch (e) {}
+        try { if (fs.existsSync(dbPath + "-shm")) fs.renameSync(dbPath + "-shm", backupName + "-shm"); } catch (e) {}
+        // Clear module cache and retry
+        delete require.cache[require.resolve("./db")];
+        db = require("./db");
+        console.error("[STARTUP] Fresh database created successfully");
+    } catch (recoverErr) {
+        console.error("[STARTUP] Database recovery also failed: " + recoverErr.message);
+        console.error("[STARTUP] Server cannot start without a database. Exiting...");
+        process.exit(1);
+    }
+}
+
 var rmto = require("./rmto-client");
 var scheduler = require("./scheduler");
 
@@ -3761,7 +3890,7 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.04.07-v3";
+var BUILD_VERSION = "2026.04.08-v1";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -5677,6 +5806,9 @@ function startHttpServer() {
         console.log("  Login: admin / admin123");
         console.log("============================================");
 
+        // Server started successfully - clear crash loop counter
+        try { fs.writeFileSync(CRASH_COUNT_FILE, "0," + Date.now()); } catch (e) {}
+
         rmto.initClient(function (err) {
             if (err) console.error("[RMTO] Will retry on first send");
         });
@@ -5766,17 +5898,48 @@ cat > "$APP_DIR/server/db.js" << 'ENDOFFILE_SERVER_DB_JS'
 /**
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
+ * Self-healing: if the database file is corrupt, it renames the corrupt file
+ * and creates a fresh database automatically.
  */
 var Database = require("better-sqlite3");
 var path = require("path");
+var fs = require("fs");
 
 var DB_PATH = path.join(__dirname, "data.db");
-var db = new Database(DB_PATH);
+var db;
+
+// Attempt to open database, with self-healing on corruption
+try {
+    db = new Database(DB_PATH);
+} catch (e) {
+    console.error("[DB] Failed to open database: " + e.message);
+    // Try to recover: rename corrupt file and create fresh database
+    try {
+        if (fs.existsSync(DB_PATH)) {
+            var backupName = DB_PATH + ".corrupt." + Date.now();
+            fs.renameSync(DB_PATH, backupName);
+            console.error("[DB] Corrupt database moved to: " + backupName);
+        }
+        // Also rename WAL/SHM files if they exist
+        try { if (fs.existsSync(DB_PATH + "-wal")) fs.renameSync(DB_PATH + "-wal", backupName + "-wal"); } catch (e2) {}
+        try { if (fs.existsSync(DB_PATH + "-shm")) fs.renameSync(DB_PATH + "-shm", backupName + "-shm"); } catch (e2) {}
+        db = new Database(DB_PATH);
+        console.error("[DB] Fresh database created successfully after corruption recovery");
+    } catch (e2) {
+        console.error("[DB] Database recovery failed: " + e2.message);
+        throw e2;
+    }
+}
 
 // Enable WAL mode for better concurrent read performance
-db.pragma("journal_mode = WAL");
+try {
+    db.pragma("journal_mode = WAL");
+} catch (e) {
+    console.error("[DB] Failed to set WAL mode: " + e.message);
+}
 
 // --- Schema ---
+try {
 db.exec([
     // Devices: each has a unique 4-digit code
     "CREATE TABLE IF NOT EXISTS devices (",
@@ -5959,6 +6122,10 @@ db.exec([
     "  value TEXT",
     ");"
 ].join("\n"));
+} catch (schemaErr) {
+    console.error("[DB] Schema creation error: " + schemaErr.message);
+    console.error("[DB] Server may have limited functionality");
+}
 
 // Migration: if rmto_queue_5class has old column names, recreate it
 try {
@@ -7042,12 +7209,12 @@ User=root
 WorkingDirectory=/opt/tc-manager/server
 ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
+Restart=always
 RestartSec=15
 TimeoutStopSec=10
 KillMode=mixed
-StartLimitBurst=10
-StartLimitIntervalSec=300
+StartLimitBurst=30
+StartLimitIntervalSec=600
 Environment=NODE_ENV=production
 
 [Install]
