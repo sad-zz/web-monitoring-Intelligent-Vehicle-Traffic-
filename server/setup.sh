@@ -69,7 +69,7 @@ StartLimitIntervalSec=600
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k -KILL 3000/tcp 2>/dev/null; fuser -k -KILL 2022/tcp 2>/dev/null; sleep 3; fuser -k -KILL 3000/tcp 2>/dev/null; fuser -k -KILL 2022/tcp 2>/dev/null; for i in 1 2 3 4 5; do sleep 1; ss -tlnp 2>/dev/null | grep -qE ":3000|:2022" || break; done; true'
+ExecStartPre=/bin/bash -c 'fuser -k -9 3000/tcp 2>/dev/null; fuser -k -9 2022/tcp 2>/dev/null; sleep 2; for p in $(ss -tlnp 2>/dev/null | grep -E ":3000|:2022" | grep -oP "pid=\K[0-9]+" | sort -u); do kill -9 $p 2>/dev/null; done; for i in 1 2 3 4 5 6 7 8 9 10; do sleep 1; ss -tlnp 2>/dev/null | grep -qE ":3000|:2022" || break; done; true'
 ExecStart=/usr/bin/node index.js
 Restart=always
 RestartSec=15

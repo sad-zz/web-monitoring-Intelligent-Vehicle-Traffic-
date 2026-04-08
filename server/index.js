@@ -2273,6 +2273,14 @@ var TCP_MAX_RETRIES = 10;
 var HTTP_RETRY_COUNT = 0;
 var HTTP_MAX_RETRIES = 10;
 
+// Helper: kill any process using a given port (best-effort)
+function killPortHolder(port) {
+    try {
+        var child_process = require("child_process");
+        child_process.execSync("fuser -k -9 " + port + "/tcp 2>/dev/null || true", { timeout: 3000 });
+    } catch (e) { /* ignore */ }
+}
+
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     TCP_RETRY_COUNT = 0;
     console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
@@ -2286,6 +2294,7 @@ tcpServer.on("error", function (err) {
             return;
         }
         console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES + " in 5s");
+        killPortHolder(TCP_PORT);
         setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
     }
 });
@@ -2327,6 +2336,7 @@ function startHttpServer() {
                 process.exit(1);
             }
             console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
+            killPortHolder(PORT);
             setTimeout(startHttpServer, 5000);
         }
     });

@@ -5776,6 +5776,14 @@ var TCP_MAX_RETRIES = 10;
 var HTTP_RETRY_COUNT = 0;
 var HTTP_MAX_RETRIES = 10;
 
+// Helper: kill any process using a given port (best-effort)
+function killPortHolder(port) {
+    try {
+        var child_process = require("child_process");
+        child_process.execSync("fuser -k -9 " + port + "/tcp 2>/dev/null || true", { timeout: 3000 });
+    } catch (e) { /* ignore */ }
+}
+
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     TCP_RETRY_COUNT = 0;
     console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
@@ -5789,6 +5797,7 @@ tcpServer.on("error", function (err) {
             return;
         }
         console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES + " in 5s");
+        killPortHolder(TCP_PORT);
         setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
     }
 });
@@ -5830,6 +5839,7 @@ function startHttpServer() {
                 process.exit(1);
             }
             console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
+            killPortHolder(PORT);
             setTimeout(startHttpServer, 5000);
         }
     });
@@ -7210,7 +7220,7 @@ StartLimitIntervalSec=600
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k -KILL 3000/tcp 2>/dev/null; fuser -k -KILL 2022/tcp 2>/dev/null; sleep 3; fuser -k -KILL 3000/tcp 2>/dev/null; fuser -k -KILL 2022/tcp 2>/dev/null; for i in 1 2 3 4 5; do sleep 1; ss -tlnp 2>/dev/null | grep -qE ":3000|:2022" || break; done; true'
+ExecStartPre=/bin/bash -c 'fuser -k -9 3000/tcp 2>/dev/null; fuser -k -9 2022/tcp 2>/dev/null; sleep 2; for p in $(ss -tlnp 2>/dev/null | grep -E ":3000|:2022" | grep -oP "pid=\K[0-9]+" | sort -u); do kill -9 $p 2>/dev/null; done; for i in 1 2 3 4 5 6 7 8 9 10; do sleep 1; ss -tlnp 2>/dev/null | grep -qE ":3000|:2022" || break; done; true'
 ExecStart=/usr/bin/node index.js
 Restart=always
 RestartSec=15
