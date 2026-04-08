@@ -87,7 +87,7 @@ var bcrypt = require("bcryptjs");
 // ============================================================
 // Crash loop detection: track rapid restarts using a file counter.
 // If the server has restarted too many times in a short period,
-// add an exponential delay before starting to break the loop.
+// add a linear backoff delay before starting to break the loop.
 // ============================================================
 var CRASH_COUNT_FILE = path.join(__dirname, ".restart_count");
 (function detectCrashLoop() {
