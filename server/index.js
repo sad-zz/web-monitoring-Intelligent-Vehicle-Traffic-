@@ -2276,6 +2276,8 @@ var HTTP_MAX_RETRIES = 10;
 // Helper: kill any process using a given port (best-effort)
 function killPortHolder(port) {
     try {
+        port = parseInt(port, 10);
+        if (!port || port < 1 || port > 65535) return;
         var child_process = require("child_process");
         child_process.execSync("fuser -k -9 " + port + "/tcp 2>/dev/null || true", { timeout: 3000 });
     } catch (e) { /* ignore */ }
