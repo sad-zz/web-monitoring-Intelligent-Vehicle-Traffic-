@@ -2747,8 +2747,180 @@ cat > js/app.js << 'ENDFILE'
             if (v && v.id === "view-test-sender") {
                 refreshArchiveJobs();
                 refreshSchedJobs();
+                refreshProxyJobs();
             }
         }, 3000);
+
+        // ---- Proxy Send for Offline Devices ----
+        var proxyOfflineDevicesCache = [];
+        var proxyOnlineDevicesCache = [];
+
+        function loadProxyDevices() {
+            api("GET", "/api/devices/offline", null, function (status, data) {
+                var sel = $("#proxy-offline-device");
+                if (!sel || !data) return;
+                proxyOfflineDevicesCache = data;
+                sel.innerHTML = '<option value="">-- انتخاب دستگاه آفلاین --</option>';
+                data.forEach(function (d) {
+                    var rids = [];
+                    if (d.rid1) rids.push("RID1:" + d.rid1);
+                    if (d.rid2) rids.push("RID2:" + d.rid2);
+                    var ridTxt = rids.length ? " (" + rids.join(", ") + ")" : "";
+                    sel.innerHTML += '<option value="' + escapeHtml(d.device_code) + '">' +
+                        escapeHtml(d.name || d.device_code) + ' [' + escapeHtml(d.device_code) + ']' + escapeHtml(ridTxt) + '</option>';
+                });
+            });
+            api("GET", "/api/devices", null, function (status, data) {
+                var sel = $("#proxy-source-device");
+                if (!sel || !data) return;
+                proxyOnlineDevicesCache = data;
+                sel.innerHTML = '<option value="">-- انتخاب دستگاه منبع --</option>';
+                var sorted = data.slice().sort(function (a, b) {
+                    if (a.status === "online" && b.status !== "online") return -1;
+                    if (a.status !== "online" && b.status === "online") return 1;
+                    return (a.name || "").localeCompare(b.name || "");
+                });
+                sorted.forEach(function (d) {
+                    var statusIcon = d.status === "online" ? "🟢" : "🔴";
+                    sel.innerHTML += '<option value="' + escapeHtml(d.device_code) + '">' +
+                        statusIcon + ' ' + escapeHtml(d.name || d.device_code) + ' [' + escapeHtml(d.device_code) + ']</option>';
+                });
+            });
+        }
+        loadProxyDevices();
+
+        var proxyEndDateEl = $("#proxy-end-date");
+        if (proxyEndDateEl && !proxyEndDateEl.value) {
+            var defEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            proxyEndDateEl.value = defEnd.getFullYear() + "-" + String(defEnd.getMonth()+1).padStart(2,"0") + "-" +
+                String(defEnd.getDate()).padStart(2,"0") + "T" +
+                String(defEnd.getHours()).padStart(2,"0") + ":" +
+                String(defEnd.getMinutes()).padStart(2,"0");
+        }
+
+        var proxyOfflineSel = $("#proxy-offline-device");
+        if (proxyOfflineSel) proxyOfflineSel.addEventListener("change", function () {
+            var infoEl = $("#proxy-device-info");
+            if (!infoEl) return;
+            var code = proxyOfflineSel.value;
+            if (!code) { infoEl.textContent = "دستگاه آفلاین را انتخاب کنید"; return; }
+            var dev = proxyOfflineDevicesCache.find(function (d) { return d.device_code === code; });
+            if (!dev) { infoEl.textContent = "دستگاه یافت نشد"; return; }
+            var parts = [];
+            if (dev.route1) parts.push("محور ۱: " + dev.route1);
+            if (dev.route2) parts.push("محور ۲: " + dev.route2);
+            if (dev.rid1) parts.push("RID1: " + dev.rid1);
+            if (dev.rid2) parts.push("RID2: " + dev.rid2);
+            if (dev.last_seen) parts.push("آخرین ارتباط: " + dev.last_seen.replace("T", " ").substring(0, 19));
+            infoEl.textContent = parts.length ? parts.join(" | ") : "بدون اطلاعات محور";
+        });
+
+        var proxyRefreshDevBtn = $("#btn-proxy-refresh-devices");
+        if (proxyRefreshDevBtn) proxyRefreshDevBtn.addEventListener("click", function () {
+            loadProxyDevices();
+            var resultEl = $("#proxy-result");
+            if (resultEl) {
+                resultEl.style.display = "block";
+                resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:8px;border-radius:6px;color:#166534;font-size:13px">✅ لیست دستگاه‌ها بروزرسانی شد</div>';
+                setTimeout(function () { resultEl.style.display = "none"; }, 2000);
+            }
+        });
+
+        var proxyStartBtn = $("#btn-proxy-start");
+        if (proxyStartBtn) proxyStartBtn.addEventListener("click", function () {
+            var offlineCode = ($("#proxy-offline-device") && $("#proxy-offline-device").value) || "";
+            var sourceCode = ($("#proxy-source-device") && $("#proxy-source-device").value) || "";
+            var endDate = ($("#proxy-end-date") && $("#proxy-end-date").value) || "";
+
+            if (!offlineCode) { alert("لطفاً دستگاه آفلاین را انتخاب کنید"); return; }
+            if (!sourceCode) { alert("لطفاً دستگاه منبع را انتخاب کنید"); return; }
+            if (!endDate) { alert("لطفاً تاریخ پایان را وارد کنید"); return; }
+            if (offlineCode === sourceCode) { alert("دستگاه آفلاین و منبع نباید یکسان باشند"); return; }
+
+            var offlineName = "";
+            var srcName = "";
+            var offSel = $("#proxy-offline-device");
+            if (offSel && offSel.selectedOptions && offSel.selectedOptions[0]) offlineName = offSel.selectedOptions[0].textContent;
+            var srcSel = $("#proxy-source-device");
+            if (srcSel && srcSel.selectedOptions && srcSel.selectedOptions[0]) srcName = srcSel.selectedOptions[0].textContent;
+
+            if (!confirm("آیا از شروع ارسال جایگزین مطمئن هستید؟\n\nدستگاه آفلاین: " + offlineName + "\nمنبع: " + srcName + "\nتا تاریخ: " + endDate)) return;
+
+            var body = {
+                offlineDeviceCode: offlineCode,
+                sourceDeviceCode: sourceCode,
+                endDate: endDate + ":00"
+            };
+
+            proxyStartBtn.disabled = true;
+            proxyStartBtn.textContent = "در حال شروع...";
+            var resultEl = $("#proxy-result");
+
+            api("POST", "/api/rmto/proxy-send", body, function (status, data) {
+                proxyStartBtn.disabled = false;
+                proxyStartBtn.textContent = "🔄 شروع ارسال جایگزین";
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    if (data && data.success) {
+                        resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message || "شروع شد") + ' — شناسه: ' + escapeHtml(String(data.jobId)) + '</div>';
+                    } else {
+                        resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا: ' + escapeHtml((data && data.error) || "ارتباط برقرار نشد") + '</div>';
+                    }
+                }
+                refreshProxyJobs();
+            });
+        });
+
+        var proxyRefreshBtn = $("#btn-proxy-refresh");
+        if (proxyRefreshBtn) proxyRefreshBtn.addEventListener("click", refreshProxyJobs);
+
+        function refreshProxyJobs() {
+            api("GET", "/api/rmto/proxy-send", null, function (status, jobs) {
+                var tbody = $("#proxy-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">هنوز ارسال جایگزینی شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var statusHtml;
+                    if (j.status === "running" && j.paused) {
+                        statusHtml = '<span class="status-badge online">⏸ آنلاین شد</span>';
+                    } else if (j.status === "running") {
+                        statusHtml = '<span class="status-badge warning">در حال ارسال</span>';
+                    } else if (j.status === "stopped") {
+                        statusHtml = '<span class="status-badge offline">متوقف</span>';
+                    } else if (j.status === "expired") {
+                        statusHtml = '<span class="status-badge online">پایان یافت</span>';
+                    } else {
+                        statusHtml = '<span class="status-badge">' + escapeHtml(j.status) + '</span>';
+                    }
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopProxyJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    var rids = [];
+                    if (j.rid1) rids.push(j.rid1);
+                    if (j.rid2) rids.push(j.rid2);
+                    var startAt = j.startedAt ? j.startedAt.replace("T", " ").substring(0, 16) : "-";
+                    var endAt = j.expiresAt ? j.expiresAt.replace("T", " ").substring(0, 16) : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td>" + escapeHtml(j.offlineDeviceName || j.offlineDeviceCode) + "</td>" +
+                        "<td>" + escapeHtml(j.sourceDeviceName || j.sourceDeviceCode) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(rids.join(", ")) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(startAt) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(endAt) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sendCount)) + "</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.successCount)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failedCount)) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
 
         // ---- Scheduled Test Send ----
         var schedCopyBtn = $("#btn-sched-copy");
@@ -2879,6 +3051,24 @@ cat > js/app.js << 'ENDFILE'
                     resultEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #fde68a;padding:8px;border-radius:6px;color:#854d0e;font-size:13px">⏹ ارسال زمانبندی شده شناسه ' + escapeHtml(String(jobId)) + ' متوقف شد</div>';
                 }
                 var rb = $("#btn-sched-refresh");
+                if (rb) {
+                    var evt = document.createEvent("Event");
+                    evt.initEvent("click", true, true);
+                    rb.dispatchEvent(evt);
+                }
+            }
+        });
+    };
+
+    window.stopProxyJob = function (jobId) {
+        api("DELETE", "/api/rmto/proxy-send/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var resultEl = $("#proxy-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #fde68a;padding:8px;border-radius:6px;color:#854d0e;font-size:13px">⏹ ارسال جایگزین شناسه ' + escapeHtml(String(jobId)) + ' متوقف شد</div>';
+                }
+                var rb = $("#btn-proxy-refresh");
                 if (rb) {
                     var evt = document.createEvent("Event");
                     evt.initEvent("click", true, true);

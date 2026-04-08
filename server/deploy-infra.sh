@@ -64,19 +64,19 @@ cat > /etc/systemd/system/tc-manager.service << 'SVCEOF'
 [Unit]
 Description=TC Manager Server
 After=network.target
+StartLimitBurst=30
+StartLimitIntervalSec=600
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
+ExecStartPre=/bin/bash -c 'fuser -k -9 3000/tcp 2>/dev/null; fuser -k -9 2022/tcp 2>/dev/null; sleep 2; for p in $(ss -tlnp 2>/dev/null | grep -E ":3000|:2022" | grep -oP "pid=\K[0-9]+" | sort -u); do kill -9 $p 2>/dev/null; done; for i in 1 2 3 4 5 6 7 8 9 10; do sleep 1; ss -tlnp 2>/dev/null | grep -qE ":3000|:2022" || break; done; true'
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
+Restart=always
 RestartSec=15
 TimeoutStopSec=10
 KillMode=mixed
-StartLimitBurst=10
-StartLimitIntervalSec=300
 Environment=NODE_ENV=production
 
 [Install]
