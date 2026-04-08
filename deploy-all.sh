@@ -566,6 +566,64 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                                 <label>میانگین سرعت (ASP) km/h</label>
                                 <input type="number" id="test-asp" value="80" min="0" dir="ltr">
                             </div>
+                            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S1 سرعت موتور</label>
+                                    <input type="number" id="test-s1" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S2 سرعت سواری</label>
+                                    <input type="number" id="test-s2" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S3 سرعت وانت</label>
+                                    <input type="number" id="test-s3" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S4 سرعت اتوبوس</label>
+                                    <input type="number" id="test-s4" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S5 سرعت کامیون</label>
+                                    <input type="number" id="test-s5" value="0" min="0" dir="ltr">
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:8px">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SSO کل تخلف</label>
+                                    <input type="number" id="test-sso" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO1 تخلف موتور</label>
+                                    <input type="number" id="test-so1" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO2 تخلف سواری</label>
+                                    <input type="number" id="test-so2" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO3 تخلف وانت</label>
+                                    <input type="number" id="test-so3" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO4 تخلف اتوبوس</label>
+                                    <input type="number" id="test-so4" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO5 تخلف کامیون</label>
+                                    <input type="number" id="test-so5" value="0" min="0" dir="ltr">
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>OO سبقت</label>
+                                    <input type="number" id="test-oo" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>ESD فاصله کم</label>
+                                    <input type="number" id="test-esd" value="0" min="0" dir="ltr">
+                                </div>
+                            </div>
                             <button class="btn btn-primary" id="btn-test-send" style="width:100%;padding:12px;font-size:15px">📤 ارسال به سامانه</button>
                             <div id="test-send-result" style="margin-top:16px;display:none"></div>
                         </div>
@@ -600,7 +658,26 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             <div class="form-group" style="margin:0"><label>C4 اتوبوس</label><input type="number" id="sched-c4" value="2" min="0" dir="ltr"></div>
                             <div class="form-group" style="margin:0"><label>C5 کامیون</label><input type="number" id="sched-c5" value="3" min="0" dir="ltr"></div>
                         </div>
-                        <div class="form-group" style="margin-bottom:12px"><label>میانگین سرعت (ASP) km/h</label><input type="number" id="sched-asp" value="80" min="0" dir="ltr"></div>
+                        <div class="form-group" style="margin-bottom:8px"><label>میانگین سرعت (ASP) km/h</label><input type="number" id="sched-asp" value="80" min="0" dir="ltr"></div>
+                        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px">
+                            <div class="form-group" style="margin:0"><label>S1 سرعت موتور</label><input type="number" id="sched-s1" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>S2 سرعت سواری</label><input type="number" id="sched-s2" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>S3 سرعت وانت</label><input type="number" id="sched-s3" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>S4 سرعت اتوبوس</label><input type="number" id="sched-s4" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>S5 سرعت کامیون</label><input type="number" id="sched-s5" value="0" min="0" dir="ltr"></div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:8px">
+                            <div class="form-group" style="margin:0"><label>SSO کل تخلف</label><input type="number" id="sched-sso" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>SO1 تخلف موتور</label><input type="number" id="sched-so1" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>SO2 تخلف سواری</label><input type="number" id="sched-so2" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>SO3 تخلف وانت</label><input type="number" id="sched-so3" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>SO4 تخلف اتوبوس</label><input type="number" id="sched-so4" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0"><label>SO5 تخلف کامیون</label><input type="number" id="sched-so5" value="0" min="0" dir="ltr"></div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                            <div class="form-group" style="margin-bottom:0"><label>OO سبقت</label><input type="number" id="sched-oo" value="0" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin-bottom:0"><label>ESD فاصله کم</label><input type="number" id="sched-esd" value="0" min="0" dir="ltr"></div>
+                        </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap">
                             <button class="btn btn-primary" id="btn-sched-start" style="padding:10px 24px;font-size:14px">⏱ شروع ارسال زمانبندی شده</button>
                             <button class="btn btn-secondary" id="btn-sched-copy" style="padding:10px 16px;font-size:13px">📋 کپی از ارسال تست بالا</button>
@@ -3428,6 +3505,25 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             if (c4El) c4El.value = row.c4 || 0;
             if (c5El) c5El.value = row.c5 || 0;
             if (aspEl) aspEl.value = Math.round(row.avg_speed || 0);
+            var s1El = $("#test-s1"); var s2El = $("#test-s2"); var s3El = $("#test-s3");
+            var s4El = $("#test-s4"); var s5El = $("#test-s5");
+            var ssoEl = $("#test-sso");
+            var so1El = $("#test-so1"); var so2El = $("#test-so2"); var so3El = $("#test-so3");
+            var so4El = $("#test-so4"); var so5El = $("#test-so5");
+            var ooEl = $("#test-oo"); var esdEl = $("#test-esd");
+            if (s1El) s1El.value = Math.round(row.s1 || 0);
+            if (s2El) s2El.value = Math.round(row.s2 || 0);
+            if (s3El) s3El.value = Math.round(row.s3 || 0);
+            if (s4El) s4El.value = Math.round(row.s4 || 0);
+            if (s5El) s5El.value = Math.round(row.s5 || 0);
+            if (ssoEl) ssoEl.value = row.sso || 0;
+            if (so1El) so1El.value = row.so1 || 0;
+            if (so2El) so2El.value = row.so2 || 0;
+            if (so3El) so3El.value = row.so3 || 0;
+            if (so4El) so4El.value = row.so4 || 0;
+            if (so5El) so5El.value = row.so5 || 0;
+            if (ooEl) ooEl.value = row.oo || 0;
+            if (esdEl) esdEl.value = row.esd || 0;
         });
     };
 
@@ -3475,7 +3571,20 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 c3: parseInt($("#test-c3").value, 10) || 0,
                 c4: parseInt($("#test-c4").value, 10) || 0,
                 c5: parseInt($("#test-c5").value, 10) || 0,
-                asp: parseInt($("#test-asp").value, 10) || 60
+                asp: parseInt($("#test-asp").value, 10) || 60,
+                s1: parseInt($("#test-s1").value, 10) || 0,
+                s2: parseInt($("#test-s2").value, 10) || 0,
+                s3: parseInt($("#test-s3").value, 10) || 0,
+                s4: parseInt($("#test-s4").value, 10) || 0,
+                s5: parseInt($("#test-s5").value, 10) || 0,
+                sso: parseInt($("#test-sso").value, 10) || 0,
+                so1: parseInt($("#test-so1").value, 10) || 0,
+                so2: parseInt($("#test-so2").value, 10) || 0,
+                so3: parseInt($("#test-so3").value, 10) || 0,
+                so4: parseInt($("#test-so4").value, 10) || 0,
+                so5: parseInt($("#test-so5").value, 10) || 0,
+                oo: parseInt($("#test-oo").value, 10) || 0,
+                esd: parseInt($("#test-esd").value, 10) || 0
             };
             if (st) body.st = st;
             if (et) body.et = et;
@@ -3516,7 +3625,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         // ---- Scheduled Test Send ----
         var schedCopyBtn = $("#btn-sched-copy");
         if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
-            ["c1","c2","c3","c4","c5","asp"].forEach(function (f) {
+            ["c1","c2","c3","c4","c5","asp","s1","s2","s3","s4","s5","sso","so1","so2","so3","so4","so5","oo","esd"].forEach(function (f) {
                 var src = $("#test-" + f), dst = $("#sched-" + f);
                 if (src && dst) dst.value = src.value;
             });
@@ -3537,7 +3646,20 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
                 c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
                 c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
                 c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
-                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10) };
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10),
+                s1: parseInt(($("#sched-s1") && $("#sched-s1").value) || "0", 10),
+                s2: parseInt(($("#sched-s2") && $("#sched-s2").value) || "0", 10),
+                s3: parseInt(($("#sched-s3") && $("#sched-s3").value) || "0", 10),
+                s4: parseInt(($("#sched-s4") && $("#sched-s4").value) || "0", 10),
+                s5: parseInt(($("#sched-s5") && $("#sched-s5").value) || "0", 10),
+                sso: parseInt(($("#sched-sso") && $("#sched-sso").value) || "0", 10),
+                so1: parseInt(($("#sched-so1") && $("#sched-so1").value) || "0", 10),
+                so2: parseInt(($("#sched-so2") && $("#sched-so2").value) || "0", 10),
+                so3: parseInt(($("#sched-so3") && $("#sched-so3").value) || "0", 10),
+                so4: parseInt(($("#sched-so4") && $("#sched-so4").value) || "0", 10),
+                so5: parseInt(($("#sched-so5") && $("#sched-so5").value) || "0", 10),
+                oo: parseInt(($("#sched-oo") && $("#sched-oo").value) || "0", 10),
+                esd: parseInt(($("#sched-esd") && $("#sched-esd").value) || "0", 10) };
             schedStartBtn.disabled = true;
             api("POST", "/api/rmto/test-schedule", body, function (status, data) {
                 schedStartBtn.disabled = false;
@@ -4078,12 +4200,14 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
             String(d.getMinutes()).padStart(2, "0") + ":00";
     }
 
-    var c1 = parseInt(b.c1) || 0;
-    var c2 = parseInt(b.c2) || 0;
-    var c3 = parseInt(b.c3) || 0;
-    var c4 = parseInt(b.c4) || 0;
-    var c5 = parseInt(b.c5) || 0;
-    var asp = parseInt(b.asp) || 60;
+    var c1 = parseInt(b.c1) || 0, c2 = parseInt(b.c2) || 0, c3 = parseInt(b.c3) || 0;
+    var c4 = parseInt(b.c4) || 0, c5 = parseInt(b.c5) || 0, asp = parseInt(b.asp) || 60;
+    var s1 = parseInt(b.s1) || 0, s2 = parseInt(b.s2) || 0, s3 = parseInt(b.s3) || 0;
+    var s4 = parseInt(b.s4) || 0, s5 = parseInt(b.s5) || 0;
+    var sso = parseInt(b.sso) || 0;
+    var so1 = parseInt(b.so1) || 0, so2 = parseInt(b.so2) || 0, so3 = parseInt(b.so3) || 0;
+    var so4 = parseInt(b.so4) || 0, so5 = parseInt(b.so5) || 0;
+    var oo = parseInt(b.oo) || 0, esd = parseInt(b.esd) || 0;
     var fid = parseInt(b.fid) || 0;
     var st = b.st || localISO(periodStart);
     var et = b.et || localISO(periodEnd);
@@ -4099,23 +4223,23 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
         ET: et,
         C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
         ASP: asp,
-        S1: asp, S2: asp, S3: asp, S4: asp, S5: asp,
-        SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
-        OO: 0, ESD: 0,
+        S1: s1, S2: s2, S3: s3, S4: s4, S5: s5,
+        SSO: sso, SO1: so1, SO2: so2, SO3: so3, SO4: so4, SO5: so5,
+        OO: oo, ESD: esd,
         sourceIp: sourceIp
     }, function (err, response, soapXml) {
         var success = !err && response && (response.ID > 0 || response.CFL === 100);
         db.prepare(
             "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+        ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5, sso: sso, so1: so1, so2: so2, so3: so3, so4: so4, so5: so5, oo: oo, esd: esd, st: st, et: et }),
             JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
         res.json({
             success: success,
             response: response,
             error: err ? err.message : null,
             soapXml: soapXml,
-            sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }
+            sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5, sso: sso, so1: so1, so2: so2, so3: so3, so4: so4, so5: so5, oo: oo, esd: esd, st: st, et: et }
         });
     });
 });
@@ -4135,6 +4259,10 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var c4 = parseInt(b.c4) || 0, c5 = parseInt(b.c5) || 0, asp = parseInt(b.asp) || 60;
     var s1 = parseInt(b.s1) || asp, s2 = parseInt(b.s2) || asp, s3 = parseInt(b.s3) || asp;
     var s4 = parseInt(b.s4) || asp, s5 = parseInt(b.s5) || asp;
+    var sso = parseInt(b.sso) || 0;
+    var so1 = parseInt(b.so1) || 0, so2 = parseInt(b.so2) || 0, so3 = parseInt(b.so3) || 0;
+    var so4 = parseInt(b.so4) || 0, so5 = parseInt(b.so5) || 0;
+    var oo = parseInt(b.oo) || 0, esd = parseInt(b.esd) || 0;
     var jobId = ++testScheduleSeq;
     var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
@@ -4144,7 +4272,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
             String(d.getDate()).padStart(2, "0") + "T" + String(d.getHours()).padStart(2, "0") + ":" +
             String(d.getMinutes()).padStart(2, "0") + ":00";
     }
-    var job = { id: jobId, rid: rid, data: { c1:c1,c2:c2,c3:c3,c4:c4,c5:c5,asp:asp },
+    var job = { id: jobId, rid: rid, data: { c1:c1,c2:c2,c3:c3,c4:c4,c5:c5,asp:asp,s1:s1,s2:s2,s3:s3,s4:s4,s5:s5,sso:sso,so1:so1,so2:so2,so3:so3,so4:so4,so5:so5,oo:oo,esd:esd },
         durationDays: durationDays, expiresAt: expiresAt.toISOString(), startedAt: new Date().toISOString(),
         sendCount: 0, successCount: 0, failedCount: 0, lastSendAt: null, lastError: null, stopped: false, status: "running" };
     function sendOnce() {
@@ -4156,15 +4284,22 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
         var now = new Date(); var periodEnd = new Date(now);
         periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
         var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+        var st = localISO(periodStart); var et = localISO(periodEnd);
         job.sendCount++;
-        rmto.sendAddData5({ FID: 0, RID: rid, ST: localISO(periodStart), ET: localISO(periodEnd),
+        rmto.sendAddData5({ FID: 0, RID: rid, ST: st, ET: et,
             C1:c1,C2:c2,C3:c3,C4:c4,C5:c5, ASP:asp, S1:s1,S2:s2,S3:s3,S4:s4,S5:s5,
-            SSO:0,SO1:0,SO2:0,SO3:0,SO4:0,SO5:0, OO:0, ESD:0, sourceIp: sourceIp
+            SSO:sso,SO1:so1,SO2:so2,SO3:so3,SO4:so4,SO5:so5, OO:oo, ESD:esd, sourceIp: sourceIp
         }, function (err, response) {
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             job.lastSendAt = new Date().toISOString();
             if (success) { job.successCount++; job.lastError = null; }
             else { job.failedCount++; job.lastError = err ? err.message : "خطا"; }
+            try {
+                db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                    .run("Add5-Scheduled", "test-schedule-" + jobId,
+                        JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5, sso: sso, so1: so1, so2: so2, so3: so3, so4: so4, so5: so5, oo: oo, esd: esd, st: st, et: et }),
+                        JSON.stringify(response), success ? 1 : 0, err ? err.message : null, null, sourceIp || null);
+            } catch (e) { console.error("[TestSchedule] Log error:", e.message); }
         });
     }
     sendOnce();

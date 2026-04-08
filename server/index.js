@@ -383,6 +383,19 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
     var c4 = parseInt(b.c4) || 0;
     var c5 = parseInt(b.c5) || 0;
     var asp = parseInt(b.asp) || 60;
+    var s1 = parseInt(b.s1) || 0;
+    var s2 = parseInt(b.s2) || 0;
+    var s3 = parseInt(b.s3) || 0;
+    var s4 = parseInt(b.s4) || 0;
+    var s5 = parseInt(b.s5) || 0;
+    var sso = parseInt(b.sso) || 0;
+    var so1 = parseInt(b.so1) || 0;
+    var so2 = parseInt(b.so2) || 0;
+    var so3 = parseInt(b.so3) || 0;
+    var so4 = parseInt(b.so4) || 0;
+    var so5 = parseInt(b.so5) || 0;
+    var oo = parseInt(b.oo) || 0;
+    var esd = parseInt(b.esd) || 0;
     var fid = parseInt(b.fid) || 0;
     var st = b.st || localISO(periodStart);
     var et = b.et || localISO(periodEnd);
@@ -398,23 +411,23 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
         ET: et,
         C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
         ASP: asp,
-        S1: asp, S2: asp, S3: asp, S4: asp, S5: asp,
-        SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
-        OO: 0, ESD: 0,
+        S1: s1, S2: s2, S3: s3, S4: s4, S5: s5,
+        SSO: sso, SO1: so1, SO2: so2, SO3: so3, SO4: so4, SO5: so5,
+        OO: oo, ESD: esd,
         sourceIp: sourceIp
     }, function (err, response, soapXml) {
         var success = !err && response && (response.ID > 0 || response.CFL === 100);
         db.prepare(
             "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+        ).run("Add5-Test", "test", JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5, sso: sso, so1: so1, so2: so2, so3: so3, so4: so4, so5: so5, oo: oo, esd: esd, st: st, et: et }),
             JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
         res.json({
             success: success,
             response: response,
             error: err ? err.message : null,
             soapXml: soapXml,
-            sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }
+            sent: { rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5, sso: sso, so1: so1, so2: so2, so3: so3, so4: so4, so5: so5, oo: oo, esd: esd, st: st, et: et }
         });
     });
 });
@@ -601,6 +614,14 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var s3 = parseInt(b.s3) || asp;
     var s4 = parseInt(b.s4) || asp;
     var s5 = parseInt(b.s5) || asp;
+    var sso = parseInt(b.sso) || 0;
+    var so1 = parseInt(b.so1) || 0;
+    var so2 = parseInt(b.so2) || 0;
+    var so3 = parseInt(b.so3) || 0;
+    var so4 = parseInt(b.so4) || 0;
+    var so5 = parseInt(b.so5) || 0;
+    var oo = parseInt(b.oo) || 0;
+    var esd = parseInt(b.esd) || 0;
 
     var jobId = ++testScheduleSeq;
     var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
@@ -619,7 +640,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var job = {
         id: jobId,
         rid: rid,
-        data: { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5 },
+        data: { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5, sso: sso, so1: so1, so2: so2, so3: so3, so4: so4, so5: so5, oo: oo, esd: esd },
         durationDays: durationDays,
         expiresAt: expiresAt.toISOString(),
         startedAt: new Date().toISOString(),
@@ -651,8 +672,8 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
             FID: 0, RID: rid, ST: st, ET: et,
             C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
             ASP: asp, S1: s1, S2: s2, S3: s3, S4: s4, S5: s5,
-            SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
-            OO: 0, ESD: 0, sourceIp: sourceIp
+            SSO: sso, SO1: so1, SO2: so2, SO3: so3, SO4: so4, SO5: so5,
+            OO: oo, ESD: esd, sourceIp: sourceIp
         }, function (err, response, soapXml) {
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             job.lastSendAt = new Date().toISOString();
@@ -666,7 +687,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
             try {
                 db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                     .run("Add5-Scheduled", "test-schedule-" + jobId,
-                        JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+                        JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5, sso: sso, so1: so1, so2: so2, so3: so3, so4: so4, so5: so5, oo: oo, esd: esd, st: st, et: et }),
                         JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
             } catch (e) { console.error("[TestSchedule] Log error:", e.message); }
         });

@@ -547,6 +547,64 @@ cat > index.html << 'ENDFILE'
                                 <label>میانگین سرعت (ASP) km/h</label>
                                 <input type="number" id="test-asp" value="80" min="0" dir="ltr">
                             </div>
+                            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S1 سرعت موتور</label>
+                                    <input type="number" id="test-s1" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S2 سرعت سواری</label>
+                                    <input type="number" id="test-s2" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S3 سرعت وانت</label>
+                                    <input type="number" id="test-s3" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S4 سرعت اتوبوس</label>
+                                    <input type="number" id="test-s4" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>S5 سرعت کامیون</label>
+                                    <input type="number" id="test-s5" value="0" min="0" dir="ltr">
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:8px">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SSO کل تخلف</label>
+                                    <input type="number" id="test-sso" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO1 تخلف موتور</label>
+                                    <input type="number" id="test-so1" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO2 تخلف سواری</label>
+                                    <input type="number" id="test-so2" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO3 تخلف وانت</label>
+                                    <input type="number" id="test-so3" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO4 تخلف اتوبوس</label>
+                                    <input type="number" id="test-so4" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>SO5 تخلف کامیون</label>
+                                    <input type="number" id="test-so5" value="0" min="0" dir="ltr">
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>OO سبقت</label>
+                                    <input type="number" id="test-oo" value="0" min="0" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0">
+                                    <label>ESD فاصله کم</label>
+                                    <input type="number" id="test-esd" value="0" min="0" dir="ltr">
+                                </div>
+                            </div>
                             <button class="btn btn-primary" id="btn-test-send" style="width:100%;padding:12px;font-size:15px">📤 ارسال به سامانه</button>
                             <div id="test-send-result" style="margin-top:16px;display:none"></div>
                         </div>
@@ -655,9 +713,67 @@ cat > index.html << 'ENDFILE'
                             <div class="form-group" style="margin:0"><label>C4 اتوبوس</label><input type="number" id="sched-c4" value="2" min="0" dir="ltr"></div>
                             <div class="form-group" style="margin:0"><label>C5 کامیون</label><input type="number" id="sched-c5" value="3" min="0" dir="ltr"></div>
                         </div>
-                        <div class="form-group" style="margin-bottom:12px">
+                        <div class="form-group" style="margin-bottom:8px">
                             <label>میانگین سرعت (ASP) km/h</label>
                             <input type="number" id="sched-asp" value="80" min="0" dir="ltr">
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:8px">
+                            <div class="form-group" style="margin:0">
+                                <label>S1 سرعت موتور</label>
+                                <input type="number" id="sched-s1" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>S2 سرعت سواری</label>
+                                <input type="number" id="sched-s2" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>S3 سرعت وانت</label>
+                                <input type="number" id="sched-s3" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>S4 سرعت اتوبوس</label>
+                                <input type="number" id="sched-s4" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>S5 سرعت کامیون</label>
+                                <input type="number" id="sched-s5" value="0" min="0" dir="ltr">
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:8px">
+                            <div class="form-group" style="margin:0">
+                                <label>SSO کل تخلف</label>
+                                <input type="number" id="sched-sso" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>SO1 تخلف موتور</label>
+                                <input type="number" id="sched-so1" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>SO2 تخلف سواری</label>
+                                <input type="number" id="sched-so2" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>SO3 تخلف وانت</label>
+                                <input type="number" id="sched-so3" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>SO4 تخلف اتوبوس</label>
+                                <input type="number" id="sched-so4" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>SO5 تخلف کامیون</label>
+                                <input type="number" id="sched-so5" value="0" min="0" dir="ltr">
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                            <div class="form-group" style="margin-bottom:0">
+                                <label>OO سبقت</label>
+                                <input type="number" id="sched-oo" value="0" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0">
+                                <label>ESD فاصله کم</label>
+                                <input type="number" id="sched-esd" value="0" min="0" dir="ltr">
+                            </div>
                         </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap">
                             <button class="btn btn-primary" id="btn-sched-start" style="padding:10px 24px;font-size:14px">⏱ شروع ارسال زمانبندی شده</button>

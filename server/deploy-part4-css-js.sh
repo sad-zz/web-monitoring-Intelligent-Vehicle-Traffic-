@@ -2551,6 +2551,25 @@ cat > js/app.js << 'ENDFILE'
             if (c4El) c4El.value = row.c4 || 0;
             if (c5El) c5El.value = row.c5 || 0;
             if (aspEl) aspEl.value = Math.round(row.avg_speed || 0);
+            var s1El = $("#test-s1"); var s2El = $("#test-s2"); var s3El = $("#test-s3");
+            var s4El = $("#test-s4"); var s5El = $("#test-s5");
+            var ssoEl = $("#test-sso");
+            var so1El = $("#test-so1"); var so2El = $("#test-so2"); var so3El = $("#test-so3");
+            var so4El = $("#test-so4"); var so5El = $("#test-so5");
+            var ooEl = $("#test-oo"); var esdEl = $("#test-esd");
+            if (s1El) s1El.value = Math.round(row.s1 || 0);
+            if (s2El) s2El.value = Math.round(row.s2 || 0);
+            if (s3El) s3El.value = Math.round(row.s3 || 0);
+            if (s4El) s4El.value = Math.round(row.s4 || 0);
+            if (s5El) s5El.value = Math.round(row.s5 || 0);
+            if (ssoEl) ssoEl.value = row.sso || 0;
+            if (so1El) so1El.value = row.so1 || 0;
+            if (so2El) so2El.value = row.so2 || 0;
+            if (so3El) so3El.value = row.so3 || 0;
+            if (so4El) so4El.value = row.so4 || 0;
+            if (so5El) so5El.value = row.so5 || 0;
+            if (ooEl) ooEl.value = row.oo || 0;
+            if (esdEl) esdEl.value = row.esd || 0;
         });
     };
 
@@ -2598,7 +2617,20 @@ cat > js/app.js << 'ENDFILE'
                 c3: parseInt($("#test-c3").value, 10) || 0,
                 c4: parseInt($("#test-c4").value, 10) || 0,
                 c5: parseInt($("#test-c5").value, 10) || 0,
-                asp: parseInt($("#test-asp").value, 10) || 60
+                asp: parseInt($("#test-asp").value, 10) || 60,
+                s1: parseInt($("#test-s1").value, 10) || 0,
+                s2: parseInt($("#test-s2").value, 10) || 0,
+                s3: parseInt($("#test-s3").value, 10) || 0,
+                s4: parseInt($("#test-s4").value, 10) || 0,
+                s5: parseInt($("#test-s5").value, 10) || 0,
+                sso: parseInt($("#test-sso").value, 10) || 0,
+                so1: parseInt($("#test-so1").value, 10) || 0,
+                so2: parseInt($("#test-so2").value, 10) || 0,
+                so3: parseInt($("#test-so3").value, 10) || 0,
+                so4: parseInt($("#test-so4").value, 10) || 0,
+                so5: parseInt($("#test-so5").value, 10) || 0,
+                oo: parseInt($("#test-oo").value, 10) || 0,
+                esd: parseInt($("#test-esd").value, 10) || 0
             };
             if (st) body.st = st;
             if (et) body.et = et;
@@ -2753,7 +2785,7 @@ cat > js/app.js << 'ENDFILE'
         // ---- Scheduled Test Send ----
         var schedCopyBtn = $("#btn-sched-copy");
         if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
-            var fields = ["c1", "c2", "c3", "c4", "c5", "asp"];
+            var fields = ["c1", "c2", "c3", "c4", "c5", "asp", "s1", "s2", "s3", "s4", "s5", "sso", "so1", "so2", "so3", "so4", "so5", "oo", "esd"];
             fields.forEach(function (f) {
                 var src = $("#test-" + f);
                 var dst = $("#sched-" + f);
@@ -2786,7 +2818,20 @@ cat > js/app.js << 'ENDFILE'
                 c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
                 c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
                 c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
-                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10)
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10),
+                s1: parseInt(($("#sched-s1") && $("#sched-s1").value) || "0", 10),
+                s2: parseInt(($("#sched-s2") && $("#sched-s2").value) || "0", 10),
+                s3: parseInt(($("#sched-s3") && $("#sched-s3").value) || "0", 10),
+                s4: parseInt(($("#sched-s4") && $("#sched-s4").value) || "0", 10),
+                s5: parseInt(($("#sched-s5") && $("#sched-s5").value) || "0", 10),
+                sso: parseInt(($("#sched-sso") && $("#sched-sso").value) || "0", 10),
+                so1: parseInt(($("#sched-so1") && $("#sched-so1").value) || "0", 10),
+                so2: parseInt(($("#sched-so2") && $("#sched-so2").value) || "0", 10),
+                so3: parseInt(($("#sched-so3") && $("#sched-so3").value) || "0", 10),
+                so4: parseInt(($("#sched-so4") && $("#sched-so4").value) || "0", 10),
+                so5: parseInt(($("#sched-so5") && $("#sched-so5").value) || "0", 10),
+                oo: parseInt(($("#sched-oo") && $("#sched-oo").value) || "0", 10),
+                esd: parseInt(($("#sched-esd") && $("#sched-esd").value) || "0", 10)
             };
 
             schedStartBtn.disabled = true;
