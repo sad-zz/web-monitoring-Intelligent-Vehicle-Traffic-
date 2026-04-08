@@ -3584,9 +3584,9 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
 var httpServer = null;
 
 var TCP_RETRY_COUNT = 0;
-var TCP_MAX_RETRIES = 5;
+var TCP_MAX_RETRIES = 10;
 var HTTP_RETRY_COUNT = 0;
-var HTTP_MAX_RETRIES = 5;
+var HTTP_MAX_RETRIES = 10;
 
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     TCP_RETRY_COUNT = 0;
@@ -3713,19 +3713,19 @@ cat > /etc/systemd/system/tc-manager.service << 'UNIT'
 [Unit]
 Description=TC Manager (Noavaran Jonoob Shargh)
 After=network.target
+StartLimitBurst=30
+StartLimitIntervalSec=600
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
+ExecStartPre=/bin/bash -c 'fuser -k -KILL 3000/tcp 2>/dev/null; fuser -k -KILL 2022/tcp 2>/dev/null; sleep 3; fuser -k -KILL 3000/tcp 2>/dev/null; fuser -k -KILL 2022/tcp 2>/dev/null; for i in 1 2 3 4 5; do sleep 1; ss -tlnp 2>/dev/null | grep -qE ":3000|:2022" || break; done; true'
 ExecStart=/usr/bin/node index.js
 Restart=always
 RestartSec=15
 TimeoutStopSec=10
 KillMode=mixed
-StartLimitBurst=30
-StartLimitIntervalSec=600
 Environment=NODE_ENV=production
 
 [Install]
