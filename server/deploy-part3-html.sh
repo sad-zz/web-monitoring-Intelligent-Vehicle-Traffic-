@@ -631,7 +631,80 @@ cat > index.html << 'ENDFILE'
                     </div>
                 </div>
 
-                <!-- Scheduled Test Send Panel -->
+                <!-- Proxy Send for Offline Devices Panel -->
+                <div class="panel" style="margin-top:20px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">🔄 ارسال جایگزین برای دستگاه‌های آفلاین</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">وقتی دستگاهی آفلاین می‌شود، می‌توانید داده‌های یک دستگاه آنلاین دیگر را (با تغییرات تصادفی ±۱-۲۰۰) با کد محور دستگاه آفلاین به سامانه ارسال کنید. ارسال در صورت آنلاین شدن دستگاه متوقف و در صورت آفلاین شدن مجدد ادامه می‌یابد.</p>
+                        <div id="proxy-send-form">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                                <div class="form-group" style="margin:0">
+                                    <label>دستگاه آفلاین <span style="color:#ef4444">*</span></label>
+                                    <select id="proxy-offline-device" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-family:inherit">
+                                        <option value="">در حال بارگذاری...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin:0">
+                                    <label>دستگاه منبع (آنلاین) <span style="color:#ef4444">*</span></label>
+                                    <select id="proxy-source-device" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-family:inherit">
+                                        <option value="">در حال بارگذاری...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                                <div class="form-group" style="margin:0">
+                                    <label>تاریخ پایان ارسال <span style="color:#ef4444">*</span></label>
+                                    <input type="datetime-local" id="proxy-end-date" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin:0">
+                                    <label>اطلاعات محور دستگاه آفلاین</label>
+                                    <div id="proxy-device-info" style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#475569;min-height:36px;display:flex;align-items:center">دستگاه آفلاین را انتخاب کنید</div>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                                <button class="btn btn-primary" id="btn-proxy-start" style="padding:10px 24px;font-size:14px">🔄 شروع ارسال جایگزین</button>
+                                <button class="btn btn-secondary" id="btn-proxy-refresh-devices" style="padding:8px 16px;font-size:13px">🔄 بروزرسانی لیست دستگاه‌ها</button>
+                            </div>
+                            <div id="proxy-result" style="margin-top:12px;display:none"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Proxy Send Jobs Table -->
+                <div class="panel" style="margin-top:16px" id="proxy-jobs-panel">
+                    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 class="panel-title">📊 وضعیت ارسال‌های جایگزین</h3>
+                        <button class="btn btn-secondary" id="btn-proxy-refresh" style="font-size:12px;padding:5px 12px">🔄 بروزرسانی</button>
+                    </div>
+                    <div class="panel-body">
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="proxy-jobs-table">
+                                <thead>
+                                    <tr>
+                                        <th>شناسه</th>
+                                        <th>دستگاه آفلاین</th>
+                                        <th>دستگاه منبع</th>
+                                        <th>محور(ها)</th>
+                                        <th>شروع</th>
+                                        <th>پایان</th>
+                                        <th>ارسال</th>
+                                        <th>موفق</th>
+                                        <th>خطا</th>
+                                        <th>وضعیت</th>
+                                        <th>عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="proxy-jobs-tbody">
+                                    <tr><td colspan="11" style="text-align:center;color:#94a3b8">هنوز ارسال جایگزینی شروع نشده</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scheduled Test Send Panel (Legacy) -->
                 <div class="panel" style="margin-top:20px">
                     <div class="panel-header">
                         <h3 class="panel-title">⏱ ارسال زمانبندی شده (تکرار هر ۵ دقیقه)</h3>

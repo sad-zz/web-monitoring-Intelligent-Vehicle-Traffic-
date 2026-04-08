@@ -1,17 +1,48 @@
 /**
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
+ * Self-healing: if the database file is corrupt, it renames the corrupt file
+ * and creates a fresh database automatically.
  */
 var Database = require("better-sqlite3");
 var path = require("path");
+var fs = require("fs");
 
 var DB_PATH = path.join(__dirname, "data.db");
-var db = new Database(DB_PATH);
+var db;
+
+// Attempt to open database, with self-healing on corruption
+try {
+    db = new Database(DB_PATH);
+} catch (e) {
+    console.error("[DB] Failed to open database: " + e.message);
+    // Try to recover: rename corrupt file and create fresh database
+    try {
+        if (fs.existsSync(DB_PATH)) {
+            var backupName = DB_PATH + ".corrupt." + Date.now();
+            fs.renameSync(DB_PATH, backupName);
+            console.error("[DB] Corrupt database moved to: " + backupName);
+            // Also rename WAL/SHM files if they exist
+            try { if (fs.existsSync(DB_PATH + "-wal")) fs.renameSync(DB_PATH + "-wal", backupName + "-wal"); } catch (e2) {}
+            try { if (fs.existsSync(DB_PATH + "-shm")) fs.renameSync(DB_PATH + "-shm", backupName + "-shm"); } catch (e2) {}
+        }
+        db = new Database(DB_PATH);
+        console.error("[DB] Fresh database created successfully after corruption recovery");
+    } catch (e2) {
+        console.error("[DB] Database recovery failed: " + e2.message);
+        throw e2;
+    }
+}
 
 // Enable WAL mode for better concurrent read performance
-db.pragma("journal_mode = WAL");
+try {
+    db.pragma("journal_mode = WAL");
+} catch (e) {
+    console.error("[DB] Failed to set WAL mode: " + e.message);
+}
 
 // --- Schema ---
+try {
 db.exec([
     // Devices: each has a unique 4-digit code
     "CREATE TABLE IF NOT EXISTS devices (",
@@ -194,8 +225,10 @@ db.exec([
     "  value TEXT",
     ");"
 ].join("\n"));
-
-// Migration: if rmto_queue_5class has old column names, recreate it
+} catch (schemaErr) {
+    console.error("[DB] Schema creation error: " + schemaErr.message);
+    console.error("[DB] Server may have limited functionality");
+}
 try {
     var cols = db.prepare("PRAGMA table_info(rmto_queue_5class)").all();
     var colNames = cols.map(function(c) { return c.name; });

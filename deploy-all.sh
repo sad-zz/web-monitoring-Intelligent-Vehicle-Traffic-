@@ -582,7 +582,80 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                     </div>
                 </div>
 
-                <!-- Scheduled Test Send Panel -->
+                <!-- Proxy Send for Offline Devices Panel -->
+                <div class="panel" style="margin-top:20px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">🔄 ارسال جایگزین برای دستگاه‌های آفلاین</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">وقتی دستگاهی آفلاین می‌شود، می‌توانید داده‌های یک دستگاه آنلاین دیگر را (با تغییرات تصادفی ±۱-۲۰۰) با کد محور دستگاه آفلاین به سامانه ارسال کنید. ارسال در صورت آنلاین شدن دستگاه متوقف و در صورت آفلاین شدن مجدد ادامه می‌یابد.</p>
+                        <div id="proxy-send-form">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                                <div class="form-group" style="margin:0">
+                                    <label>دستگاه آفلاین <span style="color:#ef4444">*</span></label>
+                                    <select id="proxy-offline-device" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-family:inherit">
+                                        <option value="">در حال بارگذاری...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin:0">
+                                    <label>دستگاه منبع (آنلاین) <span style="color:#ef4444">*</span></label>
+                                    <select id="proxy-source-device" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-family:inherit">
+                                        <option value="">در حال بارگذاری...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                                <div class="form-group" style="margin:0">
+                                    <label>تاریخ پایان ارسال <span style="color:#ef4444">*</span></label>
+                                    <input type="datetime-local" id="proxy-end-date" dir="ltr">
+                                </div>
+                                <div class="form-group" style="margin:0">
+                                    <label>اطلاعات محور دستگاه آفلاین</label>
+                                    <div id="proxy-device-info" style="padding:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#475569;min-height:36px;display:flex;align-items:center">دستگاه آفلاین را انتخاب کنید</div>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+                                <button class="btn btn-primary" id="btn-proxy-start" style="padding:10px 24px;font-size:14px">🔄 شروع ارسال جایگزین</button>
+                                <button class="btn btn-secondary" id="btn-proxy-refresh-devices" style="padding:8px 16px;font-size:13px">🔄 بروزرسانی لیست دستگاه‌ها</button>
+                            </div>
+                            <div id="proxy-result" style="margin-top:12px;display:none"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Proxy Send Jobs Table -->
+                <div class="panel" style="margin-top:16px" id="proxy-jobs-panel">
+                    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 class="panel-title">📊 وضعیت ارسال‌های جایگزین</h3>
+                        <button class="btn btn-secondary" id="btn-proxy-refresh" style="font-size:12px;padding:5px 12px">🔄 بروزرسانی</button>
+                    </div>
+                    <div class="panel-body">
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="proxy-jobs-table">
+                                <thead>
+                                    <tr>
+                                        <th>شناسه</th>
+                                        <th>دستگاه آفلاین</th>
+                                        <th>دستگاه منبع</th>
+                                        <th>محور(ها)</th>
+                                        <th>شروع</th>
+                                        <th>پایان</th>
+                                        <th>ارسال</th>
+                                        <th>موفق</th>
+                                        <th>خطا</th>
+                                        <th>وضعیت</th>
+                                        <th>عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="proxy-jobs-tbody">
+                                    <tr><td colspan="11" style="text-align:center;color:#94a3b8">هنوز ارسال جایگزینی شروع نشده</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scheduled Test Send Panel (Legacy) -->
                 <div class="panel" style="margin-top:20px">
                     <div class="panel-header">
                         <h3 class="panel-title">⏱ ارسال زمانبندی شده (تکرار هر ۵ دقیقه)</h3>
@@ -3513,6 +3586,177 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             });
         });
 
+        // ---- Proxy Send for Offline Devices ----
+        var proxyOfflineDevicesCache = [];
+        var proxyOnlineDevicesCache = [];
+
+        function loadProxyDevices() {
+            api("GET", "/api/devices/offline", null, function (status, data) {
+                var sel = $("#proxy-offline-device");
+                if (!sel || !data) return;
+                proxyOfflineDevicesCache = data;
+                sel.innerHTML = '<option value="">-- انتخاب دستگاه آفلاین --</option>';
+                data.forEach(function (d) {
+                    var rids = [];
+                    if (d.rid1) rids.push("RID1:" + d.rid1);
+                    if (d.rid2) rids.push("RID2:" + d.rid2);
+                    var ridTxt = rids.length ? " (" + rids.join(", ") + ")" : "";
+                    sel.innerHTML += '<option value="' + escapeHtml(d.device_code) + '">' +
+                        escapeHtml(d.name || d.device_code) + ' [' + escapeHtml(d.device_code) + ']' + escapeHtml(ridTxt) + '</option>';
+                });
+            });
+            api("GET", "/api/devices", null, function (status, data) {
+                var sel = $("#proxy-source-device");
+                if (!sel || !data) return;
+                proxyOnlineDevicesCache = data;
+                sel.innerHTML = '<option value="">-- انتخاب دستگاه منبع --</option>';
+                var sorted = data.slice().sort(function (a, b) {
+                    if (a.status === "online" && b.status !== "online") return -1;
+                    if (a.status !== "online" && b.status === "online") return 1;
+                    return (a.name || "").localeCompare(b.name || "");
+                });
+                sorted.forEach(function (d) {
+                    var statusIcon = d.status === "online" ? "🟢" : "🔴";
+                    sel.innerHTML += '<option value="' + escapeHtml(d.device_code) + '">' +
+                        statusIcon + ' ' + escapeHtml(d.name || d.device_code) + ' [' + escapeHtml(d.device_code) + ']</option>';
+                });
+            });
+        }
+        loadProxyDevices();
+
+        var proxyEndDateEl = $("#proxy-end-date");
+        if (proxyEndDateEl && !proxyEndDateEl.value) {
+            var defEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            proxyEndDateEl.value = defEnd.getFullYear() + "-" + String(defEnd.getMonth()+1).padStart(2,"0") + "-" +
+                String(defEnd.getDate()).padStart(2,"0") + "T" +
+                String(defEnd.getHours()).padStart(2,"0") + ":" +
+                String(defEnd.getMinutes()).padStart(2,"0");
+        }
+
+        var proxyOfflineSel = $("#proxy-offline-device");
+        if (proxyOfflineSel) proxyOfflineSel.addEventListener("change", function () {
+            var infoEl = $("#proxy-device-info");
+            if (!infoEl) return;
+            var code = proxyOfflineSel.value;
+            if (!code) { infoEl.textContent = "دستگاه آفلاین را انتخاب کنید"; return; }
+            var dev = proxyOfflineDevicesCache.find(function (d) { return d.device_code === code; });
+            if (!dev) { infoEl.textContent = "دستگاه یافت نشد"; return; }
+            var parts = [];
+            if (dev.route1) parts.push("محور ۱: " + dev.route1);
+            if (dev.route2) parts.push("محور ۲: " + dev.route2);
+            if (dev.rid1) parts.push("RID1: " + dev.rid1);
+            if (dev.rid2) parts.push("RID2: " + dev.rid2);
+            if (dev.last_seen) parts.push("آخرین ارتباط: " + dev.last_seen.replace("T", " ").substring(0, 19));
+            infoEl.textContent = parts.length ? parts.join(" | ") : "بدون اطلاعات محور";
+        });
+
+        var proxyRefreshDevBtn = $("#btn-proxy-refresh-devices");
+        if (proxyRefreshDevBtn) proxyRefreshDevBtn.addEventListener("click", function () {
+            loadProxyDevices();
+            var resultEl = $("#proxy-result");
+            if (resultEl) {
+                resultEl.style.display = "block";
+                resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:8px;border-radius:6px;color:#166534;font-size:13px">✅ لیست دستگاه‌ها بروزرسانی شد</div>';
+                setTimeout(function () { resultEl.style.display = "none"; }, 2000);
+            }
+        });
+
+        var proxyStartBtn = $("#btn-proxy-start");
+        if (proxyStartBtn) proxyStartBtn.addEventListener("click", function () {
+            var offlineCode = ($("#proxy-offline-device") && $("#proxy-offline-device").value) || "";
+            var sourceCode = ($("#proxy-source-device") && $("#proxy-source-device").value) || "";
+            var endDate = ($("#proxy-end-date") && $("#proxy-end-date").value) || "";
+
+            if (!offlineCode) { alert("لطفاً دستگاه آفلاین را انتخاب کنید"); return; }
+            if (!sourceCode) { alert("لطفاً دستگاه منبع را انتخاب کنید"); return; }
+            if (!endDate) { alert("لطفاً تاریخ پایان را وارد کنید"); return; }
+            if (offlineCode === sourceCode) { alert("دستگاه آفلاین و منبع نباید یکسان باشند"); return; }
+
+            var offlineName = "";
+            var srcName = "";
+            var offSel = $("#proxy-offline-device");
+            if (offSel && offSel.selectedOptions && offSel.selectedOptions[0]) offlineName = offSel.selectedOptions[0].textContent;
+            var srcSel = $("#proxy-source-device");
+            if (srcSel && srcSel.selectedOptions && srcSel.selectedOptions[0]) srcName = srcSel.selectedOptions[0].textContent;
+
+            if (!confirm("آیا از شروع ارسال جایگزین مطمئن هستید؟\n\nدستگاه آفلاین: " + offlineName + "\nمنبع: " + srcName + "\nتا تاریخ: " + endDate)) return;
+
+            var body = {
+                offlineDeviceCode: offlineCode,
+                sourceDeviceCode: sourceCode,
+                endDate: endDate + ":00"
+            };
+
+            proxyStartBtn.disabled = true;
+            proxyStartBtn.textContent = "در حال شروع...";
+            var resultEl = $("#proxy-result");
+
+            api("POST", "/api/rmto/proxy-send", body, function (status, data) {
+                proxyStartBtn.disabled = false;
+                proxyStartBtn.textContent = "🔄 شروع ارسال جایگزین";
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    if (data && data.success) {
+                        resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message || "شروع شد") + ' — شناسه: ' + escapeHtml(String(data.jobId)) + '</div>';
+                    } else {
+                        resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا: ' + escapeHtml((data && data.error) || "ارتباط برقرار نشد") + '</div>';
+                    }
+                }
+                refreshProxyJobs();
+            });
+        });
+
+        var proxyRefreshBtn = $("#btn-proxy-refresh");
+        if (proxyRefreshBtn) proxyRefreshBtn.addEventListener("click", refreshProxyJobs);
+
+        function refreshProxyJobs() {
+            api("GET", "/api/rmto/proxy-send", null, function (status, jobs) {
+                var tbody = $("#proxy-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">هنوز ارسال جایگزینی شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var statusHtml;
+                    if (j.status === "running" && j.paused) {
+                        statusHtml = '<span class="status-badge online">⏸ آنلاین شد</span>';
+                    } else if (j.status === "running") {
+                        statusHtml = '<span class="status-badge warning">در حال ارسال</span>';
+                    } else if (j.status === "stopped") {
+                        statusHtml = '<span class="status-badge offline">متوقف</span>';
+                    } else if (j.status === "expired") {
+                        statusHtml = '<span class="status-badge online">پایان یافت</span>';
+                    } else {
+                        statusHtml = '<span class="status-badge">' + escapeHtml(j.status) + '</span>';
+                    }
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopProxyJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    var rids = [];
+                    if (j.rid1) rids.push(j.rid1);
+                    if (j.rid2) rids.push(j.rid2);
+                    var startAt = j.startedAt ? j.startedAt.replace("T", " ").substring(0, 16) : "-";
+                    var endAt = j.expiresAt ? j.expiresAt.replace("T", " ").substring(0, 16) : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td>" + escapeHtml(j.offlineDeviceName || j.offlineDeviceCode) + "</td>" +
+                        "<td>" + escapeHtml(j.sourceDeviceName || j.sourceDeviceCode) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(rids.join(", ")) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(startAt) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(endAt) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sendCount)) + "</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.successCount)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failedCount)) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
+
         // ---- Scheduled Test Send ----
         var schedCopyBtn = $("#btn-sched-copy");
         if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
@@ -3576,7 +3820,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         setInterval(function () {
             if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
             var v = document.querySelector(".view.active");
-            if (v && v.id === "view-test-sender") refreshSchedJobs();
+            if (v && v.id === "view-test-sender") { refreshSchedJobs(); refreshProxyJobs(); }
         }, 3000);
     }
 
@@ -3584,6 +3828,24 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function () {
             var rb = $("#btn-sched-refresh");
             if (rb) { var evt = document.createEvent("Event"); evt.initEvent("click", true, true); rb.dispatchEvent(evt); }
+        });
+    };
+
+    window.stopProxyJob = function (jobId) {
+        api("DELETE", "/api/rmto/proxy-send/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var resultEl = $("#proxy-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #fde68a;padding:8px;border-radius:6px;color:#854d0e;font-size:13px">⏹ ارسال جایگزین شناسه ' + escapeHtml(String(jobId)) + ' متوقف شد</div>';
+                }
+                var rb = $("#btn-proxy-refresh");
+                if (rb) {
+                    var evt = document.createEvent("Event");
+                    evt.initEvent("click", true, true);
+                    rb.dispatchEvent(evt);
+                }
+            }
         });
     };
 
@@ -3742,6 +4004,69 @@ cat > "$APP_DIR/server/index.js" << 'ENDOFFILE_SERVER_INDEX_JS'
 // This ensures all new Date() calls return Iran local time
 process.env.TZ = "Asia/Tehran";
 
+// Track uncaught error count for crash loop detection within the process
+var _uncaughtErrorCount = 0;
+var _uncaughtErrorResetTimer = null;
+
+// Global error handlers to prevent silent server crashes
+process.on("uncaughtException", function (err) {
+    console.error("[FATAL] Uncaught Exception:", err.message);
+    console.error(err.stack);
+
+    // Log to crash.log file for post-mortem debugging
+    try {
+        var logLine = new Date().toISOString() + " | uncaughtException | " + err.message + " | " + (err.code || "") + " | " + ((err.stack || "").split("\n")[1] || "").trim() + "\n";
+        require("fs").appendFileSync(require("path").join(__dirname, "crash.log"), logLine);
+    } catch (logErr) { /* ignore log write failures */ }
+
+    // Fatal errors that require immediate exit (no point continuing)
+    if (err.code === "EADDRINUSE" || err.code === "ERR_IPC_CHANNEL_CLOSED" ||
+        err.message && err.message.indexOf("Cannot allocate memory") !== -1) {
+        console.error("[FATAL] Unrecoverable error, exiting in 1s...");
+        setTimeout(function () { process.exit(1); }, 1000);
+        return;
+    }
+
+    // Benign network errors - safe to continue (common in TCP/HTTP servers)
+    if (err.code === "ECONNRESET" || err.code === "EPIPE" || err.code === "ECONNREFUSED" ||
+        err.code === "ECONNABORTED" || err.code === "ETIMEDOUT" || err.code === "EHOSTUNREACH" ||
+        err.code === "ENETUNREACH" || err.code === "EAI_AGAIN" ||
+        err.code === "ERR_STREAM_DESTROYED" || err.code === "ERR_STREAM_WRITE_AFTER_END" ||
+        (err.message && (err.message.indexOf("ECONNRESET") !== -1 ||
+            err.message.indexOf("EPIPE") !== -1 ||
+            err.message.indexOf("socket hang up") !== -1 ||
+            err.message.indexOf("write after end") !== -1))) {
+        console.error("[FATAL] Network error (safe to continue): " + (err.code || err.message));
+        return;
+    }
+
+    // Other errors: count them. Too many in 60 seconds = likely a cascading failure
+    _uncaughtErrorCount++;
+    if (!_uncaughtErrorResetTimer) {
+        _uncaughtErrorResetTimer = setTimeout(function () {
+            _uncaughtErrorCount = 0;
+            _uncaughtErrorResetTimer = null;
+        }, 60000);
+    }
+
+    if (_uncaughtErrorCount >= 10) {
+        console.error("[FATAL] Too many uncaught errors (" + _uncaughtErrorCount + " in 60s). Exiting for clean restart...");
+        setTimeout(function () { process.exit(1); }, 1000);
+    } else {
+        console.error("[FATAL] Error #" + _uncaughtErrorCount + " - server continuing to avoid restart loop");
+    }
+});
+
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled Promise Rejection:", reason);
+    // Log to crash.log
+    try {
+        var msg = reason instanceof Error ? reason.message : String(reason);
+        var logLine = new Date().toISOString() + " | unhandledRejection | " + msg + "\n";
+        require("fs").appendFileSync(require("path").join(__dirname, "crash.log"), logLine);
+    } catch (logErr) { /* ignore */ }
+});
+
 require("dotenv").config();
 
 var express = require("express");
@@ -3752,7 +4077,73 @@ var crypto = require("crypto");
 var session = require("express-session");
 var multer = require("multer");
 var bcrypt = require("bcryptjs");
-var db = require("./db");
+
+// ============================================================
+// Crash loop detection: track rapid restarts using a file counter.
+// If the server has restarted too many times in a short period,
+// add a linear backoff delay before starting to break the loop.
+// ============================================================
+var CRASH_COUNT_FILE = path.join(__dirname, ".restart_count");
+(function detectCrashLoop() {
+    var restartCount = 0;
+    try {
+        var raw = fs.readFileSync(CRASH_COUNT_FILE, "utf8").trim().split(",");
+        var count = parseInt(raw[0]) || 0;
+        var lastTime = parseInt(raw[1]) || 0;
+        // Only count restarts within the last 5 minutes
+        if (Date.now() - lastTime < 300000) {
+            restartCount = count;
+        }
+    } catch (e) { /* file doesn't exist yet, that's fine */ }
+
+    // Write incremented counter
+    try { fs.writeFileSync(CRASH_COUNT_FILE, (restartCount + 1) + "," + Date.now()); } catch (e) {}
+
+    if (restartCount >= 3) {
+        var delaySec = Math.min(restartCount * 10, 120); // 30s, 40s, 50s, ... max 120s (linear backoff)
+        console.error("[STARTUP] ⚠ Crash loop detected (" + restartCount + " restarts in 5 minutes)");
+        console.error("[STARTUP] Waiting " + delaySec + " seconds before starting to break the loop...");
+        console.error("[STARTUP] Check crash.log for error details");
+        try {
+            // Synchronous sleep to delay startup without restructuring the entire file
+            require("child_process").spawnSync("sleep", [String(delaySec)]);
+        } catch (e) {
+            // Fallback: busy-wait (less ideal but works)
+            var until = Date.now() + delaySec * 1000;
+            while (Date.now() < until) { /* wait */ }
+        }
+        console.error("[STARTUP] Resuming startup after " + delaySec + "s delay");
+    }
+})();
+
+// Load database module with error recovery
+var db;
+try {
+    db = require("./db");
+} catch (dbErr) {
+    console.error("[STARTUP] Database initialization failed: " + dbErr.message);
+    console.error("[STARTUP] Attempting to recover by creating fresh database...");
+    try {
+        var dbPath = path.join(__dirname, "data.db");
+        if (fs.existsSync(dbPath)) {
+            var backupName = dbPath + ".corrupt." + Date.now();
+            fs.renameSync(dbPath, backupName);
+            console.error("[STARTUP] Corrupt database moved to: " + backupName);
+            // Also rename WAL/SHM files
+            try { if (fs.existsSync(dbPath + "-wal")) fs.renameSync(dbPath + "-wal", backupName + "-wal"); } catch (e) {}
+            try { if (fs.existsSync(dbPath + "-shm")) fs.renameSync(dbPath + "-shm", backupName + "-shm"); } catch (e) {}
+        }
+        // Clear module cache and retry
+        delete require.cache[require.resolve("./db")];
+        db = require("./db");
+        console.error("[STARTUP] Fresh database created successfully");
+    } catch (recoverErr) {
+        console.error("[STARTUP] Database recovery also failed: " + recoverErr.message);
+        console.error("[STARTUP] Server cannot start without a database. Exiting...");
+        process.exit(1);
+    }
+}
+
 var rmto = require("./rmto-client");
 var scheduler = require("./scheduler");
 
@@ -3761,7 +4152,7 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.04.07-v3";
+var BUILD_VERSION = "2026.04.08-v1";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -3796,6 +4187,7 @@ app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
 }));
 
@@ -4190,6 +4582,268 @@ app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
     job.stopped = true; job.status = "stopped";
     if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
     res.json({ success: true, message: "ارسال زمانبندی شده متوقف شد" });
+});
+
+// ============================================================
+// API: Proxy Send for Offline Devices
+// ============================================================
+var proxySendJobs = {};
+var proxySendSeq = 0;
+
+// GET /api/devices/offline - list offline devices with route info
+app.get("/api/devices/offline", requireAuth, function (req, res) {
+    try {
+        var rows = db.prepare(
+            "SELECT device_code, name, route1, route2, rid1, rid2, status, last_seen " +
+            "FROM devices WHERE status = 'offline' AND active = 1 ORDER BY name"
+        ).all();
+        res.json(rows);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// GET /api/devices/online - list online devices (for source selection)
+app.get("/api/devices/online", requireAuth, function (req, res) {
+    try {
+        var rows = db.prepare(
+            "SELECT device_code, name, route1, route2, rid1, rid2, status, last_seen " +
+            "FROM devices WHERE status = 'online' AND active = 1 ORDER BY name"
+        ).all();
+        res.json(rows);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST /api/rmto/proxy-send - start proxy sending for an offline device
+app.post("/api/rmto/proxy-send", requireAuth, function (req, res) {
+    var b = req.body;
+    var offlineDeviceCode = String(b.offlineDeviceCode || "").trim();
+    var sourceDeviceCode = String(b.sourceDeviceCode || "").trim();
+    var endDate = b.endDate || "";
+
+    if (!offlineDeviceCode) return res.status(400).json({ error: "کد دستگاه آفلاین الزامی است" });
+    if (!sourceDeviceCode) return res.status(400).json({ error: "کد دستگاه منبع الزامی است" });
+    if (!endDate) return res.status(400).json({ error: "تاریخ پایان الزامی است" });
+
+    // Validate devices exist
+    var offlineDev = db.prepare("SELECT * FROM devices WHERE device_code = ?").get(offlineDeviceCode);
+    if (!offlineDev) return res.status(404).json({ error: "دستگاه آفلاین یافت نشد" });
+    var sourceDev = db.prepare("SELECT * FROM devices WHERE device_code = ?").get(sourceDeviceCode);
+    if (!sourceDev) return res.status(404).json({ error: "دستگاه منبع یافت نشد" });
+
+    // Check offline device has route codes
+    var rid1 = offlineDev.rid1 || offlineDev.route1 || offlineDev.route || "";
+    var rid2 = offlineDev.rid2 || offlineDev.route2 || "";
+    if (!rid1 && !rid2) return res.status(400).json({ error: "دستگاه آفلاین هیچ کد محوری (RID) ندارد" });
+
+    // Check for duplicate (same offline device already has active proxy job)
+    var existing = Object.keys(proxySendJobs).find(function (k) {
+        var j = proxySendJobs[k];
+        return j.offlineDeviceCode === offlineDeviceCode && j.status === "running";
+    });
+    if (existing) return res.status(409).json({ error: "این دستگاه در حال حاضر ارسال جایگزین فعال دارد (شناسه: " + existing + ")" });
+
+    var expiresAt = new Date(endDate);
+    if (isNaN(expiresAt.getTime())) return res.status(400).json({ error: "تاریخ پایان نامعتبر است" });
+
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
+    var jobId = ++proxySendSeq;
+
+    function localISO(d) {
+        return d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0") + "T" +
+            String(d.getHours()).padStart(2, "0") + ":" +
+            String(d.getMinutes()).padStart(2, "0") + ":00";
+    }
+
+    var job = {
+        id: jobId,
+        offlineDeviceCode: offlineDeviceCode,
+        offlineDeviceName: offlineDev.name || offlineDeviceCode,
+        sourceDeviceCode: sourceDeviceCode,
+        sourceDeviceName: sourceDev.name || sourceDeviceCode,
+        rid1: rid1,
+        rid2: rid2,
+        startedAt: new Date().toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        sendCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        lastSendAt: null,
+        lastError: null,
+        stopped: false,
+        paused: false,
+        status: "running"
+    };
+
+    function addRandomVariation(value, minPct, maxPct) {
+        if (!value || value <= 0) return value;
+        var variation = Math.floor(Math.random() * (maxPct - minPct + 1)) + minPct;
+        var sign = Math.random() < 0.5 ? -1 : 1;
+        var result = value + (sign * variation);
+        return Math.max(0, result);
+    }
+
+    function sendProxyData() {
+        if (job.stopped) {
+            job.status = "stopped";
+            if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+            console.log("[ProxySend] Job #" + jobId + " stopped manually");
+            return;
+        }
+        if (new Date() >= expiresAt) {
+            job.status = "expired";
+            if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+            console.log("[ProxySend] Job #" + jobId + " expired");
+            return;
+        }
+
+        // Check if offline device came back online
+        var currentStatus = db.prepare("SELECT status FROM devices WHERE device_code = ?").get(offlineDeviceCode);
+        if (currentStatus && currentStatus.status === "online") {
+            if (!job.paused) {
+                job.paused = true;
+                console.log("[ProxySend] Job #" + jobId + " paused - device " + offlineDeviceCode + " came back online");
+            }
+            return; // Skip this interval, device is online
+        } else {
+            if (job.paused) {
+                job.paused = false;
+                console.log("[ProxySend] Job #" + jobId + " resumed - device " + offlineDeviceCode + " went offline again");
+            }
+        }
+
+        // Get latest data from source device's irawdata (last completed 5-min period)
+        var now = new Date();
+        var periodEnd = new Date(now);
+        periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
+        var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+        var st = localISO(periodStart);
+        var et = localISO(periodEnd);
+
+        // Try to get source device data from last period, or last available
+        var sourceData = db.prepare(
+            "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
+            "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
+            "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo, " +
+            "SUM(overtaking) as overtaking, SUM(tooclose) as tooclose " +
+            "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ?"
+        ).get(sourceDeviceCode, st, et);
+
+        // If no data in current period, try the previous period
+        if (!sourceData || ((sourceData.a || 0) + (sourceData.b || 0) + (sourceData.c || 0) + (sourceData.d || 0) + (sourceData.e || 0)) === 0) {
+            var prevStart = new Date(periodStart.getTime() - 5 * 60 * 1000);
+            sourceData = db.prepare(
+                "SELECT SUM(a) as a, SUM(b) as b, SUM(c) as c, SUM(d) as d, SUM(e) as e, SUM(x) as x, " +
+                "SUM(sa) as sa, SUM(sb) as sb, SUM(sc) as sc, SUM(sd) as sd, SUM(se) as se, SUM(sx) as sx_sum, " +
+                "SUM(sao) as sao, SUM(sbo) as sbo, SUM(sco) as sco, SUM(sdo) as sdo, SUM(seo) as seo, SUM(sxo) as sxo, " +
+                "SUM(overtaking) as overtaking, SUM(tooclose) as tooclose " +
+                "FROM irawdata WHERE device_code = ? AND create_at >= ? AND create_at < ?"
+            ).get(sourceDeviceCode, localISO(prevStart), st);
+        }
+
+        // Build traffic data with random variation (±1-200 on counts)
+        var c1 = addRandomVariation((sourceData && sourceData.a) || 0, 1, 200);
+        var c2 = addRandomVariation((sourceData && sourceData.b) || 0, 1, 200);
+        var c3 = addRandomVariation((sourceData && sourceData.c) || 0, 1, 200);
+        var c4 = addRandomVariation((sourceData && sourceData.d) || 0, 1, 200);
+        var c5 = addRandomVariation(((sourceData && sourceData.e) || 0) + ((sourceData && sourceData.x) || 0), 1, 200);
+        var totalVehicles = c1 + c2 + c3 + c4 + c5;
+
+        // Calculate speeds
+        var s1 = c1 > 0 ? Math.round(((sourceData && sourceData.sa) || 0) / Math.max((sourceData && sourceData.a) || 1, 1)) : 0;
+        var s2 = c2 > 0 ? Math.round(((sourceData && sourceData.sb) || 0) / Math.max((sourceData && sourceData.b) || 1, 1)) : 0;
+        var s3 = c3 > 0 ? Math.round(((sourceData && sourceData.sc) || 0) / Math.max((sourceData && sourceData.c) || 1, 1)) : 0;
+        var s4 = c4 > 0 ? Math.round(((sourceData && sourceData.sd) || 0) / Math.max((sourceData && sourceData.d) || 1, 1)) : 0;
+        var c5raw = ((sourceData && sourceData.e) || 0) + ((sourceData && sourceData.x) || 0);
+        var s5 = c5 > 0 ? Math.round((((sourceData && sourceData.se) || 0) + ((sourceData && sourceData.sx_sum) || 0)) / Math.max(c5raw, 1)) : 0;
+        var totalSpeedSum = ((sourceData && sourceData.sa) || 0) + ((sourceData && sourceData.sb) || 0) + ((sourceData && sourceData.sc) || 0) + ((sourceData && sourceData.sd) || 0) + ((sourceData && sourceData.se) || 0) + ((sourceData && sourceData.sx_sum) || 0);
+        var srcTotal = ((sourceData && sourceData.a) || 0) + ((sourceData && sourceData.b) || 0) + ((sourceData && sourceData.c) || 0) + ((sourceData && sourceData.d) || 0) + ((sourceData && sourceData.e) || 0) + ((sourceData && sourceData.x) || 0);
+        var asp = srcTotal > 0 ? Math.round(totalSpeedSum / srcTotal) : 60;
+
+        var so1 = (sourceData && sourceData.sao) || 0;
+        var so2 = (sourceData && sourceData.sbo) || 0;
+        var so3 = (sourceData && sourceData.sco) || 0;
+        var so4 = (sourceData && sourceData.sdo) || 0;
+        var so5 = ((sourceData && sourceData.seo) || 0) + ((sourceData && sourceData.sxo) || 0);
+        var sso = so1 + so2 + so3 + so4 + so5;
+        var oo = (sourceData && sourceData.overtaking) || 0;
+        var esd = (sourceData && sourceData.tooclose) || 0;
+
+        // Send for each RID of the offline device
+        var ridsToSend = [];
+        if (rid1) ridsToSend.push(parseInt(rid1, 10));
+        if (rid2) ridsToSend.push(parseInt(rid2, 10));
+
+        ridsToSend.forEach(function (ridVal) {
+            if (!ridVal || ridVal <= 0) return;
+            job.sendCount++;
+            rmto.sendAddData5({
+                FID: 0, RID: ridVal, ST: st, ET: et,
+                C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
+                ASP: asp, S1: s1, S2: s2, S3: s3, S4: s4, S5: s5,
+                SSO: sso, SO1: so1, SO2: so2, SO3: so3, SO4: so4, SO5: so5,
+                OO: oo, ESD: esd, sourceIp: sourceIp
+            }, function (err, response, soapXml) {
+                var success = !err && response && (response.ID > 0 || response.CFL === 100);
+                job.lastSendAt = new Date().toISOString();
+                if (success) {
+                    job.successCount++;
+                    job.lastError = null;
+                } else {
+                    job.failedCount++;
+                    job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا");
+                }
+                try {
+                    db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                        .run("Add5-Proxy", offlineDeviceCode,
+                            JSON.stringify({ rid: ridVal, source: sourceDeviceCode, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+                            JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
+                } catch (e) { console.error("[ProxySend] Log error:", e.message); }
+            });
+        });
+    }
+
+    // Send immediately, then every 5 minutes
+    sendProxyData();
+    job.timerId = setInterval(sendProxyData, 5 * 60 * 1000);
+    proxySendJobs[jobId] = job;
+
+    console.log("[ProxySend] Job #" + jobId + " started: offline=" + offlineDeviceCode + " source=" + sourceDeviceCode + " until " + endDate);
+    res.json({ success: true, jobId: jobId, message: "ارسال جایگزین شروع شد" });
+});
+
+// GET /api/rmto/proxy-send - list active proxy send jobs
+app.get("/api/rmto/proxy-send", requireAuth, function (req, res) {
+    var jobs = Object.keys(proxySendJobs).map(function (k) {
+        var j = proxySendJobs[k];
+        return {
+            id: j.id, offlineDeviceCode: j.offlineDeviceCode, offlineDeviceName: j.offlineDeviceName,
+            sourceDeviceCode: j.sourceDeviceCode, sourceDeviceName: j.sourceDeviceName,
+            rid1: j.rid1, rid2: j.rid2,
+            startedAt: j.startedAt, expiresAt: j.expiresAt,
+            sendCount: j.sendCount, successCount: j.successCount, failedCount: j.failedCount,
+            lastSendAt: j.lastSendAt, lastError: j.lastError,
+            paused: j.paused, stopped: j.stopped, status: j.status
+        };
+    });
+    res.json(jobs);
+});
+
+// DELETE /api/rmto/proxy-send/:jobId - stop a proxy send job
+app.delete("/api/rmto/proxy-send/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = proxySendJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true;
+    job.status = "stopped";
+    if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+    res.json({ success: true, message: "ارسال جایگزین متوقف شد" });
 });
 
 // ============================================================
@@ -5642,9 +6296,19 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
 var httpServer = null;
 
 var TCP_RETRY_COUNT = 0;
-var TCP_MAX_RETRIES = 5;
+var TCP_MAX_RETRIES = 10;
 var HTTP_RETRY_COUNT = 0;
-var HTTP_MAX_RETRIES = 5;
+var HTTP_MAX_RETRIES = 10;
+
+// Helper: kill any process using a given port (best-effort)
+function killPortHolder(port) {
+    try {
+        port = parseInt(port, 10);
+        if (!port || port < 1 || port > 65535) return;
+        var child_process = require("child_process");
+        child_process.execSync("fuser -k -9 " + port + "/tcp 2>/dev/null || true", { timeout: 3000 });
+    } catch (e) { /* ignore */ }
+}
 
 tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
     TCP_RETRY_COUNT = 0;
@@ -5659,6 +6323,7 @@ tcpServer.on("error", function (err) {
             return;
         }
         console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES + " in 5s");
+        killPortHolder(TCP_PORT);
         setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
     }
 });
@@ -5676,6 +6341,9 @@ function startHttpServer() {
         console.log("  TCP:  port " + TCP_PORT + " (device data)");
         console.log("  Login: admin / admin123");
         console.log("============================================");
+
+        // Server started successfully - clear crash loop counter
+        try { fs.writeFileSync(CRASH_COUNT_FILE, "0," + Date.now()); } catch (e) {}
 
         rmto.initClient(function (err) {
             if (err) console.error("[RMTO] Will retry on first send");
@@ -5697,6 +6365,7 @@ function startHttpServer() {
                 process.exit(1);
             }
             console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
+            killPortHolder(PORT);
             setTimeout(startHttpServer, 5000);
         }
     });
@@ -5719,6 +6388,14 @@ function gracefulShutdown(signal) {
         var job = testScheduleJobs[k];
         if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
         job.stopped = true; job.status = "stopped";
+    });
+
+    // Stop all proxy send jobs
+    Object.keys(proxySendJobs).forEach(function (k) {
+        var job = proxySendJobs[k];
+        if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+        job.stopped = true;
+        job.status = "stopped";
     });
 
     // Close all active TCP device connections first
@@ -5766,17 +6443,48 @@ cat > "$APP_DIR/server/db.js" << 'ENDOFFILE_SERVER_DB_JS'
 /**
  * Database module - SQLite via better-sqlite3
  * Stores devices, traffic data, and send logs.
+ * Self-healing: if the database file is corrupt, it renames the corrupt file
+ * and creates a fresh database automatically.
  */
 var Database = require("better-sqlite3");
 var path = require("path");
+var fs = require("fs");
 
 var DB_PATH = path.join(__dirname, "data.db");
-var db = new Database(DB_PATH);
+var db;
+
+// Attempt to open database, with self-healing on corruption
+try {
+    db = new Database(DB_PATH);
+} catch (e) {
+    console.error("[DB] Failed to open database: " + e.message);
+    // Try to recover: rename corrupt file and create fresh database
+    try {
+        if (fs.existsSync(DB_PATH)) {
+            var backupName = DB_PATH + ".corrupt." + Date.now();
+            fs.renameSync(DB_PATH, backupName);
+            console.error("[DB] Corrupt database moved to: " + backupName);
+            // Also rename WAL/SHM files if they exist
+            try { if (fs.existsSync(DB_PATH + "-wal")) fs.renameSync(DB_PATH + "-wal", backupName + "-wal"); } catch (e2) {}
+            try { if (fs.existsSync(DB_PATH + "-shm")) fs.renameSync(DB_PATH + "-shm", backupName + "-shm"); } catch (e2) {}
+        }
+        db = new Database(DB_PATH);
+        console.error("[DB] Fresh database created successfully after corruption recovery");
+    } catch (e2) {
+        console.error("[DB] Database recovery failed: " + e2.message);
+        throw e2;
+    }
+}
 
 // Enable WAL mode for better concurrent read performance
-db.pragma("journal_mode = WAL");
+try {
+    db.pragma("journal_mode = WAL");
+} catch (e) {
+    console.error("[DB] Failed to set WAL mode: " + e.message);
+}
 
 // --- Schema ---
+try {
 db.exec([
     // Devices: each has a unique 4-digit code
     "CREATE TABLE IF NOT EXISTS devices (",
@@ -5959,6 +6667,10 @@ db.exec([
     "  value TEXT",
     ");"
 ].join("\n"));
+} catch (schemaErr) {
+    console.error("[DB] Schema creation error: " + schemaErr.message);
+    console.error("[DB] Server may have limited functionality");
+}
 
 // Migration: if rmto_queue_5class has old column names, recreate it
 try {
@@ -7035,19 +7747,19 @@ cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
 [Unit]
 Description=TC Manager (Noavaran Jonoob Shargh)
 After=network.target
+StartLimitBurst=30
+StartLimitIntervalSec=600
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
+ExecStartPre=/bin/bash -c 'fuser -k -9 3000/tcp 2>/dev/null; fuser -k -9 2022/tcp 2>/dev/null; sleep 2; for p in $(ss -tlnp 2>/dev/null | grep -E ":3000|:2022" | grep -oP "pid=\K[0-9]+" | sort -u); do kill -9 $p 2>/dev/null; done; for i in 1 2 3 4 5 6 7 8 9 10; do sleep 1; ss -tlnp 2>/dev/null | grep -qE ":3000|:2022" || break; done; true'
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
+Restart=always
 RestartSec=15
 TimeoutStopSec=10
 KillMode=mixed
-StartLimitBurst=10
-StartLimitIntervalSec=300
 Environment=NODE_ENV=production
 
 [Install]
