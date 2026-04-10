@@ -24,7 +24,14 @@ data class UsbPortConfig(
 )
 
 sealed class UsbSerialEvent {
-    data class DataReceived(val bytes: ByteArray, val timestamp: Long = System.currentTimeMillis()) : UsbSerialEvent()
+    data class DataReceived(
+        val bytes: List<Byte>,
+        val timestamp: Long = System.currentTimeMillis()
+    ) : UsbSerialEvent() {
+        constructor(bytes: ByteArray, timestamp: Long = System.currentTimeMillis()) :
+            this(bytes.toList(), timestamp)
+        fun toByteArray(): ByteArray = bytes.toByteArray()
+    }
     data class Connected(val deviceName: String) : UsbSerialEvent()
     object Disconnected : UsbSerialEvent()
     data class Error(val message: String) : UsbSerialEvent()

@@ -81,7 +81,7 @@ class UsbSerialViewModel(context: Context) : ViewModel() {
                         isConnected = false
                         addLine("اتصال قطع شد", LineType.SYSTEM)
                     }
-                    is UsbSerialEvent.DataReceived -> handleRxData(event.bytes)
+                    is UsbSerialEvent.DataReceived -> handleRxData(event.toByteArray())
                     is UsbSerialEvent.Error -> {
                         errorMessage = event.message
                         addLine("خطا: ${event.message}", LineType.SYSTEM)
@@ -93,22 +93,22 @@ class UsbSerialViewModel(context: Context) : ViewModel() {
     }
 
     private fun handleRxData(bytes: ByteArray) {
-        receiveBuffer.append(bytes.toString(Charsets.ISO_8859_1))
-        // Process complete messages (terminated by newline or when buffer is large enough)
+        receiveBuffer.append(bytes.toString(Charsets.US_ASCII))
+        // Process complete messages split on CR, LF, or CRLF
         val raw = receiveBuffer.toString()
-        val lines = raw.split("\n", "\r\n")
+        val lines = raw.split(Regex("\\r?\\n"))
         for (i in 0 until lines.size - 1) {
             val line = lines[i].trim()
-            if (line.isNotEmpty()) processRxLine(line, bytes)
+            if (line.isNotEmpty()) tryParseProtocolMessage(line)
         }
         // Keep incomplete last segment in buffer
         receiveBuffer = StringBuilder(lines.last())
 
-        // Always display raw bytes
+        // Display raw bytes in terminal
         val display = buildDisplayString(bytes)
         addLine(display, LineType.RX)
 
-        // Try to parse structured messages from buffer content
+        // Try to parse structured messages from accumulated buffer content
         val bufContent = raw.trim()
         when (Ratcx1Parser.identifyMessage(bufContent)) {
             Ratcx1Parser.MessageType.INTERVAL_DATA -> {
@@ -130,14 +130,22 @@ class UsbSerialViewModel(context: Context) : ViewModel() {
         }
     }
 
-    private fun processRxLine(line: String, bytes: ByteArray) { /* handled above */ }
+    private fun tryParseProtocolMessage(line: String) {
+        when (Ratcx1Parser.identifyMessage(line)) {
+            Ratcx1Parser.MessageType.INTERVAL_DATA ->
+                Ratcx1Parser.parseIntervalData(line)?.let { parsedIntervalData = it; showParsedPanel = true }
+            Ratcx1Parser.MessageType.HANDSHAKE ->
+                Ratcx1Parser.parseHandshake(line)?.let { parsedHandshake = it }
+            else -> {}
+        }
+    }
 
     private fun buildDisplayString(bytes: ByteArray): String = when (displayMode) {
-        DisplayMode.ASCII -> bytes.toString(Charsets.ISO_8859_1)
+        DisplayMode.ASCII -> bytes.toString(Charsets.US_ASCII)
             .replace("\r", "").replace("\n", "↵")
         DisplayMode.HEX -> bytes.joinToString(" ") { "%02X".format(it) }
         DisplayMode.BOTH -> {
-            val ascii = bytes.toString(Charsets.ISO_8859_1)
+            val ascii = bytes.toString(Charsets.US_ASCII)
                 .replace("\r", "").replace("\n", "↵")
             val hex = bytes.joinToString(" ") { "%02X".format(it) }
             "$ascii  [$hex]"

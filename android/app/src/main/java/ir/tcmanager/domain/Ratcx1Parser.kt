@@ -31,11 +31,14 @@ object Ratcx1Parser {
      */
     fun buildPoll(offsetMinutes: Int = 0): String {
         val cal = Calendar.getInstance()
-        // Round down to last completed 5-min block
+        // Round down to last completed 5-min block, then subtract offset
         val min = cal.get(Calendar.MINUTE)
-        cal.set(Calendar.MINUTE, (min / 5) * 5 - offsetMinutes)
+        cal.set(Calendar.MINUTE, (min / 5) * 5)
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
+        if (offsetMinutes > 0) {
+            cal.add(Calendar.MINUTE, -offsetMinutes)
+        }
         val fmt = SimpleDateFormat("yyMMddHHmm", Locale.US)
         return "0197${fmt.format(cal.time)}"
     }
@@ -194,7 +197,9 @@ object Ratcx1Parser {
         val totalViolations: Int get() = motorcycle.violations + car.violations + van.violations + bus.violations + truck.violations + other.violations
         val averageSpeed: Int get() {
             val classes = listOf(motorcycle, car, van, bus, truck, other).filter { it.count > 0 }
-            return if (classes.isEmpty()) 0 else classes.sumOf { it.avgSpeed } / classes.size
+            val totalVehiclesInLane = classes.sumOf { it.count }
+            return if (totalVehiclesInLane == 0) 0
+            else classes.sumOf { it.avgSpeed * it.count } / totalVehiclesInLane
         }
     }
 

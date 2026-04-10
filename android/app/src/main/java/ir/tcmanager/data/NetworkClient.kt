@@ -1,5 +1,6 @@
 package ir.tcmanager.data
 
+import ir.tcmanager.BuildConfig
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -25,7 +26,10 @@ object NetworkClient {
 
     private fun buildOkHttp(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = if (BuildConfig.DEBUG)
+                HttpLoggingInterceptor.Level.BODY
+            else
+                HttpLoggingInterceptor.Level.NONE
         }
         return OkHttpClient.Builder()
             .cookieJar(cookieJar)
@@ -45,3 +49,4 @@ object NetworkClient {
             .build()
             .create(ApiService::class.java)
 }
+
