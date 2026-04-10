@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TC Manager</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">خانه</string>
+    <string name="nav_mehvar">محورها</string>
+    <string name="nav_devices">دستگاه‌ها</string>
+    <string name="nav_rmto_logs">لاگ RMTO</string>
+    <string name="nav_settings">تنظیمات</string>
+    <string name="nav_usb_serial">ترمینال USB</string>
+    <string name="nav_rmto_check">چک RMTO</string>
+    <string name="nav_test_tools">ابزار تست</string>
+
+    <!-- General -->
+    <string name="loading">در حال بارگذاری…</string>
+    <string name="retry">تلاش مجدد</string>
+    <string name="save">ذخیره</string>
+    <string name="cancel">انصراف</string>
+    <string name="delete">حذف</string>
+    <string name="edit">ویرایش</string>
+    <string name="add">افزودن</string>
+    <string name="confirm_delete">آیا مطمئن هستید؟</string>
+    <string name="yes">بله</string>
+    <string name="no">خیر</string>
+    <string name="success">موفق</string>
+    <string name="error">خطا</string>
+    <string name="send">ارسال</string>
+    <string name="clear">پاک کردن</string>
+    <string name="refresh">بروزرسانی</string>
+    <string name="connect">اتصال</string>
+    <string name="disconnect">قطع اتصال</string>
+    <string name="connected">متصل</string>
+    <string name="disconnected">قطع</string>
+    <string name="online">آنلاین</string>
+    <string name="offline">آفلاین</string>
+    <string name="active">فعال</string>
+    <string name="inactive">غیرفعال</string>
+    <string name="unknown">نامشخص</string>
+
+    <!-- Login -->
+    <string name="login_title">ورود به سیستم</string>
+    <string name="server_address">آدرس سرور</string>
+    <string name="server_address_hint">مثال: 192.168.1.100:3000</string>
+    <string name="username">نام کاربری</string>
+    <string name="password">رمز عبور</string>
+    <string name="login">ورود</string>
+    <string name="logout">خروج</string>
+
+    <!-- Home / Dashboard -->
+    <string name="home_title">داشبورد</string>
+    <string name="stat_total_devices">کل دستگاه‌ها</string>
+    <string name="stat_online_devices">دستگاه آنلاین</string>
+    <string name="stat_today_vehicles">وسایل نقلیه امروز</string>
+    <string name="stat_unsent_rmto">صف RMTO</string>
+    <string name="live_log">لاگ زنده</string>
+    <string name="last_update">آخرین بروزرسانی</string>
+    <string name="auto_refresh_30s">رفرش خودکار هر ۳۰ ثانیه</string>
+
+    <!-- Mehvar (Routes) -->
+    <string name="mehvar_title">مدیریت محورها</string>
+    <string name="mehvar_code">کد محور (RMTO)</string>
+    <string name="mehvar_name">نام محور</string>
+    <string name="mehvar_ostan">استان</string>
+    <string name="mehvar_send_enable">ارسال فعال</string>
+    <string name="mehvar_repair">در تعمیر</string>
+    <string name="add_mehvar">افزودن محور</string>
+    <string name="edit_mehvar">ویرایش محور</string>
+
+    <!-- Devices -->
+    <string name="devices_title">مدیریت دستگاه‌ها</string>
+    <string name="device_code">کد دستگاه</string>
+    <string name="device_name">نام دستگاه</string>
+    <string name="device_type">نوع دستگاه</string>
+    <string name="device_ip">آدرس IP</string>
+    <string name="device_route">محور</string>
+    <string name="device_route2">محور ۲</string>
+    <string name="device_rid1">RID 1</string>
+    <string name="device_rid2">RID 2</string>
+    <string name="device_firmware">فریمور</string>
+    <string name="device_last_seen">آخرین ارتباط</string>
+    <string name="add_device">افزودن دستگاه</string>
+    <string name="edit_device">ویرایش دستگاه</string>
+    <string name="sync_time">تنظیم ساعت</string>
+    <string name="poll_data">درخواست داده</string>
+    <string name="tcp_connected">متصل از طریق TCP</string>
+
+    <!-- RMTO Logs -->
+    <string name="rmto_logs_title">لاگ‌های RMTO</string>
+    <string name="rmto_log_filter_all">همه</string>
+    <string name="rmto_log_filter_success">موفق</string>
+    <string name="rmto_log_filter_error">خطا</string>
+    <string name="rmto_history">تاریخچه</string>
+    <string name="vehicles">وسایل نقلیه</string>
+    <string name="avg_speed">سرعت میانگین</string>
+
+    <!-- RMTO Check -->
+    <string name="rmto_check_title">چک وضعیت RMTO</string>
+    <string name="rmto_check_run">بررسی اتصال</string>
+    <string name="rmto_check_host">هاست</string>
+    <string name="rmto_check_port">پورت</string>
+    <string name="rmto_check_latency">تأخیر</string>
+    <string name="rmto_check_ok">دسترسی موجود</string>
+    <string name="rmto_check_fail">عدم دسترسی</string>
+    <string name="rmto_check_source">منبع</string>
+    <string name="rmto_queue_title">صف ارسال RMTO</string>
+    <string name="rmto_queue_unsent">در صف</string>
+    <string name="rmto_queue_sent">ارسال شده</string>
+    <string name="rmto_queue_errors">خطاها</string>
+
+    <!-- Settings -->
+    <string name="settings_title">تنظیمات سرور</string>
+    <string name="setting_system_name">نام سیستم</string>
+    <string name="setting_server_port">پورت وب</string>
+    <string name="setting_tcp_port">پورت TCP</string>
+    <string name="setting_refresh_interval">بازه رفرش (ثانیه)</string>
+    <string name="setting_max_speed">حداکثر سرعت</string>
+    <string name="setting_offline_timeout">زمان آفلاین (ثانیه)</string>
+    <string name="setting_rmto_company">کد شرکت RMTO</string>
+    <string name="setting_rmto_username">نام کاربری RMTO</string>
+    <string name="setting_rmto_password">رمز RMTO</string>
+    <string name="setting_rmto_wsdl">آدرس WSDL</string>
+    <string name="setting_rmto_source_ip">IP ارسال RMTO</string>
+    <string name="setting_bale_token">توکن بله</string>
+    <string name="setting_bale_chat_id">Chat ID بله</string>
+    <string name="server_restart">ریستارت سرور</string>
+    <string name="server_restart_confirm">سرور ریستارت خواهد شد. ادامه می‌دهید؟</string>
+    <string name="app_settings_title">تنظیمات اپ</string>
+
+    <!-- USB Serial Terminal -->
+    <string name="usb_title">ترمینال USB Serial</string>
+    <string name="usb_no_device">دستگاه USB یافت نشد</string>
+    <string name="usb_connect">اتصال USB</string>
+    <string name="usb_disconnect">قطع USB</string>
+    <string name="usb_baud_rate">Baud Rate</string>
+    <string name="usb_data_bits">Data Bits</string>
+    <string name="usb_stop_bits">Stop Bits</string>
+    <string name="usb_parity">Parity</string>
+    <string name="usb_send_input_hint">ارسال دستور (مثلاً 0012…)</string>
+    <string name="usb_cmd_handshake">Handshake (8000)</string>
+    <string name="usb_cmd_time_sync">Time Sync (0012)</string>
+    <string name="usb_cmd_poll">Poll Data (0197)</string>
+    <string name="usb_display_ascii">ASCII</string>
+    <string name="usb_display_hex">HEX</string>
+    <string name="usb_display_both">هر دو</string>
+    <string name="usb_newline_lf">LF</string>
+    <string name="usb_newline_crlf">CRLF</string>
+    <string name="usb_newline_none">بدون</string>
+    <string name="usb_parsed_data">داده پارس‌شده</string>
+    <string name="usb_lane1">لاین ۱</string>
+    <string name="usb_lane2">لاین ۲</string>
+    <string name="usb_battery">ولتاژ باتری</string>
+    <string name="usb_solar">ولتاژ خورشیدی</string>
+    <string name="usb_error_byte">کد خطا</string>
+    <string name="usb_permission_required">مجوز دسترسی به USB الزامی است</string>
+    <string name="usb_request_permission">درخواست مجوز</string>
+    <string name="usb_scroll_lock">قفل اسکرول</string>
+    <string name="usb_timestamp">زمان‌بندی</string>
+    <string name="usb_settings">تنظیمات پورت</string>
+
+    <!-- Test Tools -->
+    <string name="test_title">ابزار تست</string>
+    <string name="test_rmto_send">ارسال تست RMTO</string>
+    <string name="test_schedule">زمان‌بندی تست</string>
+    <string name="test_tcp_send">ارسال دستور TCP</string>
+    <string name="test_rid">کد محور (RID)</string>
+    <string name="test_vehicles">تعداد وسایل نقلیه</string>
+    <string name="test_speed">سرعت میانگین</string>
+    <string name="test_duration_days">مدت (روز)</string>
+    <string name="test_run">اجرای تست</string>
+    <string name="test_schedule_start">شروع زمان‌بندی</string>
+    <string name="test_schedule_stop">توقف</string>
+    <string name="test_tcp_device_code">کد دستگاه</string>
+    <string name="test_tcp_command">دستور</string>
+</resources>
