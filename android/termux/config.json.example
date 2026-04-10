@@ -1,0 +1,25 @@
+{
+  "_comment": "این فایل را به config.json کپی کنید و مقادیر را تغییر دهید",
+
+  "source_site": {
+    "url": "https://your-external-site.com",
+    "username": "your_username",
+    "password": "your_password",
+    "login_url": "https://your-external-site.com/login",
+    "report_url": "https://your-external-site.com/report"
+  },
+
+  "tc_manager": {
+    "server_url": "http://192.168.1.100:3000",
+    "username": "admin",
+    "password": "your_tc_manager_password"
+  },
+
+  "scraper": {
+    "interval_seconds": 600,
+    "headless": true,
+    "log_file": "scraper.log",
+    "max_retries": 3,
+    "retry_delay_seconds": 30
+  }
+}
