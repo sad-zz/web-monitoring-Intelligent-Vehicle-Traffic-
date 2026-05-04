@@ -22,6 +22,7 @@
 #include "interval.h"
 #include "variables.h"
 #include "config.h"
+#include "w25q80.h"
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
@@ -160,6 +161,13 @@ void cal_interval(void)
     interval_data[262] = '\r';
     interval_data[263] = '\n';
     interval_data[264] = '\0';
+
+    /* ── Persist to W25Q80 flash ──────────────────────────────────────── */
+    /* ts10 is interval_data[8..17] which was just written above           */
+    char ts10[11];
+    memcpy(ts10, interval_data + 8, 10);
+    ts10[10] = '\0';
+    w25q80_save_interval((uint8_t *)interval_data, ts10);
 
     reset_interval();
 }

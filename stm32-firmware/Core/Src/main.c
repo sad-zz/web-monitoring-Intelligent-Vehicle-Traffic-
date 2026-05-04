@@ -3,7 +3,7 @@
  * @brief STM32F103C8T6 port of RATCX1 traffic counter firmware
  *
  * Original device: dsPIC30F4011 (mikroC compiler, MPLAB IDE)
- * Target device:   STM32F103C8T6 (Blue Pill) + W5500 Ethernet module
+ * Target device:   STM32F103C8T6 (Blue Pill) + Air780 4G LTE + W25Q80 Flash
  * Toolchain:       STM32CubeIDE / arm-none-eabi-gcc + STM32 HAL
  *
  * ─── Pin Assignments ──────────────────────────────────────────────────
@@ -11,23 +11,26 @@
  *  PA0  – ADC1_IN0   Battery voltage (VBAT)
  *  PA1  – ADC1_IN1   Solar panel voltage
  *  PA2  – TIM2_CH3   Input Capture from loop oscillator MUX output
- *  PA4  – GPIO Out   W5500 /CS  (SPI1 chip-select)
- *  PA5  – SPI1_SCK   W5500 clock
- *  PA6  – SPI1_MISO  W5500 MISO
- *  PA7  – SPI1_MOSI  W5500 MOSI
+ *  PA4  – GPIO Out   W25Q80 /CS  (SPI1 chip-select, active-low)
+ *  PA5  – SPI1_SCK   W25Q80 CLK
+ *  PA6  – SPI1_MISO  W25Q80 DO
+ *  PA7  – SPI1_MOSI  W25Q80 DI
  *  PA9  – USART1_TX  Debug / config serial port (115200 baud)
  *  PA10 – USART1_RX
  *
- *  PB0  – GPIO Out   Loop MUX select A (LSB of 2-bit address → selects loop 0-3)
+ *  PB0  – GPIO Out   Loop MUX select A (LSB)
  *  PB1  – GPIO Out   Loop MUX select B (MSB)
- *  PB2  – GPIO Out   W5500 /RST (active-low reset)
- *  PB3  – GPIO In    W5500 INT  (optional interrupt pin)
+ *  PB2  – GPIO Out   W25Q80 /WP  (normally HIGH = write-protect disabled)
+ *  PB3  – GPIO Out   W25Q80 /HOLD (normally HIGH)
  *  PB5  – GPIO Out   onloop[0] LED indicator
  *  PB6  – GPIO Out   onloop[1] LED indicator
  *  PB7  – GPIO Out   onloop[2] LED indicator
  *  PB8  – GPIO Out   onloop[3] LED indicator
  *  PB9  – GPIO Out   connection_state LED
- *  PB10 – GPIO Out   charge_control output
+ *  PB10 – USART3_TX  → Air780 RXD
+ *  PB11 – USART3_RX  ← Air780 TXD
+ *  PB12 – GPIO Out   Air780 PWRKEY (pulse HIGH ≥600ms to power on)
+ *  PB13 – GPIO In    Air780 STATUS (HIGH = module powered on)
  *
  *  PC13 – GPIO Out   System heartbeat LED (Blue Pill built-in, active-low)
  *
@@ -35,22 +38,25 @@
  *  Loop oscillator: 4 inductive loops → 4:1 analogue mux (e.g. CD4052)
  *    Mux A = PB0, Mux B = PB1
  *    Mux output → PA2 (TIM2_CH3 Input Capture)
- *    Oscillator frequency ~100-200 kHz (square wave)
  *
- *  W5500 Ethernet module connected via SPI1 (as above)
+ *  W25Q80 8Mbit SPI NOR Flash on SPI1 (PA4–PA7)
+ *    Stores up to 128 intervals (10.7 hours) for offline recovery.
+ *
+ *  Air780 4G LTE module on USART3 (PB10/PB11) at 115200 baud
+ *    PWRKEY = PB12, STATUS = PB13.
  *
  * ─── Clock configuration ──────────────────────────────────────────────
  *  HSE = 8 MHz crystal → PLL × 9 = 72 MHz SYSCLK
  *  AHB  = 72 MHz
- *  APB1 = 36 MHz (max for APB1)
- *  APB2 = 72 MHz
+ *  APB1 = 36 MHz (max for APB1) – USART3 and TIM4 here
+ *  APB2 = 72 MHz – SPI1, USART1, ADC1, TIM2 here
  *
  * ─── Build notes ──────────────────────────────────────────────────────
  *  1. Create a new STM32F103C8T6 project in STM32CubeIDE
- *  2. Enable: TIM2 (CH3 IC), TIM4 (base), USART1, SPI1, ADC1 (CH0+CH1)
+ *  2. Enable: TIM2 (CH3 IC), TIM4 (base), USART1, USART3, SPI1, ADC1 (CH0+CH1)
  *  3. Copy Core/Src/*.c and Core/Inc/*.h to your project
- *  4. Download WIZnet ioLibrary_Driver and follow Drivers/W5500/README.md
- *  5. Un-comment the ioLibrary calls in w5500_tcp.c
+ *  4. No external library needed (W25Q80 driver is self-contained)
+ *  5. Insert SIM card into Air780 module, set APN in config.h
  *  6. Build and flash with ST-Link
  */
 
@@ -65,13 +71,15 @@
 #include "classification.h"
 #include "interval.h"
 #include "protocol.h"
-#include "w5500_tcp.h"
+#include "air780_tcp.h"
+#include "w25q80.h"
 
 /* ─── HAL peripheral handles ─────────────────────────────────────────── */
 TIM_HandleTypeDef  htim2;   /* Input Capture @1MHz                        */
 TIM_HandleTypeDef  htim4;   /* 1ms tick                                   */
-UART_HandleTypeDef huart1;  /* Debug / config serial port                 */
-SPI_HandleTypeDef  hspi1;   /* W5500 SPI                                  */
+UART_HandleTypeDef huart1;  /* Debug serial port (PA9/PA10)               */
+UART_HandleTypeDef huart3;  /* Air780 4G LTE (PB10/PB11)                  */
+SPI_HandleTypeDef  hspi1;   /* W25Q80 SPI NOR Flash (PA4-PA7)             */
 ADC_HandleTypeDef  hadc1;   /* Battery + solar ADC                        */
 
 /* ─── Global variables (defined here, declared extern in variables.h) ── */
@@ -127,6 +135,7 @@ static void MX_GPIO_Init(void);
 static void MX_TIM2_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_USART3_UART_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_ADC1_Init(void);
 static void load_config(void);
@@ -160,6 +169,7 @@ int main(void)
     MX_TIM2_Init();
     MX_TIM4_Init();
     MX_USART1_UART_Init();
+    MX_USART3_UART_Init();
     MX_SPI1_Init();
     MX_ADC1_Init();
 
@@ -181,12 +191,21 @@ int main(void)
     loop_calibrate();
     debug_print("Calibration done\r\n");
 
-    /* ── Initialise W5500 Ethernet ────────────────────────────────────── */
-    if (w5500_init() != 0) {
-        set_error(MMC_ERR);   /* reuse error bit to signal network init fail */
-        debug_print("W5500 init failed\r\n");
+    /* ── Initialise W25Q80 SPI NOR Flash ────────────────────────────────── */
+    if (w25q80_init() != 0) {
+        set_error(MMC_ERR);
+        debug_print("W25Q80 init failed\r\n");
     } else {
-        debug_print("W5500 ready\r\n");
+        debug_print("W25Q80 ready\r\n");
+    }
+
+    /* ── Initialise Air780 4G LTE module ─────────────────────────────────── */
+    debug_print("Air780 init...\r\n");
+    if (air780_init() != 0) {
+        set_error(VMN_ERR);   /* reuse error bit for modem fail */
+        debug_print("Air780 init failed\r\n");
+    } else {
+        debug_print("Air780 ready\r\n");
     }
 
     /* ── Initialise protocol layer ────────────────────────────────────── */
@@ -252,6 +271,9 @@ int main(void)
 
         /* ── Protocol task (TCP communication) ───────────────────────── */
         protocol_task();
+
+        /* ── Air780 background task (drain UART RX, process URCs) ───── */
+        air780_task();
     }
 }
 
@@ -334,8 +356,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /** TIM4 and TIM2 IRQ handlers – forward to HAL */
-void TIM4_IRQHandler(void)  { HAL_TIM_IRQHandler(&htim4); }
-void TIM2_IRQHandler(void)  { HAL_TIM_IRQHandler(&htim2); }
+void TIM4_IRQHandler(void)   { HAL_TIM_IRQHandler(&htim4); }
+void TIM2_IRQHandler(void)   { HAL_TIM_IRQHandler(&htim2); }
+
+/** USART3 IRQ handler – forward received bytes to Air780 driver */
+void USART3_IRQHandler(void) { air780_uart_irq(); }
 
 /* ─────────────────────────────────────────────────────────────────────── */
 /*                     Peripheral initialisation                           */
@@ -373,18 +398,23 @@ static void MX_GPIO_Init(void)
     __HAL_RCC_GPIOC_CLK_ENABLE();
 
     /* ── Outputs ──────────────────────────────────────────────────────── */
-    /* PA4 = W5500 /CS, PA8 = spare */
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);  /* CS idle high */
+    /* PA4 = W25Q80 /CS (active-low, idle HIGH) */
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
     GPIO_InitStruct.Pin   = GPIO_PIN_4;
     GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    /* PB0=MUX_A, PB1=MUX_B, PB2=W5500_RST, PB5-PB10 = status outputs */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, GPIO_PIN_SET);  /* RST idle high */
-    GPIO_InitStruct.Pin  = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 |
+    /* PB0=MUX_A, PB1=MUX_B,
+     * PB2=/WP (W25Q80 write-protect, HIGH = disabled),
+     * PB3=/HOLD (W25Q80 hold, HIGH = not held),
+     * PB5-PB9=status LEDs,
+     * PB12=Air780 PWRKEY (idle LOW) */
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2 | GPIO_PIN_3, GPIO_PIN_SET);   /* /WP, /HOLD high */
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_RESET);              /* PWRKEY idle low */
+    GPIO_InitStruct.Pin  = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 |
                            GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7 |
-                           GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10;
+                           GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_12;
     GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
     GPIO_InitStruct.Speed= GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -397,10 +427,10 @@ static void MX_GPIO_Init(void)
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
     /* ── Inputs ───────────────────────────────────────────────────────── */
-    /* PB3 = W5500 INT (optional) */
-    GPIO_InitStruct.Pin  = GPIO_PIN_3;
+    /* PB13 = Air780 STATUS (HIGH = module on) */
+    GPIO_InitStruct.Pin  = GPIO_PIN_13;
     GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
@@ -457,7 +487,7 @@ static void MX_TIM4_Init(void)
 
 static void MX_USART1_UART_Init(void)
 {
-    /* USART1: PA9=TX, PA10=RX, 115200 8N1 (same as original UART1) */
+    /* USART1: PA9=TX, PA10=RX, 115200 8N1 (debug port) */
     __HAL_RCC_USART1_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
 
@@ -483,9 +513,45 @@ static void MX_USART1_UART_Init(void)
     HAL_UART_Init(&huart1);
 }
 
+static void MX_USART3_UART_Init(void)
+{
+    /* USART3: PB10=TX, PB11=RX, 115200 8N1 → Air780 4G LTE module
+     * USART3 is on APB1 (36 MHz) so BRR is calculated from 36MHz. */
+    __HAL_RCC_USART3_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin   = GPIO_PIN_10;           /* TX → Air780 RXD */
+    GPIO_InitStruct.Mode  = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin  = GPIO_PIN_11;            /* RX ← Air780 TXD */
+    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    huart3.Instance          = USART3;
+    huart3.Init.BaudRate     = AIR780_UART_BAUD;
+    huart3.Init.WordLength   = UART_WORDLENGTH_8B;
+    huart3.Init.StopBits     = UART_STOPBITS_1;
+    huart3.Init.Parity       = UART_PARITY_NONE;
+    huart3.Init.Mode         = UART_MODE_TX_RX;
+    huart3.Init.HwFlowCtl   = UART_HWCONTROL_NONE;
+    huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+    HAL_UART_Init(&huart3);
+
+    /* Enable RXNE interrupt so air780_uart_irq() is called on each received byte */
+    __HAL_UART_ENABLE_IT(&huart3, UART_IT_RXNE);
+    HAL_NVIC_SetPriority(USART3_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(USART3_IRQn);
+}
+
 static void MX_SPI1_Init(void)
 {
-    /* SPI1: PA5=SCK, PA6=MISO, PA7=MOSI (W5500) */
+    /* SPI1: PA5=SCK, PA6=MISO, PA7=MOSI → W25Q80 SPI NOR Flash
+     * W25Q80 supports CPOL=0 CPHA=0 (SPI Mode 0) at up to 80 MHz.
+     * We use prescaler /4 → 18 MHz to stay well within spec. */
     __HAL_RCC_SPI1_CLK_ENABLE();
 
     GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -504,8 +570,8 @@ static void MX_SPI1_Init(void)
     hspi1.Init.Mode              = SPI_MODE_MASTER;
     hspi1.Init.Direction         = SPI_DIRECTION_2LINES;
     hspi1.Init.DataSize          = SPI_DATASIZE_8BIT;
-    hspi1.Init.CLKPolarity       = SPI_POLARITY_LOW;
-    hspi1.Init.CLKPhase          = SPI_PHASE_1EDGE;
+    hspi1.Init.CLKPolarity       = SPI_POLARITY_LOW;   /* CPOL=0 */
+    hspi1.Init.CLKPhase          = SPI_PHASE_1EDGE;    /* CPHA=0 */
     hspi1.Init.NSS               = SPI_NSS_SOFT;
     hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;  /* 72/4=18MHz */
     hspi1.Init.FirstBit          = SPI_FIRSTBIT_MSB;

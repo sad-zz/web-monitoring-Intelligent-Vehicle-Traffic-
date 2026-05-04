@@ -3,11 +3,9 @@
  * @brief RATCX1 TCP protocol handler
  *
  * جایگزین state machine GPRS/SIM900 در فریمور اصلی.
- * به جای AT commands ماژول GSM، از W5500 Ethernet استفاده می‌شود.
- *
- * The original firmware used a ~10-state GPRS state machine spread across
- * hundreds of lines. W5500 TCP socket API eliminates all of that complexity:
- * connect() / send() / recv() directly replace the AT command dance.
+ * به جای AT commands ماژول GSM، از Air780 4G LTE استفاده می‌شود.
+ * Air780 همان API عمومی tcp_connect/tcp_send/tcp_recv/tcp_is_connected را
+ * ارائه می‌دهد بنابراین این فایل بدون تغییر منطقی کار می‌کند.
  *
  * Protocol messages (same as original – server is unchanged):
  *   → 8000 + datetime(21) + sysId(8) + model + version + "READY"   (handshake)
@@ -18,9 +16,10 @@
  */
 
 #include "protocol.h"
-#include "w5500_tcp.h"
+#include "air780_tcp.h"
 #include "variables.h"
 #include "interval.h"
+#include "w25q80.h"
 #include "config.h"
 
 #include "stm32f1xx_hal.h"
@@ -106,15 +105,19 @@ static void send_interval_response(void)
 /**
  * Parse a "0197YYMMDDHHmm" request and respond with 8821.
  * If the requested timestamp matches the last stored interval, send it.
- * Otherwise send an all-zero interval with the requested timestamp.
+ * Otherwise try to load from W25Q80 flash; if not found, send zeroed data.
  */
 static void handle_data_request(const char *msg, uint16_t len)
 {
     if (len < 14) return;   /* "0197" + 10-char timestamp */
 
-    /* Check if interval_data timestamp matches request */
-    const char *req_ts = msg + 4;   /* points to YYMMDDHHmm (10 chars) */
+    /* Points to YYMMDDHHmm (10 chars) */
+    const char *req_ts = msg + 4;
+    char ts10[11];
+    memcpy(ts10, req_ts, 10);
+    ts10[10] = '\0';
 
+    /* 1. Check if interval_data in RAM already has the right timestamp */
     int match = (interval_data[8]  == req_ts[0] &&
                  interval_data[9]  == req_ts[1] &&
                  interval_data[10] == req_ts[2] &&
@@ -127,19 +130,21 @@ static void handle_data_request(const char *msg, uint16_t len)
                  interval_data[17] == req_ts[9]);
 
     if (!match) {
-        /* Server is asking for a period we don't have – send zeroed interval
-         * with the requested timestamp so the server records it */
-        reset_interval_data();
-        interval_data[8]  = req_ts[0];
-        interval_data[9]  = req_ts[1];
-        interval_data[10] = req_ts[2];
-        interval_data[11] = req_ts[3];
-        interval_data[12] = req_ts[4];
-        interval_data[13] = req_ts[5];
-        interval_data[14] = req_ts[6];
-        interval_data[15] = req_ts[7];
-        interval_data[16] = req_ts[8];
-        interval_data[17] = req_ts[9];
+        /* 2. Try to load from W25Q80 flash */
+        if (!w25q80_load_interval(ts10, (uint8_t *)interval_data)) {
+            /* 3. Not found in flash – send zeroed interval with requested timestamp */
+            reset_interval_data();
+            interval_data[8]  = req_ts[0];
+            interval_data[9]  = req_ts[1];
+            interval_data[10] = req_ts[2];
+            interval_data[11] = req_ts[3];
+            interval_data[12] = req_ts[4];
+            interval_data[13] = req_ts[5];
+            interval_data[14] = req_ts[6];
+            interval_data[15] = req_ts[7];
+            interval_data[16] = req_ts[8];
+            interval_data[17] = req_ts[9];
+        }
     }
 
     send_interval_response();

@@ -12,7 +12,7 @@
  *   Device → Server:  8821 + datetime(21) + intervalData(262) + CR + LF
  *
  * This module replaces the SIM900/GPRS state machine in the original firmware.
- * TCP connection is handled by the W5500 Ethernet chip (see w5500_tcp.h).
+ * TCP connection is handled by the Air780 4G LTE module (see air780_tcp.h).
  */
 
 #ifndef PROTOCOL_H
@@ -20,7 +20,7 @@
 
 #include <stdint.h>
 
-/** Initialise the protocol layer (call once after W5500 init) */
+/** Initialise the protocol layer (call once after air780_init) */
 void protocol_init(void);
 
 /** Main protocol task – call from main loop as fast as possible.

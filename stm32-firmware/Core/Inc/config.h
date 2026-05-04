@@ -6,7 +6,7 @@
  * تمام مقادیر قابل تنظیم در اینجا تعریف شده‌اند.
  *
  * Original device: dsPIC30F4011 (RATCX1)
- * Target device:   STM32F103C8T6 (Blue Pill) + W5500 Ethernet
+ * Target device:   STM32F103C8T6 (Blue Pill) + Air780 4G LTE + W25Q80 Flash
  */
 
 #ifndef CONFIG_H
@@ -20,6 +20,13 @@
 /* ─── Server Connection ───────────────────────────────────────────────── */
 #define SERVER_IP       {192, 168, 1, 100}  /* TC Manager server IP               */
 #define SERVER_PORT     2022                /* TCP port                           */
+
+/* ─── Air780 4G LTE settings ─────────────────────────────────────────── */
+/* APN تنظیم اپراتور: برای ایران‌سل "mtnirancell"، ایرانسل "mci"، رایتل "rtl" */
+#define AIR780_APN      "internet"          /* APN name – match your SIM operator */
+
+/* TCP receive buffer (must match air780_tcp.c RX_DATA_SZ) */
+#define TCP_RX_BUF      512
 
 /* ─── Active Loops (1=enabled, 0=disabled) ───────────────────────────── */
 /* Lane 1 uses loop 0 (far) + loop 1 (near) for bidirectional detection   */

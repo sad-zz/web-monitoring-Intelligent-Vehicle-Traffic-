@@ -23,8 +23,8 @@
 این پروژه فریمور دستگاه شمارشگر ترافیکی **RATCX1** (دستگاه اصلی با `dsPIC30F4011`) را به
 میکروکنترلر **STM32F103C8T6** (Blue Pill) پورت می‌کند.
 
-به جای ماژول GSM/GPRS **SIM900** در دستگاه اصلی، از ماژول Ethernet **W5500** استفاده می‌شود.
-این تغییر ارتباط TCP با سرور TC Manager را بسیار ساده‌تر می‌کند.
+به جای ماژول GSM/GPRS **SIM900** در دستگاه اصلی، از ماژول **Air780 4G LTE** استفاده می‌شود.
+علاوه بر آن، برای ذخیره آفلاین داده‌های بازه‌ای، یک **W25Q80 8Mbit SPI NOR Flash** اضافه شده است.
 
 ### مقایسه دستگاه‌ها
 
@@ -34,8 +34,9 @@
 | سرعت | 40 MIPS | 72 MHz |
 | Flash | 48 KB | 64 KB |
 | RAM | 2 KB | 20 KB |
-| شبکه | SIM900 (GPRS/TCP) | W5500 (Ethernet/TCP) |
-| قیمت تقریبی | گران و کمیاب | ~۳ دلار |
+| شبکه | SIM900 (GPRS/TCP) | Air780 (4G LTE/TCP) |
+| حافظه آفلاین | SD/MMC Card | W25Q80 1MB NOR Flash |
+| قیمت تقریبی | گران و کمیاب | ~۱۰ دلار |
 | ابزار توسعه | MPLAB + mikroC | STM32CubeIDE (رایگان) |
 
 ---
@@ -44,7 +45,8 @@
 
 ### اجزای اصلی
 - **STM32F103C8T6** (Blue Pill) یا هر برد مشابه
-- **W5500** ماژول Ethernet (مثل: WIZnet W5500-EVB یا ماژول‌های ارزان چینی)
+- **Air780E** ماژول 4G LTE (با سیم‌کارت داخلی)
+- **W25Q80DV** ماژول SPI NOR Flash 8Mbit (برای ذخیره آفلاین)
 - **4 عدد لوپ القایی** (Inductive Loop) + آسیلاتور برای هر لوپ
 - **مالتی‌پلکسر 4:1** آنالوگ (مثل CD4052 یا 74HC4052)
 - **مقسم ولتاژ** برای ADC باتری و پنل خورشیدی
@@ -70,23 +72,26 @@
          Oscillator MUX →┤ PA2  TIM2_CH3 (IC)      │
               VBAT ADC  →┤ PA0  ADC1_IN0            │
              Solar ADC  →┤ PA1  ADC1_IN1            │
-           W5500 /CS   ←─┤ PA4  SPI1_NSS            │
-           W5500 SCK   ←─┤ PA5  SPI1_SCK            │
-           W5500 MISO   →┤ PA6  SPI1_MISO           │
-           W5500 MOSI  ←─┤ PA7  SPI1_MOSI           │
+           W25Q80 /CS  ←─┤ PA4  SPI1_NSS            │
+           W25Q80 CLK  ←─┤ PA5  SPI1_SCK            │
+           W25Q80 DO    →┤ PA6  SPI1_MISO           │
+           W25Q80 DI   ←─┤ PA7  SPI1_MOSI           │
           Debug TX UART←─┤ PA9  USART1_TX           │
           Debug RX UART →┤ PA10 USART1_RX           │
                          │                          │
           MUX Select A  ←─┤ PB0  GPIO Out            │
           MUX Select B  ←─┤ PB1  GPIO Out            │
-           W5500 /RST  ←─┤ PB2  GPIO Out            │
-            W5500 INT   →┤ PB3  GPIO In             │
+          W25Q80 /WP   ←─┤ PB2  GPIO Out (HIGH)     │
+          W25Q80 /HOLD ←─┤ PB3  GPIO Out (HIGH)     │
           onloop[0] LED←─┤ PB5  GPIO Out            │
           onloop[1] LED←─┤ PB6  GPIO Out            │
           onloop[2] LED←─┤ PB7  GPIO Out            │
           onloop[3] LED←─┤ PB8  GPIO Out            │
        Connection LED  ←─┤ PB9  GPIO Out            │
-      Charge Control   ←─┤ PB10 GPIO Out            │
+         Air780 TX     ←─┤ PB10 USART3_TX           │
+         Air780 RX      →┤ PB11 USART3_RX           │
+         Air780 PWRKEY ←─┤ PB12 GPIO Out            │
+         Air780 STATUS  →┤ PB13 GPIO In             │
                          │                          │
         Heartbeat LED  ←─┤ PC13 (Built-in LED)      │
                         └─────────────────────────┘
@@ -112,23 +117,27 @@ stm32-firmware/
 ├── Core/
 │   ├── Inc/
 │   │   ├── main.h
-│   │   ├── config.h             ← تنظیمات دستگاه (جایگزین EEPROM)
+│   │   ├── config.h             ← تنظیمات دستگاه (APN، IP سرور، …)
 │   │   ├── variables.h          ← متغیرهای سراسری
 │   │   ├── loop_detector.h      ← تشخیص لوپ
 │   │   ├── classification.h     ← طبقه‌بندی وسیله نقلیه
 │   │   ├── interval.h           ← داده‌های بازه‌ای
 │   │   ├── protocol.h           ← پروتکل RATCX1
-│   │   └── w5500_tcp.h          ← درایور Ethernet
+│   │   ├── air780_tcp.h         ← درایور Air780 4G LTE
+│   │   └── w25q80.h             ← درایور W25Q80 Flash
 │   └── Src/
 │       ├── main.c               ← تابع main، init پریفرال‌ها، حلقه اصلی
 │       ├── loop_detector.c      ← اندازه‌گیری فرکانس و تشخیص وسیله
 │       ├── classification.c     ← محاسبه سرعت، طول، طبقه
-│       ├── interval.c           ← ساخت رشته ۲۶۲ کاراکتری ۸۸۲۱
-│       ├── protocol.c           ← پروتکل TCP (جایگزین state machine GPRS)
-│       └── w5500_tcp.c          ← wrapper برای کتابخانه WIZnet
+│       ├── interval.c           ← ساخت رشته ۲۶۲ کاراکتری ۸۸۲۱ + ذخیره Flash
+│       ├── protocol.c           ← پروتکل TCP
+│       ├── air780_tcp.c         ← AT command driver برای Air780
+│       └── w25q80.c             ← SPI NOR Flash driver (بدون کتابخانه خارجی)
 └── Drivers/
-    └── W5500/
-        └── README.md            ← دستورالعمل دریافت کتابخانه WIZnet
+    ├── Air780/
+    │   └── README.md            ← راهنمای اتصال و APN
+    └── W25Q80/
+        └── README.md            ← راهنمای اتصال و طرح ذخیره
 ```
 
 ---
@@ -143,27 +152,29 @@ stm32-firmware/
 | IC7 Input Capture | `Capture_Int_Lib.h` | TIM2_CH3 IC | `loop_detector.c` |
 | `measure_loops()` | `91-7.c:254` | `measure_loops()` | `classification.c` |
 | `cal_class()` | `Classification.h:25` | `cal_class()` | `classification.c` |
-| `cal_interval()` | `Interval.h:103` | `cal_interval()` | `interval.c` |
-| GPRS/SIM900 state machine | `91-7.c:703-986` | W5500 TCP socket | `protocol.c` + `w5500_tcp.c` |
+| `cal_interval()` | `Interval.h:103` | `cal_interval()` + Flash save | `interval.c` + `w25q80.c` |
+| GPRS/SIM900 state machine | `91-7.c:703-986` | Air780 4G AT driver | `protocol.c` + `air780_tcp.c` |
 | `rtc_read/write()` | `DS1305_Lib.h` | Software RTC در TIM4 ISR | `loop_detector.c` |
 | EEPROM read/write | `91-7.c:232` | config.h constants | `config.h` |
+| MMC/SD Card storage | `91-7.c:Mmc_Read/Write` | W25Q80 SPI NOR Flash | `w25q80.c` |
 | UART1 (debug) | `UART_Int_Lib.h` | USART1 | `main.c` |
 | ADC1 (VBAT/Solar) | `91-7.c:518` | ADC1 CH0/CH1 | `main.c` |
 
-### تغییر اصلی: GPRS → Ethernet
+### تغییر اصلی: GPRS → 4G LTE
 
 در فریمور اصلی، ارتباط با سرور از طریق ماژول **SIM900** و دستورات AT انجام می‌شد.
-این State Machine پیچیده (~300 خط) شامل:
-```
-CIPSHUT → CSTT (APN) → CIICR → CIFSR → CIPSTART → CIPSEND → داده
+در پورت STM32، از **Air780 4G LTE** استفاده می‌شود که همان API TCP را ارائه می‌دهد:
+```c
+tcp_connect(server_ip, port);
+tcp_send(data, len);
+tcp_recv(buf, len);
 ```
 
-در پورت STM32، این کل پیچیدگی با سه تابع ساده جایگزین شده:
-```c
-tcp_connect(server_ip, port);   // اتصال مستقیم TCP
-tcp_send(data, len);            // ارسال داده
-tcp_recv(buf, len);             // دریافت داده
-```
+### تغییر جدید: SD Card → W25Q80 Flash
+
+داده‌های بازه‌ای که در دستگاه اصلی روی MMC/SD Card ذخیره می‌شدند،
+حالا روی **W25Q80 SPI NOR Flash** ذخیره می‌شوند (128 اسلات = 10.7 ساعت آفلاین).
+وقتی سرور با پیام `0197` داده‌ای از گذشته را درخواست می‌کند، firmware ابتدا Flash را بررسی می‌کند.
 
 ---
 
@@ -180,20 +191,17 @@ Name: RATCX1-STM32
 ### ۲. کپی فایل‌های این پروژه
 تمام فایل‌های `Core/Src/*.c` و `Core/Inc/*.h` را به پروژه اضافه کنید.
 
-### ۳. دریافت کتابخانه W5500
-راهنمای `Drivers/W5500/README.md` را دنبال کنید.
+### ۳. تنظیم APN سیم‌کارت
+فایل `Core/Inc/config.h`:
+```c
+#define AIR780_APN  "mtnirancell"  // ایران‌سل، یا "mcinet" برای MCI
+```
 
-### ۴. تنظیم آدرس IP
+### ۴. تنظیم آدرس IP سرور
 فایل `Core/Inc/config.h`:
 ```c
 #define SERVER_IP    {192, 168, 1, 100}  // IP سرور TC Manager شما
 #define SERVER_PORT  2022
-```
-
-فایل `Core/Inc/w5500_tcp.h`:
-```c
-#define W5500_IP    {192, 168, 1, 200}   // IP که به دستگاه می‌دهید
-#define W5500_GW    {192, 168, 1, 1}     // درگاه پیش‌فرض
 ```
 
 ### ۵. تنظیم شناسه دستگاه
@@ -202,10 +210,7 @@ Name: RATCX1-STM32
 #define SYSTEM_ID   "10001704"  // باید با آنچه در سرور ثبت شده مطابقت داشته باشد
 ```
 
-### ۶. فعال‌سازی کتابخانه W5500
-در `Core/Src/w5500_tcp.c` قسمت‌های کامنت‌شده را فعال کنید.
-
-### ۷. Build و Flash
+### ۶. Build و Flash
 ```
 Project → Build All  (Ctrl+B)
 Run → Debug          (F11)
@@ -243,20 +248,16 @@ Run → Debug          (F11)
 ## تفاوت‌های کلیدی
 
 ### ۱. ارتباط شبکه
-- **اصلی:** SIM900 GPRS + AT commands (نیاز به سیم‌کارت و شبکه موبایل)
-- **جدید:** W5500 Ethernet (نیاز به کابل شبکه یا سوئیچ)
-
-اگر در محل نصب اینترنت سیمی وجود ندارد، می‌توان از یک **مبدل Ethernet-to-WiFi** (مثل GL-MT300N) استفاده کرد.
+- **اصلی:** SIM900 GPRS + AT commands
+- **جدید:** Air780 4G LTE + AT commands (سریع‌تر، پوشش بهتر در ایران)
 
 ### ۲. ذخیره تنظیمات
 - **اصلی:** EEPROM داخلی dsPIC
 - **جدید:** ثابت‌های `config.h` در Flash (یا Flash Emulated EEPROM برای تنظیم پویا)
 
-### ۳. ذخیره داده (SD Card)
+### ۳. ذخیره داده (SD Card → Flash)
 - **اصلی:** MMC/SD card روی SPI برای ذخیره بازه‌ها
-- **جدید:** حذف شده (سرور TC Manager داده‌ها را دریافت و ذخیره می‌کند)
-
-اگر نیاز به SD card دارید، می‌توانید SPI2 (PB12-PB15) را برای آن اضافه کنید.
+- **جدید:** W25Q80 1MB SPI NOR Flash (128 اسلات × 5min = 10.7 ساعت ذخیره آفلاین)
 
 ### ۴. ساعت
 - **اصلی:** DS1305 RTC خارجی روی SPI
@@ -316,7 +317,9 @@ Baud: 115200
 RATCX1-STM32 started
 Calibrating loops...
 Calibration done
-W5500 ready
+W25Q80 ready
+Air780 init...
+Air780 ready
 Interval ready           ← هر ۵ دقیقه
 ```
 
