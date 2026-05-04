@@ -146,6 +146,11 @@ void cal_class(uint16_t lane)
     } while(0)
 
     if (lane == 0) {
+        /* Class X is used for two distinct cases:
+         *   1. Too short  (< LIMX_val): likely noise, debris, or narrow vehicle
+         *   2. Too long   (> LIMITE_val): oversized load, multi-trailer
+         * Both are reported as 'X' to match the original firmware behaviour and
+         * the RMTO SOAP C5 mapping (C5 = e + x). */
         if      (vehicle_length < LIMX_val)   UPDATE_CLASS('X', current_interval.l1xcount, current_interval.l1xspeed, current_interval.l1xgrab, current_interval.l1xheadway, totalv1x);
         else if (vehicle_length < LIMA_val)   UPDATE_CLASS('A', current_interval.l1acount, current_interval.l1aspeed, current_interval.l1agrab, current_interval.l1aheadway, totalv1a);
         else if (vehicle_length < LIMB_val)   UPDATE_CLASS('B', current_interval.l1bcount, current_interval.l1bspeed, current_interval.l1bgrab, current_interval.l1bheadway, totalv1b);

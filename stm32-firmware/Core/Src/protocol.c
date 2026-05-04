@@ -92,7 +92,7 @@ static void send_time_ack(void)
 }
 
 /** Send 8821 interval response: "8821" + datetime(21) + intervalData(264) */
-static void send_interval_response(const char *ts10)
+static void send_interval_response(void)
 {
     char header[32];
     int  hlen;
@@ -101,7 +101,6 @@ static void send_interval_response(const char *ts10)
     tcp_send((uint8_t *)header, (uint16_t)hlen);
     /* interval_data already has CRLF at [262-263] */
     tcp_send((uint8_t *)interval_data, 264);
-    (void)ts10;
 }
 
 /**
@@ -143,7 +142,7 @@ static void handle_data_request(const char *msg, uint16_t len)
         interval_data[17] = req_ts[9];
     }
 
-    send_interval_response(req_ts);
+    send_interval_response();
 }
 
 /**

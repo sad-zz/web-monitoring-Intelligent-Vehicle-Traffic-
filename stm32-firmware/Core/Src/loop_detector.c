@@ -69,9 +69,12 @@ void loop_detector_isr(void)
         ic_prev_capture = ic_last_capture;
         ic_updated = 0;
 
+        /* period == 0 means the capture timestamp did not advance, which
+         * indicates no oscillator edge arrived since the last ISR tick.
+         * This is treated as a lost signal (loop error), not a valid
+         * zero-period measurement which is physically impossible. */
         if (period == 0)
         {
-            /* No new capture → loop oscillator dead / no signal */
             dev[current_loop] = 0;
             switch (current_loop) {
                 case 0: set_error(LP1_ERR); break;
