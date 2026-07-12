@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TC Manager</string>
+
+    <!-- ناوبری -->
+    <string name="nav_dashboard">داشبورد</string>
+    <string name="nav_devices">دستگاه‌ها</string>
+    <string name="nav_rmto">راهداری</string>
+    <string name="nav_terminal">ترمینال</string>
+    <string name="nav_settings">تنظیمات</string>
+
+    <!-- دستگاه‌ها -->
+    <string name="devices_title">وضعیت دستگاه‌ها</string>
+    <string name="devices_refresh_hint">برای به‌روزرسانی به پایین بکشید</string>
+    <string name="devices_empty">دستگاهی یافت نشد. تنظیمات سرور را بررسی کنید.</string>
+    <string name="devices_login_error">خطا در ورود به سرور: %1$s</string>
+    <string name="devices_load_error">خطا در دریافت اطلاعات: %1$s</string>
+    <string name="status_online">آنلاین</string>
+    <string name="status_offline">آفلاین</string>
+    <string name="status_warning">هشدار</string>
+    <string name="status_error">خطا</string>
+    <string name="device_tcp_connected">اتصال TCP زنده</string>
+    <string name="stats_summary">کل: %1$d | آنلاین: %2$d | اتصال زنده TCP: %3$d</string>
+    <string name="device_last_seen">آخرین ارتباط: %1$s</string>
+    <string name="device_sync_time">تنظیم ساعت</string>
+    <string name="device_poll">درخواست داده</string>
+
+    <!-- ترمینال -->
+    <string name="terminal_title">ترمینال سریال RATCX1</string>
+    <string name="terminal_mode_usb">USB (کابل)</string>
+    <string name="terminal_mode_tcp">WiFi (ESP01)</string>
+    <string name="terminal_connect">اتصال</string>
+    <string name="terminal_disconnect">قطع اتصال</string>
+    <string name="terminal_send">ارسال</string>
+    <string name="terminal_input_hint">فرمان (مثلاً 0088)</string>
+    <string name="terminal_connected_usb">✅ اتصال USB برقرار شد (%1$d بیت‌درثانیه)</string>
+    <string name="terminal_connected_tcp">✅ اتصال TCP برقرار شد: %1$s:%2$d</string>
+    <string name="terminal_disconnected">⛔ اتصال قطع شد</string>
+    <string name="terminal_no_usb_device">مبدل USB سریال پیدا نشد. کابل OTG و مبدل را بررسی کنید.</string>
+    <string name="terminal_usb_permission_denied">مجوز دسترسی USB رد شد.</string>
+    <string name="terminal_error">خطا: %1$s</string>
+    <string name="terminal_not_connected">ابتدا اتصال را برقرار کنید.</string>
+    <string name="terminal_commands">فرمان‌ها</string>
+    <string name="terminal_decode_error">رمزگشای خطا</string>
+    <string name="terminal_decode_hint">کد خطا (مثلاً 24)</string>
+    <string name="terminal_decode_none">هیچ خطایی فعال نیست (کد صفر)</string>
+    <string name="terminal_clear">پاک کردن</string>
+    <string name="terminal_confirm_reset">آیا از ریست دستگاه مطمئن هستید؟</string>
+    <string name="yes">بله</string>
+    <string name="no">خیر</string>
+    <string name="ok">تأیید</string>
+    <string name="cancel">انصراف</string>
+
+    <!-- تنظیمات -->
+    <string name="settings_title">تنظیمات</string>
+    <string name="settings_server_section">سرور مانیتورینگ (TC Manager)</string>
+    <string name="settings_server_url">آدرس پنل (مثلاً http://192.168.1.10:3000)</string>
+    <string name="settings_server_user">نام کاربری پنل</string>
+    <string name="settings_server_pass">رمز عبور پنل</string>
+    <string name="settings_rmto_section">سایت راهداری (RMTO)</string>
+    <string name="settings_rmto_url">آدرس سایت راهداری</string>
+    <string name="settings_rmto_user">نام کاربری راهداری</string>
+    <string name="settings_rmto_pass">رمز عبور راهداری</string>
+    <string name="settings_serial_section">ترمینال سریال</string>
+    <string name="settings_baud">سرعت پورت سریال (باود)</string>
+    <string name="settings_tcp_host">آدرس ESP01 (مثلاً 192.168.4.1)</string>
+    <string name="settings_tcp_port">پورت TCP ماژول ESP01</string>
+    <string name="settings_save">ذخیره تنظیمات</string>
+    <string name="settings_saved">تنظیمات ذخیره شد ✅</string>
+    <string name="settings_note">اطلاعات ورود فقط روی همین گوشی و در حافظه خصوصی برنامه ذخیره می‌شود.</string>
+
+    <!-- RMTO -->
+    <string name="rmto_autologin">ورود خودکار</string>
+    <string name="rmto_no_credentials">نام کاربری/رمز راهداری را در تنظیمات وارد کنید.</string>
+
+    <!-- وب‌ویو -->
+    <string name="web_no_url">آدرس تنظیم نشده است. به تنظیمات بروید.</string>
+</resources>

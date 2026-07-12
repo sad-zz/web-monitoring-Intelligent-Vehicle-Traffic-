@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_server_section" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_server_url">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_server_url"
+                style="@style/SettingsEditLtr" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_server_user">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_server_user"
+                style="@style/SettingsEditLtr" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_server_pass">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_server_pass"
+                style="@style/SettingsEditLtr"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_rmto_section" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_rmto_url">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_rmto_url"
+                style="@style/SettingsEditLtr" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_rmto_user">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_rmto_user"
+                style="@style/SettingsEditLtr" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_rmto_pass">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_rmto_pass"
+                style="@style/SettingsEditLtr"
+                android:inputType="textPassword" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            style="@style/SettingsSection"
+            android:text="@string/settings_serial_section" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_baud">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_baud"
+                style="@style/SettingsEditLtr"
+                android:inputType="number" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_tcp_host">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_tcp_host"
+                style="@style/SettingsEditLtr" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            style="@style/SettingsField"
+            android:hint="@string/settings_tcp_port">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edit_tcp_port"
+                style="@style/SettingsEditLtr"
+                android:inputType="number" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_save"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/settings_save" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary"
+            android:text="@string/settings_note" />
+    </LinearLayout>
+</ScrollView>

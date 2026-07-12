@@ -14,8 +14,14 @@ web-monitoring-Intelligent-Vehicle-Traffic-/
 │   └── style.css          # All styles (sidebar, tables, modals, responsive)
 ├── js/
 │   └── app.js             # Application logic (navigation, CRUD, pagination, export)
-└── data/
-    └── devices.js         # Sample data (ROUTE_DATA, DEVICE_DATA, REPORT_DATA)
+├── data/
+│   └── devices.js         # Sample data (ROUTE_DATA, DEVICE_DATA, REPORT_DATA)
+├── server/                # Node.js backend (REST API, TCP:2022 device server, RMTO SOAP client)
+├── docs/
+│   ├── error-codes.md     # RATCX1 error_byte bit meanings (Persian)
+│   └── serial-protocol.md # RATCX1 UART command reference (Persian)
+└── android/               # Android app (Kotlin): dashboard WebView, native device list,
+                           # RMTO WebView with autologin, USB/ESP01 serial terminal
 ```
 
 ## Architecture
