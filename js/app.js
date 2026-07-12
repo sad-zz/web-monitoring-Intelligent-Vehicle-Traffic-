@@ -104,6 +104,16 @@
         return opts;
     }
 
+    function getMehvarOstan(code) {
+        if (!code) return "";
+        for (var i = 0; i < cachedMehvarList.length; i++) {
+            if (String(cachedMehvarList[i].code) === String(code)) {
+                return cachedMehvarList[i].ostan || "";
+            }
+        }
+        return "";
+    }
+
     function getMehvarName(code) {
         if (!code) return "";
         for (var i = 0; i < cachedMehvarList.length; i++) {
@@ -461,10 +471,29 @@
     // Devices
     // ============================================================
     var allDevices = [];
-    var deviceState = { page: 1, search: "" };
+    var deviceState = { page: 1, search: "", ostan: "" };
+
+    function deviceOstan(d) {
+        return getMehvarOstan(d.route1 || d.route) || getMehvarOstan(d.route2) || "";
+    }
+
+    function populateOstanFilter() {
+        var sel = $("#devices-ostan-filter");
+        if (!sel) return;
+        var current = sel.value;
+        var ostans = [];
+        cachedMehvarList.forEach(function (m) {
+            if (m.ostan && ostans.indexOf(m.ostan) === -1) ostans.push(m.ostan);
+        });
+        ostans.sort();
+        sel.innerHTML = '<option value="">همه استان‌ها</option>' +
+            ostans.map(function (o) { return '<option value="' + escapeHtml(o) + '">' + escapeHtml(o) + '</option>'; }).join("");
+        sel.value = ostans.indexOf(current) !== -1 ? current : "";
+    }
 
     function loadDevices() {
         fetchMehvarList(function () {
+            populateOstanFilter();
             api("GET", "/api/devices", null, function (status, data) {
                 if (status === 200 && data) {
                     allDevices = data;
@@ -480,6 +509,7 @@
     function renderDeviceTable() {
         var q = deviceState.search.toLowerCase();
         var filtered = allDevices.filter(function (d) {
+            if (deviceState.ostan && deviceOstan(d) !== deviceState.ostan) return false;
             if (!q) return true;
             return (d.name || "").toLowerCase().indexOf(q) !== -1 ||
                    (d.device_code || "").indexOf(q) !== -1;
@@ -490,7 +520,7 @@
 
         var tbody = $("#devices-table-body");
         if (!paged.length) {
-            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">دستگاهی یافت نشد</td></tr>';
         } else {
             tbody.innerHTML = paged.map(function (d, i) {
                 var st = d.status || "offline";
@@ -498,6 +528,7 @@
                 var r2 = d.route2 || "";
                 var r1Name = getMehvarName(r1);
                 var r2Name = getMehvarName(r2);
+                var ostan = deviceOstan(d);
                 var errCode = d.last_error_byte || 0;
                 var errLabels = decodeErrorByte(errCode);
                 var errCell = errCode > 0
@@ -508,6 +539,7 @@
                     '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(d.device_code) + "</td>" +
                     "<td><strong>" + escapeHtml(d.name) + "</strong></td>" +
                     '<td><span class="type-badge">' + escapeHtml(TYPE_LABELS[d.type] || d.type) + "</span></td>" +
+                    "<td>" + escapeHtml(ostan || "-") + "</td>" +
                     "<td>" + escapeHtml(r1Name || "-") + "</td>" +
                     "<td>" + escapeHtml(r2Name || "-") + "</td>" +
                     '<td><span class="status-badge ' + st + '">' + escapeHtml(STATUS_LABELS[st] || st) + "</span></td>" +
@@ -550,6 +582,13 @@
     var devSearch = $("#devices-search");
     if (devSearch) devSearch.addEventListener("input", function () {
         deviceState.search = this.value.trim();
+        deviceState.page = 1;
+        renderDeviceTable();
+    });
+
+    var devOstanFilter = $("#devices-ostan-filter");
+    if (devOstanFilter) devOstanFilter.addEventListener("change", function () {
+        deviceState.ostan = this.value;
         deviceState.page = 1;
         renderDeviceTable();
     });

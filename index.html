@@ -238,6 +238,12 @@
                             <button class="btn btn-secondary" id="btn-import-devices">واردکردن از فایل</button>
                             <input type="file" id="import-devices-file" accept=".json,.csv" style="display:none">
                             <div class="search-box">
+                                <label>استان:</label>
+                                <select id="devices-ostan-filter" class="search-input">
+                                    <option value="">همه استان‌ها</option>
+                                </select>
+                            </div>
+                            <div class="search-box">
                                 <label>جستجو:</label>
                                 <input type="text" id="devices-search" class="search-input">
                             </div>
@@ -251,6 +257,7 @@
                                     <th>کد دستگاه</th>
                                     <th>نام دستگاه</th>
                                     <th>نوع</th>
+                                    <th>استان</th>
                                     <th>محور اول (لاین ۱)</th>
                                     <th>محور دوم (لاین ۲)</th>
                                     <th>وضعیت</th>
@@ -260,7 +267,7 @@
                                 </tr>
                             </thead>
                             <tbody id="devices-table-body">
-                                <tr><td colspan="10" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
+                                <tr><td colspan="11" style="text-align:center;color:#94a3b8">در حال بارگذاری...</td></tr>
                             </tbody>
                         </table>
                     </div>
