@@ -265,6 +265,9 @@ app.post("/api/irawdata", function (req, res) {
 
 // Auto-register unknown devices
 function autoRegisterDevice(code) {
+    // Reject garbled/non-numeric codes (e.g. port scanners or stray bytes on TCP:2022
+    // that happen to match a RATCX1/iccore prefix but aren't a real device handshake).
+    if (!code || !/^\d+$/.test(code)) return;
     var existing = db.prepare("SELECT device_code, status, name FROM devices WHERE device_code = ?").get(code);
     if (!existing) {
         try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "Device " + code); } catch(e){}
@@ -708,7 +711,8 @@ app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
 // API: Device Management
 // ============================================================
 app.get("/api/devices", function (req, res) {
-    res.json(db.prepare("SELECT * FROM devices ORDER BY device_code").all());
+    // Hide garbled/non-numeric device_code rows (junk from stray TCP:2022 traffic) from monitoring views.
+    res.json(db.prepare("SELECT * FROM devices WHERE is_numeric(device_code) = 1 ORDER BY device_code").all());
 });
 
 app.get("/api/devices/:code", function (req, res) {
@@ -803,8 +807,8 @@ app.post("/api/devices/import", function (req, res) {
 // API: Dashboard Stats
 // ============================================================
 app.get("/api/stats", function (req, res) {
-    var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
-    var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
+    var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE is_numeric(device_code) = 1").get().c;
+    var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE is_numeric(device_code) = 1 AND status = 'online'").get().c;
     var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     // Count today's vehicles from irawdata (where TCP/HTTP device data is stored)
     var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e+x), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStart.toISOString());

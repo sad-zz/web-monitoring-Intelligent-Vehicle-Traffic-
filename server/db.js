@@ -11,6 +11,10 @@ var db = new Database(DB_PATH);
 // Enable WAL mode for better concurrent read performance
 db.pragma("journal_mode = WAL");
 
+// Used to filter out garbled device_code rows created by non-protocol TCP
+// traffic on port 2022 (e.g. port scanners) before autoRegisterDevice validation was added.
+db.function("is_numeric", function (s) { return /^\d+$/.test(String(s)) ? 1 : 0; });
+
 // --- Schema ---
 db.exec([
     // Devices: each has a unique 4-digit code
