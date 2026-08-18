@@ -82,6 +82,7 @@
         settings: "تنظیمات"
     };
     var DEFAULT_RMTO_SOURCE_IP = "5.159.49.71";
+    var RMTO_SETTINGS_DRAFT_KEY = "tc-manager-rmto-settings-draft";
 
     var PAGE_SIZE = 20;
 
@@ -1133,12 +1134,49 @@
             var chatEl = $("#setting-bale-chat");
             if (tokenEl && data.bale_bot_token !== undefined) tokenEl.value = data.bale_bot_token;
             if (chatEl && data.bale_chat_id !== undefined) chatEl.value = data.bale_chat_id;
+            restoreRmtoSettingsDraft();
         });
     }
 
-    function saveSettings(body, msg) {
+    function getRmtoSettingsDraft() {
+        try {
+            return JSON.parse(localStorage.getItem(RMTO_SETTINGS_DRAFT_KEY) || "{}");
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function saveRmtoSettingsDraft() {
+        try {
+            localStorage.setItem(RMTO_SETTINGS_DRAFT_KEY, JSON.stringify({
+                rmto_wsdl: $("#setting-rmto-wsdl").value,
+                rmto_company_code: $("#setting-rmto-company").value,
+                rmto_username: $("#setting-rmto-user").value,
+                rmto_password: $("#setting-rmto-pass").value,
+                rmto_source_ip: (($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || "").trim()
+            }));
+        } catch (e) {}
+    }
+
+    function restoreRmtoSettingsDraft() {
+        var draft = getRmtoSettingsDraft();
+        if (draft.rmto_wsdl !== undefined) $("#setting-rmto-wsdl").value = draft.rmto_wsdl;
+        if (draft.rmto_company_code !== undefined) $("#setting-rmto-company").value = draft.rmto_company_code;
+        if (draft.rmto_username !== undefined) $("#setting-rmto-user").value = draft.rmto_username;
+        if (draft.rmto_password !== undefined) $("#setting-rmto-pass").value = draft.rmto_password;
+        if (draft.rmto_source_ip !== undefined) $("#setting-rmto-source-ip").value = draft.rmto_source_ip || DEFAULT_RMTO_SOURCE_IP;
+    }
+
+    function clearRmtoSettingsDraft() {
+        try { localStorage.removeItem(RMTO_SETTINGS_DRAFT_KEY); } catch (e) {}
+    }
+
+    function saveSettings(body, msg, onSuccess) {
         api("POST", "/api/settings", body, function (status) {
-            if (status === 200) alert(msg || "ذخیره شد");
+            if (status === 200) {
+                if (onSuccess) onSuccess();
+                alert(msg || "ذخیره شد");
+            }
             else alert("خطا در ذخیره");
         });
     }
@@ -1164,7 +1202,12 @@
             rmto_username: $("#setting-rmto-user").value,
             rmto_password: $("#setting-rmto-pass").value,
             rmto_source_ip: ((($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || "").trim() || DEFAULT_RMTO_SOURCE_IP)
-        }, "تنظیمات سامانه ذخیره شد.");
+        }, "تنظیمات سامانه ذخیره شد.", clearRmtoSettingsDraft);
+    });
+
+    ["#setting-rmto-wsdl", "#setting-rmto-company", "#setting-rmto-user", "#setting-rmto-pass", "#setting-rmto-source-ip"].forEach(function (selector) {
+        var el = $(selector);
+        if (el) el.addEventListener("input", saveRmtoSettingsDraft);
     });
 
     // Server Time
