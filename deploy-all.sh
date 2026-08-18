@@ -743,7 +743,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             </div>
                             <div class="form-group">
                                 <label>آدرس IP سرور</label>
-                                <input type="text" id="setting-server" value="0.0.0.0" dir="ltr">
+                                <input type="text" id="setting-server" value="5.159.49.246" dir="ltr">
                             </div>
                             <div class="form-group">
                                 <label>پورت HTTP سرور</label>
@@ -6086,7 +6086,7 @@ try {
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
-    server_ip: "0.0.0.0",
+    server_ip: "5.159.49.246",
     server_port: "3000",
     tcp_port: "2022",
     refresh_interval: "30",
@@ -6099,7 +6099,7 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_source_ip: "",
+    rmto_source_ip: DEFAULT_RMTO_SOURCE_IP,
     bale_bot_token: "",
     bale_chat_id: ""
 };
@@ -7013,11 +7013,13 @@ RMTO_WSDL=http://otf.rmto.ir/Companies/Companies.asmx?WSDL
 RMTO_COMPANY_CODE=58
 RMTO_USERNAME=
 RMTO_PASSWORD=
+RMTO_SOURCE_IP=5.159.49.71
 SEND_INTERVAL_MINUTES=15
 ENDENV
 else
     # Add TCP_PORT if missing
     grep -q TCP_PORT "$APP_DIR/server/.env" || echo "TCP_PORT=2022" >> "$APP_DIR/server/.env"
+    grep -q RMTO_SOURCE_IP "$APP_DIR/server/.env" || echo "RMTO_SOURCE_IP=5.159.49.71" >> "$APP_DIR/server/.env"
 fi
 
 echo "[3/7] Node.js..."

@@ -32,11 +32,13 @@ JSONEOF
 cat > $APP/server/.env << 'ENVEOF'
 PORT=3000
 HOST=0.0.0.0
+TCP_PORT=2022
 RMTO_WSDL=http://otf.rmto.ir/Companies/Companies.asmx?WSDL
 RMTO_ENDPOINT=http://otf.rmto.ir/Companies/Companies.asmx
 RMTO_COMPANY_CODE=58
 RMTO_USERNAME=NOGSH
 RMTO_PASSWORD=N*(gH5!u3
+RMTO_SOURCE_IP=5.159.49.71
 SEND_INTERVAL_MINUTES=15
 ENVEOF
 
@@ -110,6 +112,7 @@ nginx -t && systemctl restart nginx
 # ---------- Firewall ----------
 ufw allow 22/tcp
 ufw allow 80/tcp
+ufw allow 2022/tcp
 ufw --force enable
 
 echo ""

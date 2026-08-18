@@ -322,7 +322,7 @@ try {
 // Insert default settings if not exists
 var defaultSettings = {
     system_name: "نوآوران جنوب شرق",
-    server_ip: "0.0.0.0",
+    server_ip: "5.159.49.246",
     server_port: "3000",
     tcp_port: "2022",
     refresh_interval: "30",
