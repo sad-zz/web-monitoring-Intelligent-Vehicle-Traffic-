@@ -15,7 +15,8 @@ var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.a
 var COMPANY_CODE = process.env.RMTO_COMPANY_CODE || "58";
 var USERNAME = process.env.RMTO_USERNAME || "";
 var PASSWORD = process.env.RMTO_PASSWORD || "";
-var SOURCE_IP = "";
+var DEFAULT_SOURCE_IP = "5.159.49.71";
+var SOURCE_IP = process.env.RMTO_SOURCE_IP || DEFAULT_SOURCE_IP;
 
 /**
  * Load RMTO settings from database (overrides env vars).
@@ -30,7 +31,7 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_url) RMTO_URL = s.rmto_url;
         else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
-        if (s.rmto_source_ip !== undefined) SOURCE_IP = s.rmto_source_ip || "";
+        if (s.rmto_source_ip !== undefined) SOURCE_IP = (s.rmto_source_ip || "").trim() || DEFAULT_SOURCE_IP;
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
     }
@@ -40,7 +41,7 @@ function loadDbSettings() {
  * Returns the configured source IP.
  */
 function getSourceIp() {
-    return SOURCE_IP || "";
+    return SOURCE_IP || DEFAULT_SOURCE_IP;
 }
 
 /**

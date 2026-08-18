@@ -81,6 +81,7 @@
         history: "تاریخچه",
         settings: "تنظیمات"
     };
+    var DEFAULT_RMTO_SOURCE_IP = "5.159.49.71";
 
     var PAGE_SIZE = 20;
 
@@ -1126,7 +1127,7 @@
             if (data.rmto_username) $("#setting-rmto-user").value = data.rmto_username;
             if (data.rmto_password) $("#setting-rmto-pass").value = data.rmto_password;
             var liveIpEl = $("#setting-rmto-source-ip");
-            if (liveIpEl && data.rmto_source_ip !== undefined) liveIpEl.value = data.rmto_source_ip;
+            if (liveIpEl) liveIpEl.value = (data.rmto_source_ip || "").trim() || DEFAULT_RMTO_SOURCE_IP;
             // Bale
             var tokenEl = $("#setting-bale-token");
             var chatEl = $("#setting-bale-chat");
@@ -1162,7 +1163,7 @@
             rmto_company_code: $("#setting-rmto-company").value,
             rmto_username: $("#setting-rmto-user").value,
             rmto_password: $("#setting-rmto-pass").value,
-            rmto_source_ip: ($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || ""
+            rmto_source_ip: ((($("#setting-rmto-source-ip") && $("#setting-rmto-source-ip").value) || "").trim() || DEFAULT_RMTO_SOURCE_IP)
         }, "تنظیمات سامانه ذخیره شد.");
     });
 

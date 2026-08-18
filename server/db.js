@@ -7,6 +7,7 @@ var path = require("path");
 
 var DB_PATH = path.join(__dirname, "data.db");
 var db = new Database(DB_PATH);
+var DEFAULT_RMTO_SOURCE_IP = "5.159.49.71";
 
 // Enable WAL mode for better concurrent read performance
 db.pragma("journal_mode = WAL");
@@ -334,7 +335,7 @@ var defaultSettings = {
     rmto_username: "",
     rmto_password: "",
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
-    rmto_source_ip: "",
+    rmto_source_ip: DEFAULT_RMTO_SOURCE_IP,
     bale_bot_token: "",
     bale_chat_id: ""
 };
@@ -342,5 +343,9 @@ var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALU
 Object.keys(defaultSettings).forEach(function (k) {
     insertSetting.run(k, defaultSettings[k]);
 });
+
+db.prepare(
+    "UPDATE settings SET value = ? WHERE key = 'rmto_source_ip' AND (value IS NULL OR TRIM(value) = '')"
+).run(DEFAULT_RMTO_SOURCE_IP);
 
 module.exports = db;

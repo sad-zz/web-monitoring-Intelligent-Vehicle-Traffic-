@@ -44,6 +44,7 @@ var scheduler = require("./scheduler");
 
 var app = express();
 var PORT = process.env.PORT || 3000;
+var DEFAULT_RMTO_SOURCE_IP = "5.159.49.71";
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
@@ -389,7 +390,7 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
 
     // Load source IP from settings for consistency with scheduler
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
-    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : DEFAULT_RMTO_SOURCE_IP;
 
     rmto.sendAddData5({
         FID: fid,
@@ -501,7 +502,7 @@ app.post("/api/rmto/archive-send", requireAuth, function (req, res) {
 
     var jobId = ++archiveJobSeq;
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
-    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : DEFAULT_RMTO_SOURCE_IP;
 
     var job = {
         id: jobId,
@@ -606,7 +607,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
 
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
-    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : DEFAULT_RMTO_SOURCE_IP;
 
     function localISO(d) {
         return d.getFullYear() + "-" +

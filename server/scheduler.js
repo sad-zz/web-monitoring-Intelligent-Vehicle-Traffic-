@@ -10,6 +10,7 @@ var http = require("http");
 var https = require("https");
 var db = require("./db");
 var rmto = require("./rmto-client");
+var DEFAULT_RMTO_SOURCE_IP = "5.159.49.71";
 
 var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 5;
 
@@ -352,7 +353,7 @@ function sendUnsentData(onComplete) {
 
     // Load single source IP from DB
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
-    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : DEFAULT_RMTO_SOURCE_IP;
 
     // --- Send 5-class AddData5 (primary method, matching C# reference) ---
 
