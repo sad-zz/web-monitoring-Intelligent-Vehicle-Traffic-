@@ -69,8 +69,10 @@ StartLimitBurst=20
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-# Free stale listeners before start (fuser preferred; ss fallback). Always succeed.
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null || true; fuser -k 2022/tcp 2>/dev/null || true; sleep 2; true'
+# Free stale listeners before start. Leading "-" = ignore failure if port free.
+ExecStartPre=-/usr/bin/fuser -k 3000/tcp
+ExecStartPre=-/usr/bin/fuser -k 2022/tcp
+ExecStartPre=/bin/sleep 2
 ExecStart=/usr/bin/node index.js
 # always: recover from crash AND clean exit (restart button / backup restore)
 Restart=always
