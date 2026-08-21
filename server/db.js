@@ -192,7 +192,15 @@ db.exec([
     "CREATE TABLE IF NOT EXISTS settings (",
     "  key TEXT PRIMARY KEY,",
     "  value TEXT",
-    ");"
+    ");",
+
+    // Persistent express-session store (survives process restarts)
+    "CREATE TABLE IF NOT EXISTS sessions (",
+    "  sid TEXT PRIMARY KEY,",
+    "  sess TEXT NOT NULL,",
+    "  expired INTEGER NOT NULL",
+    ");",
+    "CREATE INDEX IF NOT EXISTS idx_sessions_expired ON sessions(expired);"
 ].join("\n"));
 
 // Migration: if rmto_queue_5class has old column names, recreate it

@@ -274,6 +274,66 @@ journalctl -u tc-manager -n 120 --no-pager || pm2 logs tc-manager --lines 120
 
 ---
 
+## 9.1) رفع ریست مداوم / صفر بودن «مدت روشن بودن سرور»
+
+اگر پنل مدام از دسترس خارج می‌شود، uptime نزدیک صفر است، یا قبل از ذخیره تنظیمات دوباره لاگین می‌خواهد:
+
+```bash
+ssh root@SERVER_IP '
+set -e
+# 1) واحد systemd پایدار (Restart=always)
+cat > /etc/systemd/system/tc-manager.service << "UNIT"
+[Unit]
+Description=TC Manager (Noavaran Jonoob Shargh)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=20
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=/bin/bash -c "fuser -k 3000/tcp 2>/dev/null || true; fuser -k 2022/tcp 2>/dev/null || true; sleep 2; true"
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=mixed
+KillSignal=SIGTERM
+Environment=NODE_ENV=production
+Environment=TZ=Asia/Tehran
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable tc-manager
+systemctl restart tc-manager
+sleep 3
+systemctl status tc-manager --no-pager -l | sed -n "1,40p"
+echo "--- recent logs ---"
+journalctl -u tc-manager -n 80 --no-pager
+'
+```
+
+نکات مهم این نسخه:
+- نشست ورود در SQLite ذخیره می‌شود و بعد از ریستارت از بین نمی‌رود
+- `SESSION_SECRET` پایدار است (فایل `server/.session-secret` یا مقدار داخل `.env`)
+- اگر هم systemd و هم PM2 همزمان سرویس را اجرا کنند، روی پورت با هم تداخل می‌کنند؛ فقط یکی را نگه دارید
+
+آپلود فایل‌های ضروری این فیکس از Termux:
+
+```bash
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+scp server/index.js server/db.js server/scheduler.js server/rmto-client.js root@SERVER_IP:/opt/tc-manager/server/
+scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
+scp index.html root@SERVER_IP:/opt/tc-manager/
+ssh root@SERVER_IP 'systemctl daemon-reload && systemctl restart tc-manager && systemctl status tc-manager --no-pager -l'
+```
+
+---
+
 ## 10) بازنشانی رمز عبور از طریق SSH
 
 اگر نمی‌توانید از طریق UI وارد شوید (رمز فراموش شده یا تغییر کرده)، می‌توانید با اسکریپت زیر رمز را ریست کنید:

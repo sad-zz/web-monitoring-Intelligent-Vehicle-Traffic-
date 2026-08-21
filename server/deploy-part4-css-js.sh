@@ -1,5 +1,6 @@
 #!/bin/bash
 # Part 4: Deploy CSS and app.js, then start service
+# AUTO-GENERATED from css/style.css and js/app.js
 set -e
 cd /opt/tc-manager
 
@@ -952,7 +953,6 @@ body {
     font-size: 13px;
     color: var(--text-light);
 }
-
 ENDFILE
 
 echo "=== Deploying js/app.js ==="
@@ -2140,12 +2140,18 @@ cat > js/app.js << 'ENDFILE'
             var tz = $("#server-timezone");
             if (tz) tz.textContent = data.timezone || "-";
             var ut = $("#server-uptime");
-            if (ut && data.uptime) {
-                var sec = Math.floor(data.uptime);
+            if (ut && data.uptime != null && !isNaN(data.uptime)) {
+                var sec = Math.max(0, Math.floor(Number(data.uptime)));
                 var days = Math.floor(sec / 86400);
                 var hrs = Math.floor((sec % 86400) / 3600);
                 var mins = Math.floor((sec % 3600) / 60);
-                ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
+                var secs = sec % 60;
+                var parts = [];
+                if (days > 0) parts.push(days + " روز");
+                if (hrs > 0 || days > 0) parts.push(hrs + " ساعت");
+                if (mins > 0 || hrs > 0 || days > 0) parts.push(mins + " دقیقه");
+                parts.push(secs + " ثانیه");
+                ut.textContent = parts.join(" ");
             }
             var bv = $("#server-build-version");
             if (bv && data.build) bv.textContent = data.build;
@@ -2860,6 +2866,7 @@ cat > js/app.js << 'ENDFILE'
                 if (tbody) {
                     api("GET", "/api/rmto/archive-jobs", null, function (s, jobs) {
                         if (!jobs) return;
+                        // trigger re-render by calling refreshArchiveJobs equivalent inline
                         var evt = document.createEvent("Event");
                         evt.initEvent("click", true, true);
                         var rb = $("#btn-arch-refresh");
@@ -3016,14 +3023,12 @@ cat > js/app.js << 'ENDFILE'
 
 
 })();
-
 ENDFILE
 
-echo ""
-echo "=== All code deployed! ==="
-echo "=== Starting tc-manager service ==="
-systemctl restart tc-manager
+echo "=== Part 4 done: css + js deployed ==="
+
+# Ensure service is running with latest unit config
+systemctl daemon-reload 2>/dev/null || true
+systemctl restart tc-manager 2>/dev/null || true
 sleep 2
-systemctl status tc-manager --no-pager
-echo ""
-echo "=== Done! Dashboard: http://5.159.49.246 ==="
+systemctl status tc-manager --no-pager || true

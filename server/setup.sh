@@ -62,20 +62,24 @@ cat > /etc/systemd/system/tc-manager.service << 'UNIT'
 [Unit]
 Description=TC Manager - Traffic Monitoring Server
 After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=20
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
+# Free stale listeners before start (fuser preferred; ss fallback). Always succeed.
+ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null || true; fuser -k 2022/tcp 2>/dev/null || true; sleep 2; true'
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
-RestartSec=15
-TimeoutStopSec=10
+# always: recover from crash AND clean exit (restart button / backup restore)
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
 KillMode=mixed
-StartLimitBurst=10
-StartLimitIntervalSec=300
+KillSignal=SIGTERM
 Environment=NODE_ENV=production
+Environment=TZ=Asia/Tehran
 
 [Install]
 WantedBy=multi-user.target

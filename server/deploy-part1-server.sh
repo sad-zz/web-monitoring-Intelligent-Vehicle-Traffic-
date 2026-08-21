@@ -1,5 +1,6 @@
 #!/bin/bash
 # Part 1: Deploy server-side JS files
+# AUTO-GENERATED from server/*.js — do not hand-edit embedded sources
 set -e
 cd /opt/tc-manager
 
@@ -203,7 +204,15 @@ db.exec([
     "CREATE TABLE IF NOT EXISTS settings (",
     "  key TEXT PRIMARY KEY,",
     "  value TEXT",
-    ");"
+    ");",
+
+    // Persistent express-session store (survives process restarts)
+    "CREATE TABLE IF NOT EXISTS sessions (",
+    "  sid TEXT PRIMARY KEY,",
+    "  sess TEXT NOT NULL,",
+    "  expired INTEGER NOT NULL",
+    ");",
+    "CREATE INDEX IF NOT EXISTS idx_sessions_expired ON sessions(expired);"
 ].join("\n"));
 
 // Migration: if rmto_queue_5class has old column names, recreate it
@@ -355,7 +364,6 @@ Object.keys(defaultSettings).forEach(function (k) {
 });
 
 module.exports = db;
-
 ENDFILE
 
 # --- server/rmto-client.js ---
@@ -689,7 +697,6 @@ module.exports = {
     sendAddData5: sendAddData5,
     getSourceIp: getSourceIp
 };
-
 ENDFILE
 
 # --- server/scheduler.js ---
@@ -1114,6 +1121,7 @@ function sendUnsentData(onComplete) {
             var e = g.record;
             var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
             var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            // Weighted average per-class speeds (compute before summing counts)
             var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
             var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
             var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
@@ -1324,7 +1332,6 @@ module.exports = {
     // Alias for backward compatibility with older index.js versions
     processAndSendIrawdata: aggregateAndSend
 };
-
 ENDFILE
 
 # --- server/index.js ---
@@ -1345,10 +1352,9 @@ process.env.TZ = "Asia/Tehran";
 process.on("uncaughtException", function (err) {
     console.error("[FATAL] Uncaught Exception:", err.message);
     console.error(err.stack);
-    // Only exit on truly fatal errors (EADDRINUSE, out of memory, etc.)
-    // For other errors, log and continue to avoid restart loops
-    if (err.code === "EADDRINUSE" || err.code === "ERR_IPC_CHANNEL_CLOSED" ||
-        err.message && err.message.indexOf("Cannot allocate memory") !== -1) {
+    // Only exit on truly fatal errors. Avoid restart loops for recoverable faults.
+    if (err.code === "ERR_IPC_CHANNEL_CLOSED" ||
+        (err.message && err.message.indexOf("Cannot allocate memory") !== -1)) {
         setTimeout(function () { process.exit(1); }, 1000);
     } else {
         console.error("[FATAL] Server continuing despite uncaught exception to avoid restart loop");
@@ -1378,10 +1384,140 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.04.07-v3";
+var BUILD_VERSION = "2026.08.21-stable1";
+
+// --- Single-instance lock (prevents two node processes fighting over ports) ---
+var LOCK_PATH = path.join(__dirname, ".tc-manager.lock");
+function acquireInstanceLock() {
+    try {
+        if (fs.existsSync(LOCK_PATH)) {
+            var old = fs.readFileSync(LOCK_PATH, "utf8").trim();
+            var oldPid = parseInt(old, 10);
+            if (oldPid && oldPid !== process.pid) {
+                try {
+                    process.kill(oldPid, 0); // throws if not running
+                    console.error("[SERVER] Another instance is already running (pid " + oldPid + "). Exiting.");
+                    process.exit(1);
+                } catch (e) {
+                    // stale lock
+                }
+            }
+        }
+        fs.writeFileSync(LOCK_PATH, String(process.pid), "utf8");
+    } catch (e) {
+        console.error("[SERVER] Could not write lock file:", e.message);
+    }
+}
+function releaseInstanceLock() {
+    try {
+        if (fs.existsSync(LOCK_PATH)) {
+            var cur = fs.readFileSync(LOCK_PATH, "utf8").trim();
+            if (cur === String(process.pid)) fs.unlinkSync(LOCK_PATH);
+        }
+    } catch (e) { /* ignore */ }
+}
+acquireInstanceLock();
+process.on("exit", releaseInstanceLock);
+
+// --- Stable session secret (must survive restarts or every login is wiped) ---
+function loadOrCreateSessionSecret() {
+    if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.trim()) {
+        return process.env.SESSION_SECRET.trim();
+    }
+    var secretPath = path.join(__dirname, ".session-secret");
+    try {
+        if (fs.existsSync(secretPath)) {
+            var existing = fs.readFileSync(secretPath, "utf8").trim();
+            if (existing.length >= 16) return existing;
+        }
+    } catch (e) { /* fall through */ }
+    var generated = crypto.randomBytes(32).toString("hex");
+    try {
+        fs.writeFileSync(secretPath, generated, { encoding: "utf8", mode: 0o600 });
+        console.log("[Auth] Generated persistent SESSION_SECRET at " + secretPath);
+    } catch (e) {
+        console.error("[Auth] Could not persist SESSION_SECRET:", e.message);
+    }
+    return generated;
+}
+
+// --- SQLite-backed session store (MemoryStore loses all logins on restart) ---
+function createSqliteSessionStore(sessionModule) {
+    var Store = sessionModule.Store;
+    function SqliteStore() {
+        Store.call(this);
+        this._cleanupTimer = setInterval(function () {
+            try {
+                db.prepare("DELETE FROM sessions WHERE expired <= ?").run(Date.now());
+            } catch (e) { /* ignore cleanup errors */ }
+        }, 10 * 60 * 1000);
+        if (this._cleanupTimer.unref) this._cleanupTimer.unref();
+    }
+    require("util").inherits(SqliteStore, Store);
+
+    SqliteStore.prototype.get = function (sid, cb) {
+        try {
+            var row = db.prepare("SELECT sess, expired FROM sessions WHERE sid = ?").get(sid);
+            if (!row) return cb(null, null);
+            if (row.expired && row.expired <= Date.now()) {
+                db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+                return cb(null, null);
+            }
+            return cb(null, JSON.parse(row.sess));
+        } catch (e) {
+            return cb(e);
+        }
+    };
+
+    SqliteStore.prototype.set = function (sid, sess, cb) {
+        try {
+            var maxAge = (sess && sess.cookie && sess.cookie.maxAge) ? sess.cookie.maxAge : 24 * 60 * 60 * 1000;
+            var expired = Date.now() + maxAge;
+            db.prepare(
+                "INSERT INTO sessions (sid, sess, expired) VALUES (?, ?, ?) " +
+                "ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expired = excluded.expired"
+            ).run(sid, JSON.stringify(sess), expired);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.destroy = function (sid, cb) {
+        try {
+            db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.touch = function (sid, sess, cb) {
+        try {
+            var maxAge = (sess && sess.cookie && sess.cookie.maxAge) ? sess.cookie.maxAge : 24 * 60 * 60 * 1000;
+            var expired = Date.now() + maxAge;
+            db.prepare("UPDATE sessions SET expired = ? WHERE sid = ?").run(expired, sid);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.clear = function (cb) {
+        try {
+            db.prepare("DELETE FROM sessions").run();
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    return SqliteStore;
+}
 
 // --- Session & Auth Setup ---
-var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+var SESSION_SECRET = loadOrCreateSessionSecret();
+var SqliteSessionStore = createSqliteSessionStore(session);
 var ADMIN_USER = process.env.ADMIN_USER || "admin";
 var ADMIN_PASS_HASH = null;
 
@@ -1408,13 +1544,19 @@ var ADMIN_PASS_HASH = null;
 })();
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 app.use(session({
+    name: "tc.sid",
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     rolling: true,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+    store: new SqliteSessionStore(),
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true,
+        sameSite: "lax"
+    }
 }));
 
 // Multer for file uploads (backup restore)
@@ -1665,12 +1807,16 @@ app.get("/api/server/time", requireAuth, function (req, res) {
 });
 
 // ============================================================
-// API: Server Restart (PM2 will auto-restart after process.exit)
+// API: Server Restart (systemd Restart=always / PM2 will bring it back)
 // ============================================================
 app.post("/api/server/restart", requireAuth, function (req, res) {
     res.json({ success: true, message: "سرور در حال ریستارت است..." });
     console.log("[SERVER] Restart requested by user:", req.session.user && req.session.user.username);
-    setTimeout(function () { process.exit(0); }, 1500);
+    // exit(1) works with both Restart=always and Restart=on-failure
+    setTimeout(function () {
+        releaseInstanceLock();
+        process.exit(1);
+    }, 1500);
 });
 
 // ============================================================
@@ -1794,8 +1940,41 @@ app.post("/api/rmto/archive-send", requireAuth, function (req, res) {
     sql += " AND period_start >= ? AND period_start <= ? ORDER BY period_start ASC";
     params.push(from, to);
 
-    var records = db.prepare(sql).all.apply(db.prepare(sql), params);
-    if (records.length === 0) return res.status(404).json({ error: "رکوردی در بازه مشخص‌شده یافت نشد" });
+    var rawRecords = db.prepare(sql).all.apply(db.prepare(sql), params);
+    if (rawRecords.length === 0) return res.status(404).json({ error: "رکوردی در بازه مشخص‌شده یافت نشد" });
+
+    // Merge records sharing the same route_id + period_start to prevent RMTO duplicates
+    var mergeMap = {};
+    rawRecords.forEach(function (r) {
+        if (!r.route_id) return;
+        var key = r.route_id + "|" + r.period_start;
+        if (!mergeMap[key]) {
+            mergeMap[key] = JSON.parse(JSON.stringify(r));
+        } else {
+            var e = mergeMap[key];
+            var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
+            var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
+            var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
+            var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
+            var ns4 = (e.c4||0) + (r.c4||0) > 0 ? Math.round(((e.c4||0) * (e.s4||0) + (r.c4||0) * (r.s4||0)) / ((e.c4||0) + (r.c4||0))) : 0;
+            var ns5 = (e.c5||0) + (r.c5||0) > 0 ? Math.round(((e.c5||0) * (e.s5||0) + (r.c5||0) * (r.s5||0)) / ((e.c5||0) + (r.c5||0))) : 0;
+            var nTotal = eTotal + rTotal;
+            e.avg_speed = nTotal > 0 ? Math.round((eTotal * (e.avg_speed||0) + rTotal * (r.avg_speed||0)) / nTotal) : 0;
+            e.c1 = (e.c1||0) + (r.c1||0); e.c2 = (e.c2||0) + (r.c2||0); e.c3 = (e.c3||0) + (r.c3||0);
+            e.c4 = (e.c4||0) + (r.c4||0); e.c5 = (e.c5||0) + (r.c5||0);
+            e.s1 = ns1; e.s2 = ns2; e.s3 = ns3; e.s4 = ns4; e.s5 = ns5;
+            e.sso = (e.sso||0) + (r.sso||0);
+            e.so1 = (e.so1||0) + (r.so1||0); e.so2 = (e.so2||0) + (r.so2||0); e.so3 = (e.so3||0) + (r.so3||0);
+            e.so4 = (e.so4||0) + (r.so4||0); e.so5 = (e.so5||0) + (r.so5||0);
+            e.oo = (e.oo||0) + (r.oo||0); e.esd = (e.esd||0) + (r.esd||0);
+            e.device_code = e.device_code + "+" + r.device_code;
+        }
+    });
+    var records = Object.keys(mergeMap).map(function (k) { return mergeMap[k]; });
+    if (records.length < rawRecords.length) {
+        console.log("[ArchiveSend] Merged " + rawRecords.length + " records into " + records.length + " (same-route dedup)");
+    }
 
     var jobId = ++archiveJobSeq;
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
@@ -1881,6 +2060,7 @@ app.delete("/api/rmto/archive-send/:jobId", requireAuth, function (req, res) {
 var testScheduleJobs = {};
 var testScheduleSeq = 0;
 
+// POST /api/rmto/test-schedule - start a scheduled test send
 app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var b = req.body;
     var rid = parseInt(b.rid, 10) || 0;
@@ -1914,17 +2094,26 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     }
 
     var job = {
-        id: jobId, rid: rid,
+        id: jobId,
+        rid: rid,
         data: { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5 },
-        durationDays: durationDays, expiresAt: expiresAt.toISOString(), startedAt: new Date().toISOString(),
-        sendCount: 0, successCount: 0, failedCount: 0, lastSendAt: null, lastError: null, stopped: false, status: "running"
+        durationDays: durationDays,
+        expiresAt: expiresAt.toISOString(),
+        startedAt: new Date().toISOString(),
+        sendCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        lastSendAt: null,
+        lastError: null,
+        stopped: false,
+        status: "running"
     };
 
     function sendOnce() {
         if (job.stopped || new Date() >= expiresAt) {
             job.status = job.stopped ? "stopped" : "expired";
             if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
-            console.log("[TestSchedule] Job #" + jobId + " " + job.status);
+            console.log("[TestSchedule] Job #" + jobId + " " + job.status + " (" + job.successCount + "/" + job.sendCount + " success)");
             return;
         }
         var now = new Date();
@@ -1944,8 +2133,13 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
         }, function (err, response, soapXml) {
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             job.lastSendAt = new Date().toISOString();
-            if (success) { job.successCount++; job.lastError = null; }
-            else { job.failedCount++; job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا"); }
+            if (success) {
+                job.successCount++;
+                job.lastError = null;
+            } else {
+                job.failedCount++;
+                job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا");
+            }
             try {
                 db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                     .run("Add5-Scheduled", "test-schedule-" + jobId,
@@ -1955,6 +2149,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
         });
     }
 
+    // Send immediately, then every 5 minutes
     sendOnce();
     job.timerId = setInterval(sendOnce, 5 * 60 * 1000);
     testScheduleJobs[jobId] = job;
@@ -1963,6 +2158,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     res.json({ success: true, jobId: jobId, message: "ارسال زمانبندی شده شروع شد (" + durationDays + " روز)" });
 });
 
+// GET /api/rmto/test-schedule - list active scheduled jobs
 app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var jobs = Object.keys(testScheduleJobs).map(function (k) {
         var j = testScheduleJobs[k];
@@ -1974,6 +2170,7 @@ app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
     res.json(jobs);
 });
 
+// DELETE /api/rmto/test-schedule/:jobId - stop a scheduled job
 app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
     var jobId = parseInt(req.params.jobId, 10);
     var job = testScheduleJobs[jobId];
@@ -2523,8 +2720,11 @@ app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
             delete require.cache[require.resolve("./db")];
             db = require("./db");
             res.json({ success: true, message: "بازیابی انجام شد. سرویس در حال ریستارت..." });
-            // Auto-restart to ensure clean state
-            setTimeout(function () { process.exit(0); }, 2000);
+            // Auto-restart to ensure clean state (exit 1 so systemd on-failure also restarts)
+            setTimeout(function () {
+                releaseInstanceLock();
+                process.exit(1);
+            }, 2000);
         } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz") || origName.endsWith(".sql")) {
             // PostgreSQL dump - decompress and parse
             var destPath = path.join(__dirname, "uploads", origName);
@@ -3436,26 +3636,87 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
 });
 
 var httpServer = null;
-
+var schedulerStarted = false;
 var TCP_RETRY_COUNT = 0;
-var TCP_MAX_RETRIES = 5;
+var TCP_MAX_RETRIES = 12;
 var HTTP_RETRY_COUNT = 0;
-var HTTP_MAX_RETRIES = 5;
+var HTTP_MAX_RETRIES = 12;
+var tcpListening = false;
+var httpListening = false;
 
-tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
-    TCP_RETRY_COUNT = 0;
-    console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
-});
+function freePortBestEffort(port) {
+    // Prefer fuser; fall back to ss. Never throw.
+    try {
+        var execSync = require("child_process").execSync;
+        try {
+            execSync("fuser -k " + port + "/tcp 2>/dev/null || true", { stdio: "ignore", timeout: 5000 });
+            return;
+        } catch (e1) { /* try fallbacks */ }
+        try {
+            // ss output example: users:(("node",pid=1234,fd=21))
+            var out = execSync("ss -lptn 'sport = :" + port + "' 2>/dev/null || true", { encoding: "utf8", timeout: 5000 });
+            var m;
+            var re = /pid=(\d+)/g;
+            var pids = {};
+            while ((m = re.exec(out)) !== null) {
+                var pid = parseInt(m[1], 10);
+                if (pid && pid !== process.pid) pids[pid] = true;
+            }
+            Object.keys(pids).forEach(function (pidStr) {
+                try { process.kill(parseInt(pidStr, 10), "SIGTERM"); } catch (e) { /* ignore */ }
+            });
+        } catch (e2) { /* ignore */ }
+    } catch (e) { /* ignore */ }
+}
+
+function onServersReady() {
+    if (!tcpListening || !httpListening) return;
+    if (!schedulerStarted) {
+        schedulerStarted = true;
+        try {
+            rmto.initClient(function (err) {
+                if (err) console.error("[RMTO] Will retry on first send");
+            });
+        } catch (e) {
+            console.error("[RMTO] initClient error:", e.message);
+        }
+        try {
+            scheduler.start();
+        } catch (e) {
+            console.error("[Scheduler] start error:", e.message);
+        }
+        try {
+            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
+        } catch (e) { /* ignore startup notification errors */ }
+    }
+}
+
+function startTcpServer() {
+    if (tcpListening) return;
+    tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
+        TCP_RETRY_COUNT = 0;
+        tcpListening = true;
+        console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
+        onServersReady();
+    });
+}
 
 tcpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
+        tcpListening = false;
         TCP_RETRY_COUNT++;
+        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES);
+        if (TCP_RETRY_COUNT === 1 || TCP_RETRY_COUNT % 3 === 0) {
+            freePortBestEffort(TCP_PORT);
+        }
         if (TCP_RETRY_COUNT > TCP_MAX_RETRIES) {
-            console.error("[TCP] Port " + TCP_PORT + " still in use after " + TCP_MAX_RETRIES + " retries, giving up");
+            console.error("[TCP] Port " + TCP_PORT + " still busy after retries — continuing without TCP listener");
+            // Do not exit: keep HTTP/dashboard alive so operator can still work
             return;
         }
-        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES + " in 5s");
-        setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
+        setTimeout(startTcpServer, 3000);
+    } else {
+        console.error("[TCP] Server error:", err.message);
     }
 });
 
@@ -3463,8 +3724,14 @@ tcpServer.on("error", function (err) {
 // Start HTTP Server
 // ============================================================
 function startHttpServer() {
+    if (httpServer) {
+        try { httpServer.close(); } catch (e) { /* ignore */ }
+        httpServer = null;
+    }
+    httpListening = false;
     httpServer = app.listen(PORT, HOST, function () {
         HTTP_RETRY_COUNT = 0;
+        httpListening = true;
         console.log("============================================");
         console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
         console.log("  Build: " + BUILD_VERSION);
@@ -3472,32 +3739,35 @@ function startHttpServer() {
         console.log("  TCP:  port " + TCP_PORT + " (device data)");
         console.log("  Login: admin / admin123");
         console.log("============================================");
-
-        rmto.initClient(function (err) {
-            if (err) console.error("[RMTO] Will retry on first send");
-        });
-
-        scheduler.start();
-
-        // Send Bale startup notification (if configured)
-        try {
-            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
-        } catch (e) { /* ignore startup notification errors */ }
+        onServersReady();
     });
 
     httpServer.on("error", function (err) {
         if (err.code === "EADDRINUSE") {
+            httpListening = false;
             HTTP_RETRY_COUNT++;
-            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
-                console.error("[HTTP] Port " + PORT + " still in use after " + HTTP_MAX_RETRIES + " retries, exiting.");
-                process.exit(1);
+            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES);
+            if (HTTP_RETRY_COUNT === 1 || HTTP_RETRY_COUNT % 3 === 0) {
+                freePortBestEffort(PORT);
             }
-            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
-            setTimeout(startHttpServer, 5000);
+            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
+                // Exit so process manager restarts cleanly after port cleanup.
+                // Use a short delay to avoid a tight crash loop.
+                console.error("[HTTP] Port " + PORT + " still busy after retries, exiting for clean restart.");
+                setTimeout(function () {
+                    releaseInstanceLock();
+                    process.exit(1);
+                }, 10000);
+                return;
+            }
+            setTimeout(startHttpServer, 3000);
+        } else {
+            console.error("[HTTP] Server error:", err.message);
         }
     });
 }
 
+startTcpServer();
 startHttpServer();
 
 // ============================================================
@@ -3508,7 +3778,7 @@ function gracefulShutdown(signal) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
-    scheduler.stop();
+    try { scheduler.stop(); } catch (e) { /* ignore */ }
 
     // Stop all scheduled test-send jobs
     Object.keys(testScheduleJobs).forEach(function (k) {
@@ -3529,6 +3799,8 @@ function gracefulShutdown(signal) {
         closed++;
         if (closed >= total) {
             console.log("[SERVER] All servers closed, exiting");
+            releaseInstanceLock();
+            // exit 0 on SIGTERM from systemd stop/restart is expected
             process.exit(0);
         }
     }
@@ -3542,47 +3814,145 @@ function gracefulShutdown(signal) {
         checkDone();
     }
 
-    tcpServer.close(function () {
-        console.log("[SERVER] TCP server closed");
+    try {
+        tcpServer.close(function () {
+            console.log("[SERVER] TCP server closed");
+            checkDone();
+        });
+    } catch (e) {
         checkDone();
-    });
+    }
 
     setTimeout(function () {
         console.log("[SERVER] Forcing exit after timeout");
+        releaseInstanceLock();
         process.exit(0);
     }, 4000);
 }
 
 process.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });
 process.on("SIGINT", function () { gracefulShutdown("SIGINT"); });
-
 ENDFILE
 
-# --- Update systemd service to include ExecStartPre (kill stale ports) ---
-echo ">>> Updating tc-manager.service with port cleanup..."
+# --- server/reset-password.js ---
+cat > server/reset-password.js << 'ENDFILE'
+/**
+ * Reset admin password from command line.
+ * Usage: node reset-password.js [new-password]
+ *   If new-password is omitted, defaults to "admin123".
+ *
+ * Run on server:
+ *   cd /opt/tc-manager && node server/reset-password.js MyNewPass123
+ */
+var bcrypt = require("bcryptjs");
+var path = require("path");
+var Database = require("better-sqlite3");
+
+var DB_PATH = path.join(__dirname, "data.db");
+var newPass = process.argv[2] || "admin123";
+var username = process.argv[3] || "admin";
+
+try {
+    var db = new Database(DB_PATH);
+    var hash = bcrypt.hashSync(newPass, 10);
+    var result = db.prepare("UPDATE users SET password_hash = ? WHERE username = ?").run(hash, username);
+    if (result.changes === 0) {
+        // User doesn't exist — create them
+        db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, 'admin')").run(username, hash);
+        console.log("User '" + username + "' created with the given password.");
+    } else {
+        console.log("Password for user '" + username + "' has been updated successfully.");
+    }
+    db.close();
+} catch (e) {
+    console.error("Error:", e.message);
+    process.exit(1);
+}
+ENDFILE
+
+# --- package.json (keep existing deps if present) ---
+if [ ! -f server/package.json ]; then
+cat > server/package.json << 'JSONEOF'
+{
+  "name": "tc-manager-server",
+  "version": "1.0.0",
+  "description": "TC Manager - Backend server for traffic device data collection and RMTO integration",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^9.4.3",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.1",
+    "express-session": "^1.17.3",
+    "multer": "^1.4.5-lts.1",
+    "bcryptjs": "^2.4.3"
+  }
+}
+JSONEOF
+fi
+
+# --- .env.example ---
+cat > server/.env.example << 'ENVEOF'
+# Server
+PORT=3000
+HOST=0.0.0.0
+TZ=Asia/Tehran
+
+# Auth / sessions
+SESSION_SECRET=change-me-to-a-long-random-string
+ADMIN_USER=admin
+ADMIN_PASS=admin123
+
+# RMTO (OTF) SOAP Web Service
+RMTO_WSDL=http://otf.rmto.ir/Companies/Companies.asmx?WSDL
+RMTO_ENDPOINT=http://otf.rmto.ir/Companies/Companies.asmx
+RMTO_COMPANY_CODE=58
+RMTO_USERNAME=NOGSH
+RMTO_PASSWORD=CHANGE_ME_HERE
+
+# Data send interval (minutes)
+SEND_INTERVAL_MINUTES=15
+ENVEOF
+
+# Ensure node_modules
+if [ ! -d server/node_modules/express ]; then
+  echo ">>> Installing npm dependencies..."
+  (cd server && npm install --production)
+fi
+
+# --- Update systemd service for stable always-restart ---
+echo ">>> Updating tc-manager.service..."
 cat > /etc/systemd/system/tc-manager.service << 'UNIT'
 [Unit]
 Description=TC Manager (Noavaran Jonoob Shargh)
 After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=20
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
+ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null || true; fuser -k 2022/tcp 2>/dev/null || true; sleep 2; true'
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
-RestartSec=15
-TimeoutStopSec=10
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
 KillMode=mixed
-StartLimitBurst=10
-StartLimitIntervalSec=300
+KillSignal=SIGTERM
 Environment=NODE_ENV=production
+Environment=TZ=Asia/Tehran
 
 [Install]
 WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
+systemctl enable tc-manager 2>/dev/null || true
 
 # --- Ensure nginx allows large backup uploads ---
 if [ -f /etc/nginx/sites-available/tc-manager ]; then

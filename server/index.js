@@ -14,10 +14,9 @@ process.env.TZ = "Asia/Tehran";
 process.on("uncaughtException", function (err) {
     console.error("[FATAL] Uncaught Exception:", err.message);
     console.error(err.stack);
-    // Only exit on truly fatal errors (EADDRINUSE, out of memory, etc.)
-    // For other errors, log and continue to avoid restart loops
-    if (err.code === "EADDRINUSE" || err.code === "ERR_IPC_CHANNEL_CLOSED" ||
-        err.message && err.message.indexOf("Cannot allocate memory") !== -1) {
+    // Only exit on truly fatal errors. Avoid restart loops for recoverable faults.
+    if (err.code === "ERR_IPC_CHANNEL_CLOSED" ||
+        (err.message && err.message.indexOf("Cannot allocate memory") !== -1)) {
         setTimeout(function () { process.exit(1); }, 1000);
     } else {
         console.error("[FATAL] Server continuing despite uncaught exception to avoid restart loop");
@@ -47,10 +46,140 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.04.07-v3";
+var BUILD_VERSION = "2026.08.21-stable1";
+
+// --- Single-instance lock (prevents two node processes fighting over ports) ---
+var LOCK_PATH = path.join(__dirname, ".tc-manager.lock");
+function acquireInstanceLock() {
+    try {
+        if (fs.existsSync(LOCK_PATH)) {
+            var old = fs.readFileSync(LOCK_PATH, "utf8").trim();
+            var oldPid = parseInt(old, 10);
+            if (oldPid && oldPid !== process.pid) {
+                try {
+                    process.kill(oldPid, 0); // throws if not running
+                    console.error("[SERVER] Another instance is already running (pid " + oldPid + "). Exiting.");
+                    process.exit(1);
+                } catch (e) {
+                    // stale lock
+                }
+            }
+        }
+        fs.writeFileSync(LOCK_PATH, String(process.pid), "utf8");
+    } catch (e) {
+        console.error("[SERVER] Could not write lock file:", e.message);
+    }
+}
+function releaseInstanceLock() {
+    try {
+        if (fs.existsSync(LOCK_PATH)) {
+            var cur = fs.readFileSync(LOCK_PATH, "utf8").trim();
+            if (cur === String(process.pid)) fs.unlinkSync(LOCK_PATH);
+        }
+    } catch (e) { /* ignore */ }
+}
+acquireInstanceLock();
+process.on("exit", releaseInstanceLock);
+
+// --- Stable session secret (must survive restarts or every login is wiped) ---
+function loadOrCreateSessionSecret() {
+    if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.trim()) {
+        return process.env.SESSION_SECRET.trim();
+    }
+    var secretPath = path.join(__dirname, ".session-secret");
+    try {
+        if (fs.existsSync(secretPath)) {
+            var existing = fs.readFileSync(secretPath, "utf8").trim();
+            if (existing.length >= 16) return existing;
+        }
+    } catch (e) { /* fall through */ }
+    var generated = crypto.randomBytes(32).toString("hex");
+    try {
+        fs.writeFileSync(secretPath, generated, { encoding: "utf8", mode: 0o600 });
+        console.log("[Auth] Generated persistent SESSION_SECRET at " + secretPath);
+    } catch (e) {
+        console.error("[Auth] Could not persist SESSION_SECRET:", e.message);
+    }
+    return generated;
+}
+
+// --- SQLite-backed session store (MemoryStore loses all logins on restart) ---
+function createSqliteSessionStore(sessionModule) {
+    var Store = sessionModule.Store;
+    function SqliteStore() {
+        Store.call(this);
+        this._cleanupTimer = setInterval(function () {
+            try {
+                db.prepare("DELETE FROM sessions WHERE expired <= ?").run(Date.now());
+            } catch (e) { /* ignore cleanup errors */ }
+        }, 10 * 60 * 1000);
+        if (this._cleanupTimer.unref) this._cleanupTimer.unref();
+    }
+    require("util").inherits(SqliteStore, Store);
+
+    SqliteStore.prototype.get = function (sid, cb) {
+        try {
+            var row = db.prepare("SELECT sess, expired FROM sessions WHERE sid = ?").get(sid);
+            if (!row) return cb(null, null);
+            if (row.expired && row.expired <= Date.now()) {
+                db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+                return cb(null, null);
+            }
+            return cb(null, JSON.parse(row.sess));
+        } catch (e) {
+            return cb(e);
+        }
+    };
+
+    SqliteStore.prototype.set = function (sid, sess, cb) {
+        try {
+            var maxAge = (sess && sess.cookie && sess.cookie.maxAge) ? sess.cookie.maxAge : 24 * 60 * 60 * 1000;
+            var expired = Date.now() + maxAge;
+            db.prepare(
+                "INSERT INTO sessions (sid, sess, expired) VALUES (?, ?, ?) " +
+                "ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expired = excluded.expired"
+            ).run(sid, JSON.stringify(sess), expired);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.destroy = function (sid, cb) {
+        try {
+            db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.touch = function (sid, sess, cb) {
+        try {
+            var maxAge = (sess && sess.cookie && sess.cookie.maxAge) ? sess.cookie.maxAge : 24 * 60 * 60 * 1000;
+            var expired = Date.now() + maxAge;
+            db.prepare("UPDATE sessions SET expired = ? WHERE sid = ?").run(expired, sid);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.clear = function (cb) {
+        try {
+            db.prepare("DELETE FROM sessions").run();
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    return SqliteStore;
+}
 
 // --- Session & Auth Setup ---
-var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+var SESSION_SECRET = loadOrCreateSessionSecret();
+var SqliteSessionStore = createSqliteSessionStore(session);
 var ADMIN_USER = process.env.ADMIN_USER || "admin";
 var ADMIN_PASS_HASH = null;
 
@@ -77,13 +206,19 @@ var ADMIN_PASS_HASH = null;
 })();
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 app.use(session({
+    name: "tc.sid",
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     rolling: true,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+    store: new SqliteSessionStore(),
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true,
+        sameSite: "lax"
+    }
 }));
 
 // Multer for file uploads (backup restore)
@@ -334,12 +469,16 @@ app.get("/api/server/time", requireAuth, function (req, res) {
 });
 
 // ============================================================
-// API: Server Restart (PM2 will auto-restart after process.exit)
+// API: Server Restart (systemd Restart=always / PM2 will bring it back)
 // ============================================================
 app.post("/api/server/restart", requireAuth, function (req, res) {
     res.json({ success: true, message: "سرور در حال ریستارت است..." });
     console.log("[SERVER] Restart requested by user:", req.session.user && req.session.user.username);
-    setTimeout(function () { process.exit(0); }, 1500);
+    // exit(1) works with both Restart=always and Restart=on-failure
+    setTimeout(function () {
+        releaseInstanceLock();
+        process.exit(1);
+    }, 1500);
 });
 
 // ============================================================
@@ -1243,8 +1382,11 @@ app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
             delete require.cache[require.resolve("./db")];
             db = require("./db");
             res.json({ success: true, message: "بازیابی انجام شد. سرویس در حال ریستارت..." });
-            // Auto-restart to ensure clean state
-            setTimeout(function () { process.exit(0); }, 2000);
+            // Auto-restart to ensure clean state (exit 1 so systemd on-failure also restarts)
+            setTimeout(function () {
+                releaseInstanceLock();
+                process.exit(1);
+            }, 2000);
         } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz") || origName.endsWith(".sql")) {
             // PostgreSQL dump - decompress and parse
             var destPath = path.join(__dirname, "uploads", origName);
@@ -2156,26 +2298,87 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
 });
 
 var httpServer = null;
-
+var schedulerStarted = false;
 var TCP_RETRY_COUNT = 0;
-var TCP_MAX_RETRIES = 5;
+var TCP_MAX_RETRIES = 12;
 var HTTP_RETRY_COUNT = 0;
-var HTTP_MAX_RETRIES = 5;
+var HTTP_MAX_RETRIES = 12;
+var tcpListening = false;
+var httpListening = false;
 
-tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
-    TCP_RETRY_COUNT = 0;
-    console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
-});
+function freePortBestEffort(port) {
+    // Prefer fuser; fall back to ss. Never throw.
+    try {
+        var execSync = require("child_process").execSync;
+        try {
+            execSync("fuser -k " + port + "/tcp 2>/dev/null || true", { stdio: "ignore", timeout: 5000 });
+            return;
+        } catch (e1) { /* try fallbacks */ }
+        try {
+            // ss output example: users:(("node",pid=1234,fd=21))
+            var out = execSync("ss -lptn 'sport = :" + port + "' 2>/dev/null || true", { encoding: "utf8", timeout: 5000 });
+            var m;
+            var re = /pid=(\d+)/g;
+            var pids = {};
+            while ((m = re.exec(out)) !== null) {
+                var pid = parseInt(m[1], 10);
+                if (pid && pid !== process.pid) pids[pid] = true;
+            }
+            Object.keys(pids).forEach(function (pidStr) {
+                try { process.kill(parseInt(pidStr, 10), "SIGTERM"); } catch (e) { /* ignore */ }
+            });
+        } catch (e2) { /* ignore */ }
+    } catch (e) { /* ignore */ }
+}
+
+function onServersReady() {
+    if (!tcpListening || !httpListening) return;
+    if (!schedulerStarted) {
+        schedulerStarted = true;
+        try {
+            rmto.initClient(function (err) {
+                if (err) console.error("[RMTO] Will retry on first send");
+            });
+        } catch (e) {
+            console.error("[RMTO] initClient error:", e.message);
+        }
+        try {
+            scheduler.start();
+        } catch (e) {
+            console.error("[Scheduler] start error:", e.message);
+        }
+        try {
+            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
+        } catch (e) { /* ignore startup notification errors */ }
+    }
+}
+
+function startTcpServer() {
+    if (tcpListening) return;
+    tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
+        TCP_RETRY_COUNT = 0;
+        tcpListening = true;
+        console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
+        onServersReady();
+    });
+}
 
 tcpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
+        tcpListening = false;
         TCP_RETRY_COUNT++;
+        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES);
+        if (TCP_RETRY_COUNT === 1 || TCP_RETRY_COUNT % 3 === 0) {
+            freePortBestEffort(TCP_PORT);
+        }
         if (TCP_RETRY_COUNT > TCP_MAX_RETRIES) {
-            console.error("[TCP] Port " + TCP_PORT + " still in use after " + TCP_MAX_RETRIES + " retries, giving up");
+            console.error("[TCP] Port " + TCP_PORT + " still busy after retries — continuing without TCP listener");
+            // Do not exit: keep HTTP/dashboard alive so operator can still work
             return;
         }
-        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES + " in 5s");
-        setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
+        setTimeout(startTcpServer, 3000);
+    } else {
+        console.error("[TCP] Server error:", err.message);
     }
 });
 
@@ -2183,8 +2386,14 @@ tcpServer.on("error", function (err) {
 // Start HTTP Server
 // ============================================================
 function startHttpServer() {
+    if (httpServer) {
+        try { httpServer.close(); } catch (e) { /* ignore */ }
+        httpServer = null;
+    }
+    httpListening = false;
     httpServer = app.listen(PORT, HOST, function () {
         HTTP_RETRY_COUNT = 0;
+        httpListening = true;
         console.log("============================================");
         console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
         console.log("  Build: " + BUILD_VERSION);
@@ -2192,32 +2401,35 @@ function startHttpServer() {
         console.log("  TCP:  port " + TCP_PORT + " (device data)");
         console.log("  Login: admin / admin123");
         console.log("============================================");
-
-        rmto.initClient(function (err) {
-            if (err) console.error("[RMTO] Will retry on first send");
-        });
-
-        scheduler.start();
-
-        // Send Bale startup notification (if configured)
-        try {
-            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
-        } catch (e) { /* ignore startup notification errors */ }
+        onServersReady();
     });
 
     httpServer.on("error", function (err) {
         if (err.code === "EADDRINUSE") {
+            httpListening = false;
             HTTP_RETRY_COUNT++;
-            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
-                console.error("[HTTP] Port " + PORT + " still in use after " + HTTP_MAX_RETRIES + " retries, exiting.");
-                process.exit(1);
+            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES);
+            if (HTTP_RETRY_COUNT === 1 || HTTP_RETRY_COUNT % 3 === 0) {
+                freePortBestEffort(PORT);
             }
-            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
-            setTimeout(startHttpServer, 5000);
+            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
+                // Exit so process manager restarts cleanly after port cleanup.
+                // Use a short delay to avoid a tight crash loop.
+                console.error("[HTTP] Port " + PORT + " still busy after retries, exiting for clean restart.");
+                setTimeout(function () {
+                    releaseInstanceLock();
+                    process.exit(1);
+                }, 10000);
+                return;
+            }
+            setTimeout(startHttpServer, 3000);
+        } else {
+            console.error("[HTTP] Server error:", err.message);
         }
     });
 }
 
+startTcpServer();
 startHttpServer();
 
 // ============================================================
@@ -2228,7 +2440,7 @@ function gracefulShutdown(signal) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
-    scheduler.stop();
+    try { scheduler.stop(); } catch (e) { /* ignore */ }
 
     // Stop all scheduled test-send jobs
     Object.keys(testScheduleJobs).forEach(function (k) {
@@ -2249,6 +2461,8 @@ function gracefulShutdown(signal) {
         closed++;
         if (closed >= total) {
             console.log("[SERVER] All servers closed, exiting");
+            releaseInstanceLock();
+            // exit 0 on SIGTERM from systemd stop/restart is expected
             process.exit(0);
         }
     }
@@ -2262,13 +2476,18 @@ function gracefulShutdown(signal) {
         checkDone();
     }
 
-    tcpServer.close(function () {
-        console.log("[SERVER] TCP server closed");
+    try {
+        tcpServer.close(function () {
+            console.log("[SERVER] TCP server closed");
+            checkDone();
+        });
+    } catch (e) {
         checkDone();
-    });
+    }
 
     setTimeout(function () {
         console.log("[SERVER] Forcing exit after timeout");
+        releaseInstanceLock();
         process.exit(0);
     }, 4000);
 }

@@ -1180,12 +1180,18 @@
             var tz = $("#server-timezone");
             if (tz) tz.textContent = data.timezone || "-";
             var ut = $("#server-uptime");
-            if (ut && data.uptime) {
-                var sec = Math.floor(data.uptime);
+            if (ut && data.uptime != null && !isNaN(data.uptime)) {
+                var sec = Math.max(0, Math.floor(Number(data.uptime)));
                 var days = Math.floor(sec / 86400);
                 var hrs = Math.floor((sec % 86400) / 3600);
                 var mins = Math.floor((sec % 3600) / 60);
-                ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
+                var secs = sec % 60;
+                var parts = [];
+                if (days > 0) parts.push(days + " روز");
+                if (hrs > 0 || days > 0) parts.push(hrs + " ساعت");
+                if (mins > 0 || hrs > 0 || days > 0) parts.push(mins + " دقیقه");
+                parts.push(secs + " ثانیه");
+                ut.textContent = parts.join(" ");
             }
             var bv = $("#server-build-version");
             if (bv && data.build) bv.textContent = data.build;
