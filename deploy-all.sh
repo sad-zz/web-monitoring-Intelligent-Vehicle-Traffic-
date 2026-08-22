@@ -582,25 +582,117 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                     </div>
                 </div>
 
+                <!-- Archive Send Panel -->
+                <div class="panel" style="margin-top:20px">
+                    <div class="panel-header">
+                        <h3 class="panel-title">📦 ارسال از آرشیو به سامانه RMTO</h3>
+                    </div>
+                    <div class="panel-body">
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده‌های تاریخی ذخیره‌شده را در یک بازه زمانی انتخاب کرده و مجدداً به سامانه ارسال کنید.</p>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:12px">
+                            <div class="form-group" style="margin:0">
+                                <label>کد محور (RID) — اختیاری</label>
+                                <input type="number" id="arch-rid" dir="ltr" placeholder="خالی = همه محورها" min="1">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>از تاریخ <span style="color:#ef4444">*</span></label>
+                                <input type="datetime-local" id="arch-from" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>تا تاریخ <span style="color:#ef4444">*</span></label>
+                                <input type="datetime-local" id="arch-to" dir="ltr">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                            <button class="btn btn-secondary" id="arch-preset-15m" style="font-size:12px;padding:5px 10px">۱۵ دقیقه</button>
+                            <button class="btn btn-secondary" id="arch-preset-1h" style="font-size:12px;padding:5px 10px">۱ ساعت</button>
+                            <button class="btn btn-secondary" id="arch-preset-6h" style="font-size:12px;padding:5px 10px">۶ ساعت</button>
+                            <button class="btn btn-secondary" id="arch-preset-1d" style="font-size:12px;padding:5px 10px">۱ روز</button>
+                            <button class="btn btn-secondary" id="arch-preset-3d" style="font-size:12px;padding:5px 10px">۳ روز</button>
+                            <button class="btn btn-secondary" id="arch-preset-7d" style="font-size:12px;padding:5px 10px">۷ روز</button>
+                            <button class="btn btn-secondary" id="arch-preset-15d" style="font-size:12px;padding:5px 10px">۱۵ روز</button>
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-secondary" id="btn-arch-preview" style="padding:9px 20px">🔍 پیش‌نمایش</button>
+                            <button class="btn btn-primary" id="btn-arch-send" style="padding:9px 20px">📤 شروع ارسال</button>
+                        </div>
+                        <div id="arch-preview-info" style="margin-top:10px;font-size:13px;color:#475569"></div>
+                    </div>
+                </div>
+
+                <!-- Archive Send Jobs Table -->
+                <div class="panel" style="margin-top:16px" id="arch-jobs-panel">
+                    <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
+                        <h3 class="panel-title">📊 وضعیت ارسال آرشیو</h3>
+                        <button class="btn btn-secondary" id="btn-arch-refresh" style="font-size:12px;padding:5px 12px">🔄 بروزرسانی</button>
+                    </div>
+                    <div class="panel-body">
+                        <div style="overflow-x:auto">
+                            <table class="data-table" id="arch-jobs-table">
+                                <thead>
+                                    <tr>
+                                        <th>شناسه</th>
+                                        <th>محور</th>
+                                        <th>از تاریخ</th>
+                                        <th>تا تاریخ</th>
+                                        <th>پیشرفت</th>
+                                        <th>موفق</th>
+                                        <th>خطا</th>
+                                        <th>وضعیت</th>
+                                        <th>عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="arch-jobs-tbody">
+                                    <tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسالی شروع نشده</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Scheduled Test Send Panel -->
                 <div class="panel" style="margin-top:20px">
                     <div class="panel-header">
                         <h3 class="panel-title">⏱ ارسال زمانبندی شده (تکرار هر ۵ دقیقه)</h3>
                     </div>
                     <div class="panel-body">
-                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده تست را با کد محور دلخواه و مدت زمان مشخص (تا ۱۵ روز) هر ۵ دقیقه به سامانه ارسال کنید.</p>
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده تست را با کد محور دلخواه و مدت زمان مشخص (تا ۱۵ روز) هر ۵ دقیقه به سامانه ارسال کنید. مقادیر را از بخش بالا یا تاریخچه وارد نمایید.</p>
                         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px">
-                            <div class="form-group" style="margin:0"><label>کد محور (RID) <span style="color:#ef4444">*</span></label><input type="number" id="sched-rid" dir="ltr" placeholder="مثال: 12345" min="1"></div>
-                            <div class="form-group" style="margin:0"><label>مدت ارسال (روز) <span style="color:#ef4444">*</span></label><input type="number" id="sched-days" value="1" min="1" max="15" dir="ltr"></div>
+                            <div class="form-group" style="margin:0">
+                                <label>کد محور (RID) <span style="color:#ef4444">*</span></label>
+                                <input type="number" id="sched-rid" dir="ltr" placeholder="مثال: 12345" min="1">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>مدت ارسال (روز) <span style="color:#ef4444">*</span></label>
+                                <input type="number" id="sched-days" value="1" min="1" max="15" dir="ltr">
+                            </div>
                         </div>
                         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px">
-                            <div class="form-group" style="margin:0"><label>C1 موتور</label><input type="number" id="sched-c1" value="10" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C2 سواری</label><input type="number" id="sched-c2" value="50" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C3 وانت</label><input type="number" id="sched-c3" value="5" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C4 اتوبوس</label><input type="number" id="sched-c4" value="2" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C5 کامیون</label><input type="number" id="sched-c5" value="3" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0">
+                                <label>C1 موتور</label>
+                                <input type="number" id="sched-c1" value="10" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C2 سواری</label>
+                                <input type="number" id="sched-c2" value="50" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C3 وانت</label>
+                                <input type="number" id="sched-c3" value="5" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C4 اتوبوس</label>
+                                <input type="number" id="sched-c4" value="2" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C5 کامیون</label>
+                                <input type="number" id="sched-c5" value="3" min="0" dir="ltr">
+                            </div>
                         </div>
-                        <div class="form-group" style="margin-bottom:12px"><label>میانگین سرعت (ASP) km/h</label><input type="number" id="sched-asp" value="80" min="0" dir="ltr"></div>
+                        <div class="form-group" style="margin-bottom:12px">
+                            <label>میانگین سرعت (ASP) km/h</label>
+                            <input type="number" id="sched-asp" value="80" min="0" dir="ltr">
+                        </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap">
                             <button class="btn btn-primary" id="btn-sched-start" style="padding:10px 24px;font-size:14px">⏱ شروع ارسال زمانبندی شده</button>
                             <button class="btn btn-secondary" id="btn-sched-copy" style="padding:10px 16px;font-size:13px">📋 کپی از ارسال تست بالا</button>
@@ -609,6 +701,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                     </div>
                 </div>
 
+                <!-- Scheduled Jobs Table -->
                 <div class="panel" style="margin-top:16px" id="sched-jobs-panel">
                     <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center">
                         <h3 class="panel-title">📊 وضعیت ارسال‌های زمانبندی شده</h3>
@@ -617,8 +710,22 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                     <div class="panel-body">
                         <div style="overflow-x:auto">
                             <table class="data-table" id="sched-jobs-table">
-                                <thead><tr><th>شناسه</th><th>محور</th><th>مدت (روز)</th><th>ارسال شده</th><th>موفق</th><th>خطا</th><th>آخرین ارسال</th><th>وضعیت</th><th>عملیات</th></tr></thead>
-                                <tbody id="sched-jobs-tbody"><tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr></tbody>
+                                <thead>
+                                    <tr>
+                                        <th>شناسه</th>
+                                        <th>محور</th>
+                                        <th>مدت (روز)</th>
+                                        <th>ارسال شده</th>
+                                        <th>موفق</th>
+                                        <th>خطا</th>
+                                        <th>آخرین ارسال</th>
+                                        <th>وضعیت</th>
+                                        <th>عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sched-jobs-tbody">
+                                    <tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
@@ -831,7 +938,7 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
                             <h3 class="panel-title">⚙️ کنترل سرور</h3>
                         </div>
                         <div class="panel-body">
-                            <p style="color:#64748b;font-size:13px;margin-bottom:12px">ریستارت سرور: فرآیند سرور پایان یافته و توسط PM2 مجدداً راه‌اندازی می‌شود.</p>
+                            <p style="color:#64748b;font-size:13px;margin-bottom:12px">ریستارت سرور: فرآیند سرور پایان یافته و توسط systemd (یا PM2) مجدداً راه‌اندازی می‌شود. نشست ورود پس از ریستارت حفظ می‌شود.</p>
                             <button class="btn btn-danger" id="btn-server-restart">🔄 ریستارت سرور</button>
                             <div id="restart-status" style="margin-top:8px;font-size:13px;color:#475569"></div>
                         </div>
@@ -912,7 +1019,6 @@ cat > "$APP_DIR/index.html" << 'ENDOFFILE_INDEX_HTML'
     <script src="js/app.js"></script>
 </body>
 </html>
-
 ENDOFFILE_INDEX_HTML
 
 echo "[+] css/style.css"
@@ -1905,6 +2011,13 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         xhr.onload = function () {
             var data = null;
             try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+            // Global 401 handler: session expired → show login overlay
+            if (xhr.status === 401 && url.indexOf("/api/auth/") === -1) {
+                serverConnected = true;
+                updateConnectionStatus(true);
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             callback(xhr.status, data);
         };
         xhr.onerror = function () { callback(0, null); };
@@ -2073,6 +2186,10 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         else if (view === "test-sender") initTestSender();
         else if (view === "history") loadHistory(1);
         else if (view === "settings") loadSettings();
+
+        // Auto-refresh server time only on settings page
+        if (view === "settings") startServerTimeRefresh();
+        else stopServerTimeRefresh();
     }
 
     // Sidebar toggle (mobile)
@@ -2108,7 +2225,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         api("GET", "/api/devices", null, function (status, data) {
             var grid = $("#device-grid");
             if (!grid) return;
-            if (status !== 200 || !data || !data.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
                 grid.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;grid-column:1/-1">دستگاهی ثبت نشده است</div>';
                 updateDeviceFilterCount(0);
                 return;
@@ -2185,7 +2303,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         api("GET", "/api/tcp/connected", null, function (status, data) {
             var tbody = $("#tcp-table-body");
             if (!tbody) return;
-            if (status !== 200 || !data || !Object.keys(data).length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !Object.keys(data).length) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#94a3b8">دستگاهی متصل نیست</td></tr>';
                 return;
             }
@@ -2305,6 +2424,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
 
     // Auto-refresh live monitor every 3 seconds
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var autoCheck = $("#live-auto-refresh");
         var activeView = document.querySelector(".view.active");
         if (autoCheck && autoCheck.checked && activeView && activeView.id === "view-dashboard") {
@@ -2527,7 +2647,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
 
         api("GET", url, null, function (status, data) {
             var tbody = $("#reception-table-body");
-            if (status !== 200 || !data || !data.rows || !data.rows.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.rows || !data.rows.length) {
                 tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#94a3b8">داده‌ای دریافت نشده</td></tr>';
                 receptionState.total = 0;
                 renderTableInfo("reception", 0, 0, 0);
@@ -2876,7 +2997,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     function loadMehvar() {
         api("GET", "/api/mehvar", null, function (status, data) {
             var tbody = $("#mehvar-table-body");
-            if (status !== 200 || !data || !data.length) {
+            if (status !== 200) return; // Keep existing data on error
+            if (!data || !data.length) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">محوری ثبت نشده</td></tr>';
                 return;
             }
@@ -3020,6 +3142,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     });
 
     // Server Time
+    var serverTimeTimer = null;
     function loadServerTime() {
         api("GET", "/api/server/time", null, function (status, data) {
             if (status !== 200 || !data) return;
@@ -3032,16 +3155,30 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             var tz = $("#server-timezone");
             if (tz) tz.textContent = data.timezone || "-";
             var ut = $("#server-uptime");
-            if (ut && data.uptime) {
-                var sec = Math.floor(data.uptime);
+            if (ut && data.uptime != null && !isNaN(data.uptime)) {
+                var sec = Math.max(0, Math.floor(Number(data.uptime)));
                 var days = Math.floor(sec / 86400);
                 var hrs = Math.floor((sec % 86400) / 3600);
                 var mins = Math.floor((sec % 3600) / 60);
-                ut.textContent = days + " روز " + hrs + " ساعت " + mins + " دقیقه";
+                var secs = sec % 60;
+                var parts = [];
+                if (days > 0) parts.push(days + " روز");
+                if (hrs > 0 || days > 0) parts.push(hrs + " ساعت");
+                if (mins > 0 || hrs > 0 || days > 0) parts.push(mins + " دقیقه");
+                parts.push(secs + " ثانیه");
+                ut.textContent = parts.join(" ");
             }
             var bv = $("#server-build-version");
             if (bv && data.build) bv.textContent = data.build;
         });
+    }
+
+    function startServerTimeRefresh() {
+        if (serverTimeTimer) clearInterval(serverTimeTimer);
+        serverTimeTimer = setInterval(loadServerTime, 10000);
+    }
+    function stopServerTimeRefresh() {
+        if (serverTimeTimer) { clearInterval(serverTimeTimer); serverTimeTimer = null; }
     }
 
     var refreshTimeBtn = $("#btn-refresh-server-time");
@@ -3089,6 +3226,12 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         xhr.onload = function () {
             var r;
             try { r = JSON.parse(xhr.responseText); } catch (e) { r = {}; }
+            if (xhr.status === 401) {
+                statusEl.textContent = "نشست منقضی شده. لطفا دوباره وارد شوید";
+                statusEl.style.color = "#ef4444";
+                loginOverlay.classList.remove("hidden");
+                return;
+            }
             if (xhr.status === 200) {
                 statusEl.textContent = r.message || "بازیابی انجام شد";
                 statusEl.style.color = "#22c55e";
@@ -3270,6 +3413,7 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
     // Auto-refresh every 30s
     // ============================================================
     setInterval(function () {
+        if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
         var activeView = document.querySelector(".view.active");
         if (!activeView) return;
         var id = activeView.id;
@@ -3513,15 +3657,138 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             });
         });
 
+        // ---- Archive Send ----
+        function toLocalInputVal(d) {
+            return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" +
+                String(d.getDate()).padStart(2,"0") + "T" +
+                String(d.getHours()).padStart(2,"0") + ":" +
+                String(d.getMinutes()).padStart(2,"0");
+        }
+
+        function applyArchivePreset(minutes) {
+            var now = new Date();
+            var to = new Date(now);
+            to.setSeconds(0, 0);
+            var from = new Date(to.getTime() - minutes * 60 * 1000);
+            var fromEl = $("#arch-from"), toEl = $("#arch-to");
+            if (fromEl) fromEl.value = toLocalInputVal(from);
+            if (toEl) toEl.value = toLocalInputVal(to);
+        }
+
+        var presets = { "arch-preset-15m": 15, "arch-preset-1h": 60, "arch-preset-6h": 360,
+            "arch-preset-1d": 1440, "arch-preset-3d": 4320, "arch-preset-7d": 10080, "arch-preset-15d": 21600 };
+        Object.keys(presets).forEach(function (id) {
+            var el = $("#" + id);
+            if (el) el.addEventListener("click", function () { applyArchivePreset(presets[id]); });
+        });
+
+        var archPreviewBtn = $("#btn-arch-preview");
+        if (archPreviewBtn) archPreviewBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : "";
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var url = "/api/rmto/archive-records?from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to);
+            if (rid) url += "&rid=" + rid;
+            if (infoEl) infoEl.textContent = "در حال بارگذاری...";
+            api("GET", url, null, function (status, data) {
+                if (!data || !infoEl) return;
+                infoEl.innerHTML = '🔎 <strong>' + escapeHtml(String(data.total || 0)) + '</strong> رکورد یافت شد' +
+                    (rid ? ' برای محور <strong>' + escapeHtml(String(rid)) + '</strong>' : '') +
+                    ' در بازه انتخابی';
+            });
+        });
+
+        var archSendBtn = $("#btn-arch-send");
+        if (archSendBtn) archSendBtn.addEventListener("click", function () {
+            var from = ($("#arch-from") && $("#arch-from").value) ? $("#arch-from").value + ":00" : "";
+            var to = ($("#arch-to") && $("#arch-to").value) ? $("#arch-to").value + ":00" : "";
+            var rid = ($("#arch-rid") && $("#arch-rid").value) ? parseInt($("#arch-rid").value, 10) : null;
+            var infoEl = $("#arch-preview-info");
+            if (!from || !to) { if (infoEl) infoEl.textContent = "⚠️ لطفاً بازه زمانی را وارد کنید"; return; }
+            var body = { from: from, to: to };
+            if (rid) body.rid = rid;
+            archSendBtn.disabled = true;
+            archSendBtn.textContent = "در حال شروع...";
+            api("POST", "/api/rmto/archive-send", body, function (status, data) {
+                archSendBtn.disabled = false;
+                archSendBtn.textContent = "📤 شروع ارسال";
+                if (!data || status !== 200) {
+                    if (infoEl) infoEl.textContent = "❌ خطا: " + ((data && data.error) || "ارتباط با سرور برقرار نشد");
+                    return;
+                }
+                if (infoEl) infoEl.innerHTML = '✅ ارسال آرشیو شروع شد — شناسه کار: <strong>' + escapeHtml(String(data.jobId)) + '</strong> / ' + escapeHtml(String(data.total)) + ' رکورد';
+                refreshArchiveJobs();
+            });
+        });
+
+        var archRefreshBtn = $("#btn-arch-refresh");
+        if (archRefreshBtn) archRefreshBtn.addEventListener("click", refreshArchiveJobs);
+
+        function refreshArchiveJobs() {
+            api("GET", "/api/rmto/archive-jobs", null, function (status, jobs) {
+                var tbody = $("#arch-jobs-tbody");
+                if (!tbody || !jobs) return;
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسالی شروع نشده</td></tr>';
+                    return;
+                }
+                var html = "";
+                jobs.slice().reverse().forEach(function (j) {
+                    var pct = j.total > 0 ? Math.round(j.sent / j.total * 100) : 0;
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : '<span class="status-badge online">تمام شد</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopArchiveJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(j.rid ? String(j.rid) : "همه") + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.from || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml((j.to || "").replace("T", " ").substring(0, 16)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sent)) + " / " + escapeHtml(String(j.total)) + " (" + escapeHtml(String(pct)) + "%)</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.success)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failed)) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
+                });
+                tbody.innerHTML = html;
+            });
+        }
+
+        // Auto-refresh jobs table every 3 seconds while on test-sender view
+        setInterval(function () {
+            if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
+            var v = document.querySelector(".view.active");
+            if (v && v.id === "view-test-sender") {
+                refreshArchiveJobs();
+                refreshSchedJobs();
+            }
+        }, 3000);
+
         // ---- Scheduled Test Send ----
         var schedCopyBtn = $("#btn-sched-copy");
         if (schedCopyBtn) schedCopyBtn.addEventListener("click", function () {
-            ["c1","c2","c3","c4","c5","asp"].forEach(function (f) {
-                var src = $("#test-" + f), dst = $("#sched-" + f);
+            var fields = ["c1", "c2", "c3", "c4", "c5", "asp"];
+            fields.forEach(function (f) {
+                var src = $("#test-" + f);
+                var dst = $("#sched-" + f);
                 if (src && dst) dst.value = src.value;
             });
-            var ridSrc = $("#test-rid"), ridDst = $("#sched-rid");
+            var ridSrc = $("#test-rid");
+            var ridDst = $("#sched-rid");
             if (ridSrc && ridDst) ridDst.value = ridSrc.value;
+            var resultEl = $("#sched-result");
+            if (resultEl) {
+                resultEl.style.display = "block";
+                resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:8px;border-radius:6px;color:#166534;font-size:13px">✅ مقادیر از بخش ارسال تست کپی شد</div>';
+                setTimeout(function () { resultEl.style.display = "none"; }, 3000);
+            }
         });
 
         var schedStartBtn = $("#btn-sched-start");
@@ -3531,23 +3798,32 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             var days = parseInt(($("#sched-days") && $("#sched-days").value) || "1", 10);
             if (days < 1 || days > 15) { alert("مدت ارسال باید بین ۱ تا ۱۵ روز باشد"); return; }
             if (!confirm("آیا از شروع ارسال زمانبندی شده هر ۵ دقیقه برای " + days + " روز مطمئن هستید؟")) return;
-            var body = { rid: rid, durationDays: days,
+
+            var body = {
+                rid: rid,
+                durationDays: days,
                 c1: parseInt(($("#sched-c1") && $("#sched-c1").value) || "0", 10),
                 c2: parseInt(($("#sched-c2") && $("#sched-c2").value) || "0", 10),
                 c3: parseInt(($("#sched-c3") && $("#sched-c3").value) || "0", 10),
                 c4: parseInt(($("#sched-c4") && $("#sched-c4").value) || "0", 10),
                 c5: parseInt(($("#sched-c5") && $("#sched-c5").value) || "0", 10),
-                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10) };
+                asp: parseInt(($("#sched-asp") && $("#sched-asp").value) || "60", 10)
+            };
+
             schedStartBtn.disabled = true;
+            schedStartBtn.textContent = "در حال شروع...";
+            var resultEl = $("#sched-result");
+
             api("POST", "/api/rmto/test-schedule", body, function (status, data) {
                 schedStartBtn.disabled = false;
                 schedStartBtn.textContent = "⏱ شروع ارسال زمانبندی شده";
-                var resultEl = $("#sched-result");
                 if (resultEl) {
                     resultEl.style.display = "block";
-                    resultEl.innerHTML = data && data.success
-                        ? '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message) + '</div>'
-                        : '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا</div>';
+                    if (data && data.success) {
+                        resultEl.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;padding:10px;border-radius:6px;color:#166534">✅ ' + escapeHtml(data.message || "شروع شد") + ' — شناسه: ' + escapeHtml(String(data.jobId)) + '</div>';
+                    } else {
+                        resultEl.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;padding:10px;border-radius:6px;color:#991b1b">❌ خطا: ' + escapeHtml((data && data.error) || "ارتباط برقرار نشد") + '</div>';
+                    }
                 }
                 refreshSchedJobs();
             });
@@ -3560,30 +3836,77 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
             api("GET", "/api/rmto/test-schedule", null, function (status, jobs) {
                 var tbody = $("#sched-jobs-tbody");
                 if (!tbody || !jobs) return;
-                if (!jobs.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>'; return; }
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#94a3b8">هنوز ارسال زمانبندی شده‌ای شروع نشده</td></tr>';
+                    return;
+                }
                 var html = "";
                 jobs.slice().reverse().forEach(function (j) {
-                    var statusHtml = j.status === "running" ? '<span class="status-badge warning">در حال ارسال</span>'
-                        : j.status === "stopped" ? '<span class="status-badge offline">متوقف</span>'
-                        : '<span class="status-badge online">پایان یافت</span>';
-                    var stopBtn = j.status === "running" ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopSchedJob(' + j.id + ')">⏹ توقف</button>' : "-";
-                    html += "<tr><td dir='ltr'>" + j.id + "</td><td dir='ltr'>" + j.rid + "</td><td>" + j.durationDays + "</td><td dir='ltr'>" + j.sendCount + "</td><td style='color:#166534'>" + j.successCount + "</td><td style='color:#991b1b'>" + j.failedCount + "</td><td dir='ltr' style='font-size:11px'>" + (j.lastSendAt ? j.lastSendAt.replace("T"," ").substring(0,19) : "-") + "</td><td>" + statusHtml + "</td><td>" + stopBtn + "</td></tr>";
+                    var statusHtml = j.status === "running"
+                        ? '<span class="status-badge warning">در حال ارسال</span>'
+                        : j.status === "stopped"
+                            ? '<span class="status-badge offline">متوقف</span>'
+                            : j.status === "expired"
+                                ? '<span class="status-badge online">پایان یافت</span>'
+                                : '<span class="status-badge">' + escapeHtml(j.status) + '</span>';
+                    var stopBtn = (j.status === "running")
+                        ? '<button class="btn btn-secondary" style="font-size:11px;padding:3px 8px" onclick="stopSchedJob(' + j.id + ')">⏹ توقف</button>'
+                        : "-";
+                    var lastSend = j.lastSendAt ? j.lastSendAt.replace("T", " ").substring(0, 19) : "-";
+                    html += "<tr>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.id)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.rid)) + "</td>" +
+                        "<td>" + escapeHtml(String(j.durationDays)) + "</td>" +
+                        "<td dir='ltr'>" + escapeHtml(String(j.sendCount)) + "</td>" +
+                        "<td style='color:#166534'>" + escapeHtml(String(j.successCount)) + "</td>" +
+                        "<td style='color:#991b1b'>" + escapeHtml(String(j.failedCount)) + "</td>" +
+                        "<td dir='ltr' style='font-size:11px'>" + escapeHtml(lastSend) + "</td>" +
+                        "<td>" + statusHtml + "</td>" +
+                        "<td>" + stopBtn + "</td>" +
+                        "</tr>";
                 });
                 tbody.innerHTML = html;
             });
         }
-
-        setInterval(function () {
-            if (!serverConnected || !loginOverlay.classList.contains("hidden")) return;
-            var v = document.querySelector(".view.active");
-            if (v && v.id === "view-test-sender") refreshSchedJobs();
-        }, 3000);
     }
 
+    // Expose stop job function globally for inline onclick
+    window.stopArchiveJob = function (jobId) {
+        api("DELETE", "/api/rmto/archive-send/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var infoEl = $("#arch-preview-info");
+                if (infoEl) infoEl.textContent = "⏹ ارسال شناسه " + jobId + " متوقف شد";
+                // force refresh
+                var tbody = $("#arch-jobs-tbody");
+                if (tbody) {
+                    api("GET", "/api/rmto/archive-jobs", null, function (s, jobs) {
+                        if (!jobs) return;
+                        // trigger re-render by calling refreshArchiveJobs equivalent inline
+                        var evt = document.createEvent("Event");
+                        evt.initEvent("click", true, true);
+                        var rb = $("#btn-arch-refresh");
+                        if (rb) rb.dispatchEvent(evt);
+                    });
+                }
+            }
+        });
+    };
+
     window.stopSchedJob = function (jobId) {
-        api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function () {
-            var rb = $("#btn-sched-refresh");
-            if (rb) { var evt = document.createEvent("Event"); evt.initEvent("click", true, true); rb.dispatchEvent(evt); }
+        api("DELETE", "/api/rmto/test-schedule/" + jobId, null, function (status, data) {
+            if (status === 200) {
+                var resultEl = $("#sched-result");
+                if (resultEl) {
+                    resultEl.style.display = "block";
+                    resultEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #fde68a;padding:8px;border-radius:6px;color:#854d0e;font-size:13px">⏹ ارسال زمانبندی شده شناسه ' + escapeHtml(String(jobId)) + ' متوقف شد</div>';
+                }
+                var rb = $("#btn-sched-refresh");
+                if (rb) {
+                    var evt = document.createEvent("Event");
+                    evt.initEvent("click", true, true);
+                    rb.dispatchEvent(evt);
+                }
+            }
         });
     };
 
@@ -3713,19 +4036,8 @@ cat > "$APP_DIR/js/app.js" << 'ENDOFFILE_JS_APP_JS'
         }
     });
 
-    // ============================================================
-    // Auto-refresh every 30s
-    // ============================================================
-    setInterval(function () {
-        var activeView = document.querySelector(".view.active");
-        if (!activeView) return;
-        var id = activeView.id;
-        if (id === "view-dashboard") loadDashboard();
-        else if (id === "view-reception") loadReception();
-    }, 30000);
 
 })();
-
 ENDOFFILE_JS_APP_JS
 
 echo "[+] server/index.js"
@@ -3741,6 +4053,23 @@ cat > "$APP_DIR/server/index.js" << 'ENDOFFILE_SERVER_INDEX_JS'
 // Set timezone to Iran Standard Time (UTC+3:30) BEFORE any Date operations
 // This ensures all new Date() calls return Iran local time
 process.env.TZ = "Asia/Tehran";
+
+// Global error handlers to prevent silent server crashes
+process.on("uncaughtException", function (err) {
+    console.error("[FATAL] Uncaught Exception:", err.message);
+    console.error(err.stack);
+    // Only exit on truly fatal errors. Avoid restart loops for recoverable faults.
+    if (err.code === "ERR_IPC_CHANNEL_CLOSED" ||
+        (err.message && err.message.indexOf("Cannot allocate memory") !== -1)) {
+        setTimeout(function () { process.exit(1); }, 1000);
+    } else {
+        console.error("[FATAL] Server continuing despite uncaught exception to avoid restart loop");
+    }
+});
+
+process.on("unhandledRejection", function (reason) {
+    console.error("[FATAL] Unhandled Promise Rejection:", reason);
+});
 
 require("dotenv").config();
 
@@ -3761,10 +4090,140 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.04.07-v3";
+var BUILD_VERSION = "2026.08.21-stable1";
+
+// --- Single-instance lock (prevents two node processes fighting over ports) ---
+var LOCK_PATH = path.join(__dirname, ".tc-manager.lock");
+function acquireInstanceLock() {
+    try {
+        if (fs.existsSync(LOCK_PATH)) {
+            var old = fs.readFileSync(LOCK_PATH, "utf8").trim();
+            var oldPid = parseInt(old, 10);
+            if (oldPid && oldPid !== process.pid) {
+                try {
+                    process.kill(oldPid, 0); // throws if not running
+                    console.error("[SERVER] Another instance is already running (pid " + oldPid + "). Exiting.");
+                    process.exit(1);
+                } catch (e) {
+                    // stale lock
+                }
+            }
+        }
+        fs.writeFileSync(LOCK_PATH, String(process.pid), "utf8");
+    } catch (e) {
+        console.error("[SERVER] Could not write lock file:", e.message);
+    }
+}
+function releaseInstanceLock() {
+    try {
+        if (fs.existsSync(LOCK_PATH)) {
+            var cur = fs.readFileSync(LOCK_PATH, "utf8").trim();
+            if (cur === String(process.pid)) fs.unlinkSync(LOCK_PATH);
+        }
+    } catch (e) { /* ignore */ }
+}
+acquireInstanceLock();
+process.on("exit", releaseInstanceLock);
+
+// --- Stable session secret (must survive restarts or every login is wiped) ---
+function loadOrCreateSessionSecret() {
+    if (process.env.SESSION_SECRET && process.env.SESSION_SECRET.trim()) {
+        return process.env.SESSION_SECRET.trim();
+    }
+    var secretPath = path.join(__dirname, ".session-secret");
+    try {
+        if (fs.existsSync(secretPath)) {
+            var existing = fs.readFileSync(secretPath, "utf8").trim();
+            if (existing.length >= 16) return existing;
+        }
+    } catch (e) { /* fall through */ }
+    var generated = crypto.randomBytes(32).toString("hex");
+    try {
+        fs.writeFileSync(secretPath, generated, { encoding: "utf8", mode: 0o600 });
+        console.log("[Auth] Generated persistent SESSION_SECRET at " + secretPath);
+    } catch (e) {
+        console.error("[Auth] Could not persist SESSION_SECRET:", e.message);
+    }
+    return generated;
+}
+
+// --- SQLite-backed session store (MemoryStore loses all logins on restart) ---
+function createSqliteSessionStore(sessionModule) {
+    var Store = sessionModule.Store;
+    function SqliteStore() {
+        Store.call(this);
+        this._cleanupTimer = setInterval(function () {
+            try {
+                db.prepare("DELETE FROM sessions WHERE expired <= ?").run(Date.now());
+            } catch (e) { /* ignore cleanup errors */ }
+        }, 10 * 60 * 1000);
+        if (this._cleanupTimer.unref) this._cleanupTimer.unref();
+    }
+    require("util").inherits(SqliteStore, Store);
+
+    SqliteStore.prototype.get = function (sid, cb) {
+        try {
+            var row = db.prepare("SELECT sess, expired FROM sessions WHERE sid = ?").get(sid);
+            if (!row) return cb(null, null);
+            if (row.expired && row.expired <= Date.now()) {
+                db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+                return cb(null, null);
+            }
+            return cb(null, JSON.parse(row.sess));
+        } catch (e) {
+            return cb(e);
+        }
+    };
+
+    SqliteStore.prototype.set = function (sid, sess, cb) {
+        try {
+            var maxAge = (sess && sess.cookie && sess.cookie.maxAge) ? sess.cookie.maxAge : 24 * 60 * 60 * 1000;
+            var expired = Date.now() + maxAge;
+            db.prepare(
+                "INSERT INTO sessions (sid, sess, expired) VALUES (?, ?, ?) " +
+                "ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expired = excluded.expired"
+            ).run(sid, JSON.stringify(sess), expired);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.destroy = function (sid, cb) {
+        try {
+            db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.touch = function (sid, sess, cb) {
+        try {
+            var maxAge = (sess && sess.cookie && sess.cookie.maxAge) ? sess.cookie.maxAge : 24 * 60 * 60 * 1000;
+            var expired = Date.now() + maxAge;
+            db.prepare("UPDATE sessions SET expired = ? WHERE sid = ?").run(expired, sid);
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    SqliteStore.prototype.clear = function (cb) {
+        try {
+            db.prepare("DELETE FROM sessions").run();
+            return cb && cb(null);
+        } catch (e) {
+            return cb && cb(e);
+        }
+    };
+
+    return SqliteStore;
+}
 
 // --- Session & Auth Setup ---
-var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
+var SESSION_SECRET = loadOrCreateSessionSecret();
+var SqliteSessionStore = createSqliteSessionStore(session);
 var ADMIN_USER = process.env.ADMIN_USER || "admin";
 var ADMIN_PASS_HASH = null;
 
@@ -3791,16 +4250,25 @@ var ADMIN_PASS_HASH = null;
 })();
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "2mb" }));
 app.use(session({
+    name: "tc.sid",
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 24 * 60 * 60 * 1000 } // 24 hours
+    rolling: true,
+    store: new SqliteSessionStore(),
+    cookie: {
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true,
+        sameSite: "lax"
+    }
 }));
 
 // Multer for file uploads (backup restore)
-var upload = multer({ dest: path.join(__dirname, "uploads/"), limits: { fileSize: 500 * 1024 * 1024 } });
+var uploadsDir = path.join(__dirname, "uploads/");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+var upload = multer({ dest: uploadsDir, limits: { fileSize: 500 * 1024 * 1024 } });
 
 // ============================================================
 // Auth Middleware
@@ -3957,9 +4425,19 @@ app.post("/api/irawdata", function (req, res) {
     }
 
     if (b.records && Array.isArray(b.records)) {
-        db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        try {
+            db.transaction(function(recs){ recs.forEach(insertOne); })(b.records);
+        } catch (txErr) {
+            console.error("[HTTP] Transaction error for device " + code + ":", txErr.message);
+            return res.status(500).json({ success: false, error: txErr.message });
+        }
     } else {
-        insertOne(b);
+        try {
+            insertOne(b);
+        } catch (insertErr) {
+            console.error("[HTTP] Insert error for device " + code + ":", insertErr.message);
+            return res.status(500).json({ success: false, error: insertErr.message });
+        }
     }
     res.json({ success: true, received: count });
 });
@@ -4035,12 +4513,16 @@ app.get("/api/server/time", requireAuth, function (req, res) {
 });
 
 // ============================================================
-// API: Server Restart (PM2 will auto-restart after process.exit)
+// API: Server Restart (systemd Restart=always / PM2 will bring it back)
 // ============================================================
 app.post("/api/server/restart", requireAuth, function (req, res) {
     res.json({ success: true, message: "سرور در حال ریستارت است..." });
     console.log("[SERVER] Restart requested by user:", req.session.user && req.session.user.username);
-    setTimeout(function () { process.exit(0); }, 1500);
+    // exit(1) works with both Restart=always and Restart=on-failure
+    setTimeout(function () {
+        releaseInstanceLock();
+        process.exit(1);
+    }, 1500);
 });
 
 // ============================================================
@@ -4121,73 +4603,286 @@ app.post("/api/rmto/test-send", requireAuth, function (req, res) {
 });
 
 // ============================================================
-// API: Scheduled Test Send
+// API: Archive Test Send - send historical records from rmto_queue_5class
+// ============================================================
+
+// In-memory job tracking for archive send operations
+var archiveSendJobs = {};
+var archiveJobSeq = 0;
+
+// GET /api/rmto/archive-records - preview records matching route/date range
+app.get("/api/rmto/archive-records", requireAuth, function (req, res) {
+    var rid = req.query.rid ? parseInt(req.query.rid, 10) : null;
+    var from = req.query.from || "";
+    var to = req.query.to || "";
+    var limit = Math.min(parseInt(req.query.limit, 10) || 200, 1000);
+
+    var sql = "SELECT id, device_code, route_id, period_start, period_end, " +
+        "c1, c2, c3, c4, c5, avg_speed, sso, oo, esd, sent, sent_at " +
+        "FROM rmto_queue_5class WHERE 1=1";
+    var params = [];
+    if (rid) { sql += " AND route_id = ?"; params.push(String(rid)); }
+    if (from) { sql += " AND period_start >= ?"; params.push(from); }
+    if (to) { sql += " AND period_start <= ?"; params.push(to); }
+    sql += " ORDER BY period_start ASC LIMIT ?";
+    params.push(limit);
+
+    var rows = db.prepare(sql).all.apply(db.prepare(sql), params);
+    res.json({ total: rows.length, rows: rows });
+});
+
+// POST /api/rmto/archive-send - start an archive batch send job
+app.post("/api/rmto/archive-send", requireAuth, function (req, res) {
+    var b = req.body;
+    var from = b.from || "";
+    var to = b.to || "";
+    var rid = b.rid ? parseInt(b.rid, 10) : null;
+
+    if (!from || !to) return res.status(400).json({ error: "from و to الزامی است" });
+
+    var sql = "SELECT * FROM rmto_queue_5class WHERE 1=1";
+    var params = [];
+    if (rid) { sql += " AND route_id = ?"; params.push(String(rid)); }
+    sql += " AND period_start >= ? AND period_start <= ? ORDER BY period_start ASC";
+    params.push(from, to);
+
+    var rawRecords = db.prepare(sql).all.apply(db.prepare(sql), params);
+    if (rawRecords.length === 0) return res.status(404).json({ error: "رکوردی در بازه مشخص‌شده یافت نشد" });
+
+    // Merge records sharing the same route_id + period_start to prevent RMTO duplicates
+    var mergeMap = {};
+    rawRecords.forEach(function (r) {
+        if (!r.route_id) return;
+        var key = r.route_id + "|" + r.period_start;
+        if (!mergeMap[key]) {
+            mergeMap[key] = JSON.parse(JSON.stringify(r));
+        } else {
+            var e = mergeMap[key];
+            var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
+            var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
+            var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
+            var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
+            var ns4 = (e.c4||0) + (r.c4||0) > 0 ? Math.round(((e.c4||0) * (e.s4||0) + (r.c4||0) * (r.s4||0)) / ((e.c4||0) + (r.c4||0))) : 0;
+            var ns5 = (e.c5||0) + (r.c5||0) > 0 ? Math.round(((e.c5||0) * (e.s5||0) + (r.c5||0) * (r.s5||0)) / ((e.c5||0) + (r.c5||0))) : 0;
+            var nTotal = eTotal + rTotal;
+            e.avg_speed = nTotal > 0 ? Math.round((eTotal * (e.avg_speed||0) + rTotal * (r.avg_speed||0)) / nTotal) : 0;
+            e.c1 = (e.c1||0) + (r.c1||0); e.c2 = (e.c2||0) + (r.c2||0); e.c3 = (e.c3||0) + (r.c3||0);
+            e.c4 = (e.c4||0) + (r.c4||0); e.c5 = (e.c5||0) + (r.c5||0);
+            e.s1 = ns1; e.s2 = ns2; e.s3 = ns3; e.s4 = ns4; e.s5 = ns5;
+            e.sso = (e.sso||0) + (r.sso||0);
+            e.so1 = (e.so1||0) + (r.so1||0); e.so2 = (e.so2||0) + (r.so2||0); e.so3 = (e.so3||0) + (r.so3||0);
+            e.so4 = (e.so4||0) + (r.so4||0); e.so5 = (e.so5||0) + (r.so5||0);
+            e.oo = (e.oo||0) + (r.oo||0); e.esd = (e.esd||0) + (r.esd||0);
+            e.device_code = e.device_code + "+" + r.device_code;
+        }
+    });
+    var records = Object.keys(mergeMap).map(function (k) { return mergeMap[k]; });
+    if (records.length < rawRecords.length) {
+        console.log("[ArchiveSend] Merged " + rawRecords.length + " records into " + records.length + " (same-route dedup)");
+    }
+
+    var jobId = ++archiveJobSeq;
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
+    var job = {
+        id: jobId,
+        rid: rid,
+        from: from,
+        to: to,
+        total: records.length,
+        sent: 0,
+        success: 0,
+        failed: 0,
+        stopped: false,
+        status: "running",
+        startedAt: new Date().toISOString(),
+        errors: []
+    };
+    archiveSendJobs[jobId] = job;
+
+    var SEND_DELAY_MS = 800;
+    var idx = 0;
+
+    function sendNextArchive() {
+        if (job.stopped || idx >= records.length) {
+            job.status = job.stopped ? "stopped" : "done";
+            console.log("[ArchiveSend] Job #" + jobId + " " + job.status + " (" + job.success + "/" + job.total + " success)");
+            return;
+        }
+        var row = records[idx++];
+        if (!row.route_id) {
+            job.sent++;
+            setTimeout(sendNextArchive, SEND_DELAY_MS);
+            return;
+        }
+        rmto.sendAddData5({
+            FID: row.id,
+            RID: parseInt(row.route_id, 10),
+            ST: row.period_start,
+            ET: row.period_end,
+            C1: row.c1, C2: row.c2, C3: row.c3, C4: row.c4, C5: row.c5,
+            ASP: Math.round(row.avg_speed || 0),
+            S1: row.s1 || 0, S2: row.s2 || 0, S3: row.s3 || 0, S4: row.s4 || 0, S5: row.s5 || 0,
+            SSO: row.sso || 0,
+            SO1: row.so1 || 0, SO2: row.so2 || 0, SO3: row.so3 || 0, SO4: row.so4 || 0, SO5: row.so5 || 0,
+            OO: row.oo || 0,
+            ESD: row.esd || 0,
+            sourceIp: sourceIp
+        }, function (err, response, soapXml) {
+            var success = !err && response && (response.ID > 0 || response.CFL === 100);
+            job.sent++;
+            if (success) { job.success++; } else { job.failed++; job.errors.push({ id: row.id, rid: row.route_id, error: err ? err.message : (response && response.ERR ? response.ERR : "خطا") }); }
+            db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                .run("Add5-Archive", row.device_code, JSON.stringify(row), JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
+            setTimeout(sendNextArchive, SEND_DELAY_MS);
+        });
+    }
+
+    res.json({ jobId: jobId, total: records.length, message: "ارسال آرشیو شروع شد" });
+    setTimeout(sendNextArchive, 100);
+});
+
+// GET /api/rmto/archive-jobs - list all active/recent jobs
+app.get("/api/rmto/archive-jobs", requireAuth, function (req, res) {
+    var jobs = Object.keys(archiveSendJobs).map(function (k) { return archiveSendJobs[k]; });
+    res.json(jobs);
+});
+
+// DELETE /api/rmto/archive-send/:jobId - stop a job
+app.delete("/api/rmto/archive-send/:jobId", requireAuth, function (req, res) {
+    var jobId = parseInt(req.params.jobId, 10);
+    var job = archiveSendJobs[jobId];
+    if (!job) return res.status(404).json({ error: "job not found" });
+    job.stopped = true;
+    job.status = "stopped";
+    res.json({ success: true, message: "ارسال متوقف شد" });
+});
+
+// ============================================================
+// API: Scheduled Test Send - replay data every 5 min for up to 15 days
 // ============================================================
 var testScheduleJobs = {};
 var testScheduleSeq = 0;
 
+// POST /api/rmto/test-schedule - start a scheduled test send
 app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var b = req.body;
     var rid = parseInt(b.rid, 10) || 0;
     if (!rid || rid <= 0) return res.status(400).json({ error: "کد محور (RID) الزامی است" });
+
     var durationDays = Math.min(Math.max(parseInt(b.durationDays, 10) || 1, 1), 15);
-    var c1 = parseInt(b.c1) || 0, c2 = parseInt(b.c2) || 0, c3 = parseInt(b.c3) || 0;
-    var c4 = parseInt(b.c4) || 0, c5 = parseInt(b.c5) || 0, asp = parseInt(b.asp) || 60;
-    var s1 = parseInt(b.s1) || asp, s2 = parseInt(b.s2) || asp, s3 = parseInt(b.s3) || asp;
-    var s4 = parseInt(b.s4) || asp, s5 = parseInt(b.s5) || asp;
+    var c1 = parseInt(b.c1) || 0;
+    var c2 = parseInt(b.c2) || 0;
+    var c3 = parseInt(b.c3) || 0;
+    var c4 = parseInt(b.c4) || 0;
+    var c5 = parseInt(b.c5) || 0;
+    var asp = parseInt(b.asp) || 60;
+    var s1 = parseInt(b.s1) || asp;
+    var s2 = parseInt(b.s2) || asp;
+    var s3 = parseInt(b.s3) || asp;
+    var s4 = parseInt(b.s4) || asp;
+    var s5 = parseInt(b.s5) || asp;
+
     var jobId = ++testScheduleSeq;
     var expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
     var sourceIp = (sourceIpRow && sourceIpRow.value) ? sourceIpRow.value.trim() : "";
+
     function localISO(d) {
-        return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" +
-            String(d.getDate()).padStart(2, "0") + "T" + String(d.getHours()).padStart(2, "0") + ":" +
+        return d.getFullYear() + "-" +
+            String(d.getMonth() + 1).padStart(2, "0") + "-" +
+            String(d.getDate()).padStart(2, "0") + "T" +
+            String(d.getHours()).padStart(2, "0") + ":" +
             String(d.getMinutes()).padStart(2, "0") + ":00";
     }
-    var job = { id: jobId, rid: rid, data: { c1:c1,c2:c2,c3:c3,c4:c4,c5:c5,asp:asp },
-        durationDays: durationDays, expiresAt: expiresAt.toISOString(), startedAt: new Date().toISOString(),
-        sendCount: 0, successCount: 0, failedCount: 0, lastSendAt: null, lastError: null, stopped: false, status: "running" };
+
+    var job = {
+        id: jobId,
+        rid: rid,
+        data: { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5 },
+        durationDays: durationDays,
+        expiresAt: expiresAt.toISOString(),
+        startedAt: new Date().toISOString(),
+        sendCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        lastSendAt: null,
+        lastError: null,
+        stopped: false,
+        status: "running"
+    };
+
     function sendOnce() {
         if (job.stopped || new Date() >= expiresAt) {
             job.status = job.stopped ? "stopped" : "expired";
             if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
+            console.log("[TestSchedule] Job #" + jobId + " " + job.status + " (" + job.successCount + "/" + job.sendCount + " success)");
             return;
         }
-        var now = new Date(); var periodEnd = new Date(now);
+        var now = new Date();
+        var periodEnd = new Date(now);
         periodEnd.setMinutes(Math.floor(periodEnd.getMinutes() / 5) * 5, 0, 0);
         var periodStart = new Date(periodEnd.getTime() - 5 * 60 * 1000);
+        var st = localISO(periodStart);
+        var et = localISO(periodEnd);
+
         job.sendCount++;
-        rmto.sendAddData5({ FID: 0, RID: rid, ST: localISO(periodStart), ET: localISO(periodEnd),
-            C1:c1,C2:c2,C3:c3,C4:c4,C5:c5, ASP:asp, S1:s1,S2:s2,S3:s3,S4:s4,S5:s5,
-            SSO:0,SO1:0,SO2:0,SO3:0,SO4:0,SO5:0, OO:0, ESD:0, sourceIp: sourceIp
-        }, function (err, response) {
+        rmto.sendAddData5({
+            FID: 0, RID: rid, ST: st, ET: et,
+            C1: c1, C2: c2, C3: c3, C4: c4, C5: c5,
+            ASP: asp, S1: s1, S2: s2, S3: s3, S4: s4, S5: s5,
+            SSO: 0, SO1: 0, SO2: 0, SO3: 0, SO4: 0, SO5: 0,
+            OO: 0, ESD: 0, sourceIp: sourceIp
+        }, function (err, response, soapXml) {
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             job.lastSendAt = new Date().toISOString();
-            if (success) { job.successCount++; job.lastError = null; }
-            else { job.failedCount++; job.lastError = err ? err.message : "خطا"; }
+            if (success) {
+                job.successCount++;
+                job.lastError = null;
+            } else {
+                job.failedCount++;
+                job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا");
+            }
+            try {
+                db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                    .run("Add5-Scheduled", "test-schedule-" + jobId,
+                        JSON.stringify({ rid: rid, c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, st: st, et: et }),
+                        JSON.stringify(response), success ? 1 : 0, err ? err.message : null, soapXml || null, sourceIp || null);
+            } catch (e) { console.error("[TestSchedule] Log error:", e.message); }
         });
     }
+
+    // Send immediately, then every 5 minutes
     sendOnce();
     job.timerId = setInterval(sendOnce, 5 * 60 * 1000);
     testScheduleJobs[jobId] = job;
+
+    console.log("[TestSchedule] Job #" + jobId + " started: RID=" + rid + " for " + durationDays + " days");
     res.json({ success: true, jobId: jobId, message: "ارسال زمانبندی شده شروع شد (" + durationDays + " روز)" });
 });
 
+// GET /api/rmto/test-schedule - list active scheduled jobs
 app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var jobs = Object.keys(testScheduleJobs).map(function (k) {
         var j = testScheduleJobs[k];
-        return { id:j.id, rid:j.rid, data:j.data, durationDays:j.durationDays, expiresAt:j.expiresAt,
-            startedAt:j.startedAt, sendCount:j.sendCount, successCount:j.successCount, failedCount:j.failedCount,
-            lastSendAt:j.lastSendAt, lastError:j.lastError, stopped:j.stopped, status:j.status };
+        return { id: j.id, rid: j.rid, data: j.data, durationDays: j.durationDays,
+            expiresAt: j.expiresAt, startedAt: j.startedAt, sendCount: j.sendCount,
+            successCount: j.successCount, failedCount: j.failedCount,
+            lastSendAt: j.lastSendAt, lastError: j.lastError, stopped: j.stopped, status: j.status };
     });
     res.json(jobs);
 });
 
+// DELETE /api/rmto/test-schedule/:jobId - stop a scheduled job
 app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
     var jobId = parseInt(req.params.jobId, 10);
     var job = testScheduleJobs[jobId];
     if (!job) return res.status(404).json({ error: "job not found" });
-    job.stopped = true; job.status = "stopped";
+    job.stopped = true;
+    job.status = "stopped";
     if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
     res.json({ success: true, message: "ارسال زمانبندی شده متوقف شد" });
 });
@@ -4723,12 +5418,19 @@ app.post("/api/backup/restore", upload.single("backup"), function (req, res) {
     try {
         if (origName.endsWith(".db")) {
             // Direct SQLite DB file - replace
-            db.pragma("wal_checkpoint(TRUNCATE)");
+            try { db.pragma("wal_checkpoint(TRUNCATE)"); } catch (e) { /* ok */ }
             db.close();
             fs.copyFileSync(tmpPath, dbPath);
-            // Re-require db (Node caches modules, so we need to clear)
+            try { fs.unlinkSync(tmpPath); } catch (e) { /* ok */ }
+            // Re-open database
             delete require.cache[require.resolve("./db")];
-            res.json({ success: true, message: "بازیابی انجام شد. سرویس باید ریستارت شود." });
+            db = require("./db");
+            res.json({ success: true, message: "بازیابی انجام شد. سرویس در حال ریستارت..." });
+            // Auto-restart to ensure clean state (exit 1 so systemd on-failure also restarts)
+            setTimeout(function () {
+                releaseInstanceLock();
+                process.exit(1);
+            }, 2000);
         } else if (origName.endsWith(".sql.gz") || origName.endsWith(".gz") || origName.endsWith(".sql")) {
             // PostgreSQL dump - decompress and parse
             var destPath = path.join(__dirname, "uploads", origName);
@@ -5640,26 +6342,87 @@ app.post("/api/tcp/send", requireAuth, function (req, res) {
 });
 
 var httpServer = null;
-
+var schedulerStarted = false;
 var TCP_RETRY_COUNT = 0;
-var TCP_MAX_RETRIES = 5;
+var TCP_MAX_RETRIES = 12;
 var HTTP_RETRY_COUNT = 0;
-var HTTP_MAX_RETRIES = 5;
+var HTTP_MAX_RETRIES = 12;
+var tcpListening = false;
+var httpListening = false;
 
-tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
-    TCP_RETRY_COUNT = 0;
-    console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
-});
+function freePortBestEffort(port) {
+    // Prefer fuser; fall back to ss. Never throw.
+    try {
+        var execSync = require("child_process").execSync;
+        try {
+            execSync("fuser -k " + port + "/tcp 2>/dev/null || true", { stdio: "ignore", timeout: 5000 });
+            return;
+        } catch (e1) { /* try fallbacks */ }
+        try {
+            // ss output example: users:(("node",pid=1234,fd=21))
+            var out = execSync("ss -lptn 'sport = :" + port + "' 2>/dev/null || true", { encoding: "utf8", timeout: 5000 });
+            var m;
+            var re = /pid=(\d+)/g;
+            var pids = {};
+            while ((m = re.exec(out)) !== null) {
+                var pid = parseInt(m[1], 10);
+                if (pid && pid !== process.pid) pids[pid] = true;
+            }
+            Object.keys(pids).forEach(function (pidStr) {
+                try { process.kill(parseInt(pidStr, 10), "SIGTERM"); } catch (e) { /* ignore */ }
+            });
+        } catch (e2) { /* ignore */ }
+    } catch (e) { /* ignore */ }
+}
+
+function onServersReady() {
+    if (!tcpListening || !httpListening) return;
+    if (!schedulerStarted) {
+        schedulerStarted = true;
+        try {
+            rmto.initClient(function (err) {
+                if (err) console.error("[RMTO] Will retry on first send");
+            });
+        } catch (e) {
+            console.error("[RMTO] initClient error:", e.message);
+        }
+        try {
+            scheduler.start();
+        } catch (e) {
+            console.error("[Scheduler] start error:", e.message);
+        }
+        try {
+            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
+        } catch (e) { /* ignore startup notification errors */ }
+    }
+}
+
+function startTcpServer() {
+    if (tcpListening) return;
+    tcpServer.listen(TCP_PORT, "0.0.0.0", function () {
+        TCP_RETRY_COUNT = 0;
+        tcpListening = true;
+        console.log("[TCP] Listening on port " + TCP_PORT + " for raw device data");
+        onServersReady();
+    });
+}
 
 tcpServer.on("error", function (err) {
     if (err.code === "EADDRINUSE") {
+        tcpListening = false;
         TCP_RETRY_COUNT++;
+        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES);
+        if (TCP_RETRY_COUNT === 1 || TCP_RETRY_COUNT % 3 === 0) {
+            freePortBestEffort(TCP_PORT);
+        }
         if (TCP_RETRY_COUNT > TCP_MAX_RETRIES) {
-            console.error("[TCP] Port " + TCP_PORT + " still in use after " + TCP_MAX_RETRIES + " retries, giving up");
+            console.error("[TCP] Port " + TCP_PORT + " still busy after retries — continuing without TCP listener");
+            // Do not exit: keep HTTP/dashboard alive so operator can still work
             return;
         }
-        console.error("[TCP] Port " + TCP_PORT + " already in use, retry " + TCP_RETRY_COUNT + "/" + TCP_MAX_RETRIES + " in 5s");
-        setTimeout(function () { tcpServer.listen(TCP_PORT, "0.0.0.0"); }, 5000);
+        setTimeout(startTcpServer, 3000);
+    } else {
+        console.error("[TCP] Server error:", err.message);
     }
 });
 
@@ -5667,8 +6430,14 @@ tcpServer.on("error", function (err) {
 // Start HTTP Server
 // ============================================================
 function startHttpServer() {
+    if (httpServer) {
+        try { httpServer.close(); } catch (e) { /* ignore */ }
+        httpServer = null;
+    }
+    httpListening = false;
     httpServer = app.listen(PORT, HOST, function () {
         HTTP_RETRY_COUNT = 0;
+        httpListening = true;
         console.log("============================================");
         console.log("  TC Manager Server (Noavaran Jonoob Shargh)");
         console.log("  Build: " + BUILD_VERSION);
@@ -5676,32 +6445,35 @@ function startHttpServer() {
         console.log("  TCP:  port " + TCP_PORT + " (device data)");
         console.log("  Login: admin / admin123");
         console.log("============================================");
-
-        rmto.initClient(function (err) {
-            if (err) console.error("[RMTO] Will retry on first send");
-        });
-
-        scheduler.start();
-
-        // Send Bale startup notification (if configured)
-        try {
-            scheduler.sendBaleNotification("✅ سرور TC Manager راه‌اندازی شد\n📦 نسخه: " + BUILD_VERSION + "\n⏰ " + new Date().toLocaleString("fa-IR"));
-        } catch (e) { /* ignore startup notification errors */ }
+        onServersReady();
     });
 
     httpServer.on("error", function (err) {
         if (err.code === "EADDRINUSE") {
+            httpListening = false;
             HTTP_RETRY_COUNT++;
-            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
-                console.error("[HTTP] Port " + PORT + " still in use after " + HTTP_MAX_RETRIES + " retries, exiting.");
-                process.exit(1);
+            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES);
+            if (HTTP_RETRY_COUNT === 1 || HTTP_RETRY_COUNT % 3 === 0) {
+                freePortBestEffort(PORT);
             }
-            console.error("[HTTP] Port " + PORT + " already in use, retry " + HTTP_RETRY_COUNT + "/" + HTTP_MAX_RETRIES + " in 5s");
-            setTimeout(startHttpServer, 5000);
+            if (HTTP_RETRY_COUNT > HTTP_MAX_RETRIES) {
+                // Exit so process manager restarts cleanly after port cleanup.
+                // Use a short delay to avoid a tight crash loop.
+                console.error("[HTTP] Port " + PORT + " still busy after retries, exiting for clean restart.");
+                setTimeout(function () {
+                    releaseInstanceLock();
+                    process.exit(1);
+                }, 10000);
+                return;
+            }
+            setTimeout(startHttpServer, 3000);
+        } else {
+            console.error("[HTTP] Server error:", err.message);
         }
     });
 }
 
+startTcpServer();
 startHttpServer();
 
 // ============================================================
@@ -5712,13 +6484,14 @@ function gracefulShutdown(signal) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     console.log("\n[SERVER] " + signal + " received, shutting down gracefully...");
-    scheduler.stop();
+    try { scheduler.stop(); } catch (e) { /* ignore */ }
 
     // Stop all scheduled test-send jobs
     Object.keys(testScheduleJobs).forEach(function (k) {
         var job = testScheduleJobs[k];
         if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
-        job.stopped = true; job.status = "stopped";
+        job.stopped = true;
+        job.status = "stopped";
     });
 
     // Close all active TCP device connections first
@@ -5732,6 +6505,8 @@ function gracefulShutdown(signal) {
         closed++;
         if (closed >= total) {
             console.log("[SERVER] All servers closed, exiting");
+            releaseInstanceLock();
+            // exit 0 on SIGTERM from systemd stop/restart is expected
             process.exit(0);
         }
     }
@@ -5745,20 +6520,24 @@ function gracefulShutdown(signal) {
         checkDone();
     }
 
-    tcpServer.close(function () {
-        console.log("[SERVER] TCP server closed");
+    try {
+        tcpServer.close(function () {
+            console.log("[SERVER] TCP server closed");
+            checkDone();
+        });
+    } catch (e) {
         checkDone();
-    });
+    }
 
     setTimeout(function () {
         console.log("[SERVER] Forcing exit after timeout");
+        releaseInstanceLock();
         process.exit(0);
     }, 4000);
 }
 
 process.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });
 process.on("SIGINT", function () { gracefulShutdown("SIGINT"); });
-
 ENDOFFILE_SERVER_INDEX_JS
 
 echo "[+] server/db.js"
@@ -5957,7 +6736,15 @@ db.exec([
     "CREATE TABLE IF NOT EXISTS settings (",
     "  key TEXT PRIMARY KEY,",
     "  value TEXT",
-    ");"
+    ");",
+
+    // Persistent express-session store (survives process restarts)
+    "CREATE TABLE IF NOT EXISTS sessions (",
+    "  sid TEXT PRIMARY KEY,",
+    "  sess TEXT NOT NULL,",
+    "  expired INTEGER NOT NULL",
+    ");",
+    "CREATE INDEX IF NOT EXISTS idx_sessions_expired ON sessions(expired);"
 ].join("\n"));
 
 // Migration: if rmto_queue_5class has old column names, recreate it
@@ -6109,7 +6896,6 @@ Object.keys(defaultSettings).forEach(function (k) {
 });
 
 module.exports = db;
-
 ENDOFFILE_SERVER_DB_JS
 
 echo "[+] server/rmto-client.js"
@@ -6443,7 +7229,6 @@ module.exports = {
     sendAddData5: sendAddData5,
     getSourceIp: getSourceIp
 };
-
 ENDOFFILE_SERVER_RMTO-CLIENT_JS
 
 echo "[+] server/scheduler.js"
@@ -6553,6 +7338,7 @@ function aggregateAndSend() {
     devices.forEach(function (dev) {
         var code = dev.device_code;
 
+        try {
         // Find ALL distinct INTERVAL-minute periods with unread data for this device
         // This ensures we never miss older periods that weren't processed before
         var periods = db.prepare(
@@ -6575,6 +7361,9 @@ function aggregateAndSend() {
 
             aggregatePeriod(code, startStr, endStr);
         });
+        } catch (devErr) {
+            console.error("[Scheduler] Error processing device " + code + ":", devErr.message, devErr.stack);
+        }
     });
 
     // Now send unsent records
@@ -6731,16 +7520,56 @@ function aggregatePeriod(code, startStr, endStr) {
             "VALUES (?, ?, ?, ?, ?, ?)"
         ).run(code, String(routeIdNum), startStr, endStr, totalVehicles, avgSpeed);
 
-        db.prepare(
-            "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
-            "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
-            "sso, so1, so2, so3, so4, so5, oo, esd) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        ).run(code, String(routeIdNum), startStr, endStr,
-            c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
-            sso, so1, so2, so3, so4, so5, oo, esd);
+        // Check for existing record (sent OR unsent) with the same route_id + period_start.
+        // Multiple devices on the same highway can share one route code; their data
+        // must be SUMMED into a single RMTO record to prevent duplicate errors.
+        // Prefer unsent (sent=0) so we merge into a pending record; fall back to the
+        // most recently sent record (sent=1) and reset it to sent=0 for re-send.
+        var existingQ5 = db.prepare(
+            "SELECT id, sent, c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
+            "sso, so1, so2, so3, so4, so5, oo, esd " +
+            "FROM rmto_queue_5class WHERE route_id = ? AND period_start = ? ORDER BY sent ASC LIMIT 1"
+        ).get(String(routeIdNum), startStr);
 
-        console.log("[Scheduler] Aggregated device " + code + lanesLabel + " (route " + routeIdNum + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd + (merged ? " [MERGED " + groupLanes.length + " lanes]" : ""));
+        if (existingQ5) {
+            // Merge using weighted average: newAvg = (totalA×speedA + totalB×speedB) / (totalA+totalB)
+            var existTotal = (existingQ5.c1||0) + (existingQ5.c2||0) + (existingQ5.c3||0) + (existingQ5.c4||0) + (existingQ5.c5||0);
+            var newC1 = (existingQ5.c1||0) + c1, newC2 = (existingQ5.c2||0) + c2;
+            var newC3 = (existingQ5.c3||0) + c3, newC4 = (existingQ5.c4||0) + c4, newC5 = (existingQ5.c5||0) + c5;
+            var newTotal = newC1 + newC2 + newC3 + newC4 + newC5;
+            var newAvgSpeed = newTotal > 0 ? Math.round((existTotal * (existingQ5.avg_speed||0) + totalVehicles * avgSpeed) / newTotal) : 0;
+            var newS1 = newC1 > 0 ? Math.round(((existingQ5.c1||0) * (existingQ5.s1||0) + c1 * s1) / newC1) : 0;
+            var newS2 = newC2 > 0 ? Math.round(((existingQ5.c2||0) * (existingQ5.s2||0) + c2 * s2) / newC2) : 0;
+            var newS3 = newC3 > 0 ? Math.round(((existingQ5.c3||0) * (existingQ5.s3||0) + c3 * s3) / newC3) : 0;
+            var newS4 = newC4 > 0 ? Math.round(((existingQ5.c4||0) * (existingQ5.s4||0) + c4 * s4) / newC4) : 0;
+            var newS5 = newC5 > 0 ? Math.round(((existingQ5.c5||0) * (existingQ5.s5||0) + c5 * s5) / newC5) : 0;
+            // If the existing record was already sent, reset to unsent so the merged data gets re-sent.
+            var resetSent = existingQ5.sent === 1 ? ", sent = 0, retry_count = 0" : "";
+            db.prepare(
+                "UPDATE rmto_queue_5class SET " +
+                "c1=?, c2=?, c3=?, c4=?, c5=?, avg_speed=?, " +
+                "s1=?, s2=?, s3=?, s4=?, s5=?, " +
+                "sso=?, so1=?, so2=?, so3=?, so4=?, so5=?, oo=?, esd=?" +
+                resetSent + " WHERE id=?"
+            ).run(newC1, newC2, newC3, newC4, newC5, newAvgSpeed,
+                newS1, newS2, newS3, newS4, newS5,
+                (existingQ5.sso||0) + sso, (existingQ5.so1||0) + so1, (existingQ5.so2||0) + so2,
+                (existingQ5.so3||0) + so3, (existingQ5.so4||0) + so4, (existingQ5.so5||0) + so5,
+                (existingQ5.oo||0) + oo, (existingQ5.esd||0) + esd,
+                existingQ5.id);
+            console.log("[Scheduler] MERGED device " + code + lanesLabel + " into " + (existingQ5.sent ? "SENT(reset)" : "existing") + " route " + routeIdNum + " record id=" + existingQ5.id +
+                " period " + startStr + " (combined total=" + newTotal + " ASP=" + newAvgSpeed + ")");
+        } else {
+            db.prepare(
+                "INSERT INTO rmto_queue_5class (device_code, route_id, period_start, period_end, " +
+                "c1, c2, c3, c4, c5, avg_speed, s1, s2, s3, s4, s5, " +
+                "sso, so1, so2, so3, so4, so5, oo, esd) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ).run(code, String(routeIdNum), startStr, endStr,
+                c1, c2, c3, c4, c5, avgSpeed, s1, s2, s3, s4, s5,
+                sso, so1, so2, so3, so4, so5, oo, esd);
+            console.log("[Scheduler] Aggregated device " + code + lanesLabel + " (route " + routeIdNum + ") period " + startStr + "-" + endStr + ": " + totalVehicles + " vehicles, ASP=" + avgSpeed + " SSO=" + sso + " OO=" + oo + " ESD=" + esd + (merged ? " [MERGED " + groupLanes.length + " lanes]" : ""));
+        }
     });
 }
 
@@ -6805,8 +7634,55 @@ function sendUnsentData(onComplete) {
         console.log("[Scheduler] Backlog lane: " + backlogRecords.length + " record(s) (IP: " + (sourceIp || "default") + ")");
     }
 
-    var allRecords = liveRecords.concat(backlogRecords);
-    var pending = allRecords.length;
+    var rawRecords = liveRecords.concat(backlogRecords);
+
+    // --- Merge records sharing the same route_id + period_start ---
+    // A dual-lane device may have each lane registered under the same route
+    // number. Without merging, two records with the same RID + period would be
+    // sent to RMTO, causing a "duplicate" error on the second one.
+    var mergeMap = {};
+    var noRouteRecords = [];
+    rawRecords.forEach(function (r) {
+        if (!r.route_id) { noRouteRecords.push(r); return; }
+        var key = r.route_id + "|" + r.period_start;
+        if (!mergeMap[key]) {
+            mergeMap[key] = { record: JSON.parse(JSON.stringify(r)), sourceIds: [r.id] };
+        } else {
+            var g = mergeMap[key];
+            g.sourceIds.push(r.id);
+            var e = g.record;
+            var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
+            var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            // Weighted average per-class speeds (compute before summing counts)
+            var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
+            var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
+            var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
+            var ns4 = (e.c4||0) + (r.c4||0) > 0 ? Math.round(((e.c4||0) * (e.s4||0) + (r.c4||0) * (r.s4||0)) / ((e.c4||0) + (r.c4||0))) : 0;
+            var ns5 = (e.c5||0) + (r.c5||0) > 0 ? Math.round(((e.c5||0) * (e.s5||0) + (r.c5||0) * (r.s5||0)) / ((e.c5||0) + (r.c5||0))) : 0;
+            var nTotal = eTotal + rTotal;
+            e.avg_speed = nTotal > 0 ? Math.round((eTotal * (e.avg_speed||0) + rTotal * (r.avg_speed||0)) / nTotal) : 0;
+            e.c1 = (e.c1||0) + (r.c1||0);
+            e.c2 = (e.c2||0) + (r.c2||0);
+            e.c3 = (e.c3||0) + (r.c3||0);
+            e.c4 = (e.c4||0) + (r.c4||0);
+            e.c5 = (e.c5||0) + (r.c5||0);
+            e.s1 = ns1; e.s2 = ns2; e.s3 = ns3; e.s4 = ns4; e.s5 = ns5;
+            e.sso = (e.sso||0) + (r.sso||0);
+            e.so1 = (e.so1||0) + (r.so1||0);
+            e.so2 = (e.so2||0) + (r.so2||0);
+            e.so3 = (e.so3||0) + (r.so3||0);
+            e.so4 = (e.so4||0) + (r.so4||0);
+            e.so5 = (e.so5||0) + (r.so5||0);
+            e.oo = (e.oo||0) + (r.oo||0);
+            e.esd = (e.esd||0) + (r.esd||0);
+            e.device_code = e.device_code + "+" + r.device_code;
+            console.log("[Scheduler] SEND-MERGE route " + r.route_id + " period " + r.period_start +
+                ": merged " + g.sourceIds.length + " records (ids=" + g.sourceIds.join(",") + ")");
+        }
+    });
+    var allRecords = Object.keys(mergeMap).map(function (k) { return mergeMap[k]; });
+
+    var pending = allRecords.length + noRouteRecords.length;
     results.total = pending;
 
     if (pending === 0) {
@@ -6817,6 +7693,20 @@ function sendUnsentData(onComplete) {
     // Send records one-by-one with a 800ms delay between each to avoid
     // triggering flood/DDoS detection on the RMTO firewall.
     var SEND_DELAY_MS = 800;
+
+    // First skip records without route_id
+    noRouteRecords.forEach(function (nr) {
+        console.log("[Scheduler] Skipping Add5 for device " + nr.device_code + " id=" + nr.id + ": no route_id");
+        db.prepare("UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?")
+            .run('{"skipped":"no route_id"}', nr.id);
+        results.total--;
+    });
+
+    if (allRecords.length === 0) {
+        if (onComplete) onComplete(results);
+        return;
+    }
+
     var recordIndex = 0;
 
     function sendNext() {
@@ -6824,21 +7714,13 @@ function sendUnsentData(onComplete) {
             if (onComplete) onComplete(results);
             return;
         }
-        var row = allRecords[recordIndex++];
+        var entry = allRecords[recordIndex++];
+        var row = entry.record;
+        var sourceIds = entry.sourceIds;
 
-        // Skip records without a valid route_id
-        if (!row.route_id) {
-            console.log("[Scheduler] Skipping Add5 for device " + row.device_code + " id=" + row.id + ": no route_id");
-            db.prepare("UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?")
-                .run('{"skipped":"no route_id"}', row.id);
-            results.total--;
-            setTimeout(sendNext, SEND_DELAY_MS);
-            return;
-        }
-
-        var isLive = liveIds.indexOf(row.id) !== -1;
+        var isLive = sourceIds.some(function (sid) { return liveIds.indexOf(sid) !== -1; });
         rmto.sendAddData5({
-            FID: row.id,
+            FID: sourceIds[0],
             RID: row.route_id,
             ST: row.period_start,
             ET: row.period_end,
@@ -6851,25 +7733,30 @@ function sendUnsentData(onComplete) {
             ESD: row.esd,
             sourceIp: sourceIp
         }, function (err, response, soapXml) {
+            try {
             // Match C# reference success check: ID > 0 || CFL == 100
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             var responseStr = JSON.stringify(response || (err && err.message));
 
             if (!err && response) {
                 console.log("[Scheduler] Add5 " + (isLive ? "[LIVE]" : "[BACKLOG]") + " response for device " + row.device_code +
+                    " (ids=" + sourceIds.join(",") + ")" +
                     ": ID=" + response.ID + " FID=" + response.FID + " CFL=" + response.CFL +
                     " DLY=" + response.DLY + " ERR=" + (response.ERR || "none"));
             }
 
-            if (success) {
-                db.prepare(
-                    "UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-                ).run(responseStr, row.id);
-            } else {
-                db.prepare(
-                    "UPDATE rmto_queue_5class SET sent = 0, retry_count = COALESCE(retry_count, 0) + 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
-                ).run(responseStr, row.id);
-            }
+            // Mark ALL source records as sent/failed
+            sourceIds.forEach(function (sid) {
+                if (success) {
+                    db.prepare(
+                        "UPDATE rmto_queue_5class SET sent = 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                    ).run(responseStr, sid);
+                } else {
+                    db.prepare(
+                        "UPDATE rmto_queue_5class SET sent = 0, retry_count = COALESCE(retry_count, 0) + 1, sent_at = datetime('now','localtime'), rmto_response = ? WHERE id = ?"
+                    ).run(responseStr, sid);
+                }
+            });
 
             db.prepare(
                 "INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) " +
@@ -6890,6 +7777,11 @@ function sendUnsentData(onComplete) {
                     error: errMsg,
                     response: responseStr
                 });
+            }
+            } catch (cbErr) {
+                console.error("[Scheduler] sendUnsentData callback error for device " + row.device_code + ":", cbErr.message, cbErr.stack);
+                results.failed++;
+                results.errors.push({ method: "Add5", device_code: row.device_code, error: "Internal: " + cbErr.message });
             }
 
             // Wait before sending the next record
@@ -6972,7 +7864,6 @@ module.exports = {
     // Alias for backward compatibility with older index.js versions
     processAndSendIrawdata: aggregateAndSend
 };
-
 ENDOFFILE_SERVER_SCHEDULER_JS
 
 echo "[+] server/package.json"
@@ -7005,6 +7896,7 @@ if [ ! -f "$APP_DIR/server/.env" ]; then
 cat > "$APP_DIR/server/.env" << 'ENDENV'
 PORT=3000
 HOST=0.0.0.0
+TZ=Asia/Tehran
 TCP_PORT=2022
 ADMIN_USER=admin
 ADMIN_PASS=admin123
@@ -7035,20 +7927,24 @@ cat > /etc/systemd/system/tc-manager.service << 'ENDSVC'
 [Unit]
 Description=TC Manager (Noavaran Jonoob Shargh)
 After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=20
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/tc-manager/server
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 3; fuser -k 3000/tcp 2>/dev/null; fuser -k 2022/tcp 2>/dev/null; sleep 2; true'
+ExecStartPre=-/usr/bin/fuser -k 3000/tcp
+ExecStartPre=-/usr/bin/fuser -k 2022/tcp
+ExecStartPre=/bin/sleep 2
 ExecStart=/usr/bin/node index.js
-Restart=on-failure
-RestartSec=15
-TimeoutStopSec=10
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
 KillMode=mixed
-StartLimitBurst=10
-StartLimitIntervalSec=300
+KillSignal=SIGTERM
 Environment=NODE_ENV=production
+Environment=TZ=Asia/Tehran
 
 [Install]
 WantedBy=multi-user.target

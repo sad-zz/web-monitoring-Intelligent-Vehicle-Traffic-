@@ -803,10 +803,14 @@
                                 <input type="password" id="setting-rmto-pass" dir="ltr">
                             </div>
                             <div class="form-group">
-                                <label>IP مبدا ارسال به سامانه (اختیاری)</label>
-                                <input type="text" id="setting-rmto-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
+                                <label>IP مبدا ارسال به سامانه / IP پام (اختیاری)</label>
+                                <input type="text" id="setting-rmto-source-ip" dir="ltr" placeholder="مثال: 5.159.49.71">
                             </div>
-                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود. تمام ارسال‌ها (لحظه‌ای و بک‌لاگ) از این IP خواهند بود.</small>
+                            <small style="color:#94a3b8;display:block;margin-bottom:8px">
+                                باید دقیقاً یکی از IPهای واقعی همین سرور باشد (خروجی <span dir="ltr">ip -4 addr</span>).
+                                اگر IP روی سرور نباشد، ارسال و تست اتصال با خطا متوقف می‌شود.
+                                خالی = مسیر پیش‌فرض سیستم‌عامل. تمام ارسال‌ها (لحظه‌ای و بک‌لاگ) از همین IP هستند.
+                            </small>
                             <button class="btn btn-primary" id="btn-save-rmto">ذخیره تنظیمات سامانه</button>
                         </div>
                     </div>
@@ -911,7 +915,7 @@
                             <h3 class="panel-title">⚙️ کنترل سرور</h3>
                         </div>
                         <div class="panel-body">
-                            <p style="color:#64748b;font-size:13px;margin-bottom:12px">ریستارت سرور: فرآیند سرور پایان یافته و توسط PM2 مجدداً راه‌اندازی می‌شود.</p>
+                            <p style="color:#64748b;font-size:13px;margin-bottom:12px">ریستارت سرور: فرآیند سرور پایان یافته و توسط systemd (یا PM2) مجدداً راه‌اندازی می‌شود. نشست ورود پس از ریستارت حفظ می‌شود.</p>
                             <button class="btn btn-danger" id="btn-server-restart">🔄 ریستارت سرور</button>
                             <div id="restart-status" style="margin-top:8px;font-size:13px;color:#475569"></div>
                         </div>

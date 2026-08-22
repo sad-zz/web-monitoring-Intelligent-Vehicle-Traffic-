@@ -33,10 +33,11 @@ HTTP Devices (POST /api) ──→ server/index.js ──→ SQLite (data.db)
                                               otf.rmto.ir (RAHSAM)
 ```
 
-**Stack:** Node.js + Express + better-sqlite3 + soap + node-cron
+**Stack:** Node.js + Express + better-sqlite3 + node-cron
 **Ports:** HTTP=3000, TCP=2022
 **Timezone:** Asia/Tehran (UTC+3:30)
-**Process Manager:** PM2
+**Process Manager:** systemd (`Restart=always`) — avoid running PM2 and systemd together
+**Sessions:** SQLite `sessions` table + persistent `server/.session-secret` (login survives restarts)
 
 ---
 

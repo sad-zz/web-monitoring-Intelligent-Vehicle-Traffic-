@@ -274,6 +274,155 @@ journalctl -u tc-manager -n 120 --no-pager || pm2 logs tc-manager --lines 120
 
 ---
 
+## 9.0) اورژانس: `bad-setting` / پورت اشغال / پروسس یتیم
+
+علائم:
+- `systemctl status` می‌گوید `Loaded: bad-setting` یا `Unbalanced quoting`
+- لاگ: `Port 3000/2022 already in use` و `restart counter` چند هزارتایی
+- `ss -lntp` هنوز یک `node /opt/tc-ma` روی 3000 و 2022 نشان می‌دهد حتی وقتی سرویس dead است
+
+علت رایج:
+1. فایل `/etc/systemd/system/tc-manager.service` خراب شده (کوتیشن ناقص، `2&gt;` به‌جای `2>`، یا تایپوی `fuset`)
+2. یک پروسس قدیمی Node خارج از systemd پورت‌ها را نگه داشته
+3. گاهی همزمان PM2 و systemd هر دو سرویس را بالا می‌آورند
+
+**همین الان روی سرور (به‌صورت root) این بلوک را کامل کپی/اجرا کنید:**
+
+```bash
+set -e
+
+# 1) توقف کامل تلاش‌های systemd + PM2
+systemctl stop tc-manager 2>/dev/null || true
+systemctl reset-failed tc-manager 2>/dev/null || true
+pm2 stop tc-manager 2>/dev/null || true
+pm2 delete tc-manager 2>/dev/null || true
+
+# 2) کشتن همه listenerهای 3000/2022 و پروسس‌های index.js این اپ
+fuser -k 3000/tcp 2>/dev/null || true
+fuser -k 2022/tcp 2>/dev/null || true
+pkill -f '/opt/tc-manager/server/index.js' 2>/dev/null || true
+pkill -f 'node /opt/tc-manager' 2>/dev/null || true
+sleep 2
+
+# 3) مطمئن شوید پورت آزاد است (باید خالی باشد)
+ss -lntp | grep -E ':3000|:2022' || echo "ports free OK"
+
+# 4) بازنویسی unit سالم (بدون bash -c و بدون کوتیشن تو در تو)
+cat > /etc/systemd/system/tc-manager.service << 'UNIT'
+[Unit]
+Description=TC Manager (Noavaran Jonoob Shargh)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=20
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=-/usr/bin/fuser -k 3000/tcp
+ExecStartPre=-/usr/bin/fuser -k 2022/tcp
+ExecStartPre=/bin/sleep 2
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=mixed
+KillSignal=SIGTERM
+Environment=NODE_ENV=production
+Environment=TZ=Asia/Tehran
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+# 5) اعتبارسنجی unit و استارت
+systemd-analyze verify /etc/systemd/system/tc-manager.service || true
+systemctl daemon-reload
+systemctl enable tc-manager
+systemctl reset-failed tc-manager
+systemctl start tc-manager
+sleep 3
+
+# 6) بررسی
+systemctl status tc-manager --no-pager -l | sed -n '1,45p'
+ss -lntp | grep -E ':3000|:2022' || true
+journalctl -u tc-manager -n 40 --no-pager
+```
+
+اگر بعد از این هنوز `bad-setting` بود:
+
+```bash
+cat -A /etc/systemd/system/tc-manager.service
+# نباید &gt; یا کوتیشن تکی ناقص ببینید
+```
+
+هشدار دیسک/دیتابیس:
+- اگر `data.db` چند گیگابایت شد (مثلاً ~6GB)، سرویس سنگین و ناپایدار می‌شود.
+- فعلاً برای بالا آوردن سرویس لازم نیست پاکش کنید؛ بعد از پایدار شدن، VACUUM/آرشیو جداگانه انجام دهید.
+
+## 9.1) رفع ریست مداوم / صفر بودن «مدت روشن بودن سرور»
+
+اگر پنل مدام از دسترس خارج می‌شود، uptime نزدیک صفر است، یا قبل از ذخیره تنظیمات دوباره لاگین می‌خواهد — اول بخش **9.0** را اجرا کنید، بعد در صورت نیاز:
+
+```bash
+ssh root@SERVER_IP '
+set -e
+# 1) واحد systemd پایدار (Restart=always)
+cat > /etc/systemd/system/tc-manager.service << "UNIT"
+[Unit]
+Description=TC Manager (Noavaran Jonoob Shargh)
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=20
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/tc-manager/server
+ExecStartPre=-/usr/bin/fuser -k 3000/tcp
+ExecStartPre=-/usr/bin/fuser -k 2022/tcp
+ExecStartPre=/bin/sleep 2
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=mixed
+KillSignal=SIGTERM
+Environment=NODE_ENV=production
+Environment=TZ=Asia/Tehran
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable tc-manager
+systemctl restart tc-manager
+sleep 3
+systemctl status tc-manager --no-pager -l | sed -n "1,40p"
+echo "--- recent logs ---"
+journalctl -u tc-manager -n 80 --no-pager
+'
+```
+
+نکات مهم این نسخه:
+- نشست ورود در SQLite ذخیره می‌شود و بعد از ریستارت از بین نمی‌رود
+- `SESSION_SECRET` پایدار است (فایل `server/.session-secret` یا مقدار داخل `.env`)
+- اگر هم systemd و هم PM2 همزمان سرویس را اجرا کنند، روی پورت با هم تداخل می‌کنند؛ فقط یکی را نگه دارید
+- خط `ExecStartPre` دیگر `bash -c '...'` ندارد تا خطای `Unbalanced quoting` تکرار نشود
+
+آپلود فایل‌های ضروری این فیکس از Termux:
+
+```bash
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+scp server/index.js server/db.js server/scheduler.js server/rmto-client.js root@SERVER_IP:/opt/tc-manager/server/
+scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
+scp index.html root@SERVER_IP:/opt/tc-manager/
+ssh root@SERVER_IP 'systemctl daemon-reload && systemctl restart tc-manager && systemctl status tc-manager --no-pager -l'
+```
+
+---
+
 ## 10) بازنشانی رمز عبور از طریق SSH
 
 اگر نمی‌توانید از طریق UI وارد شوید (رمز فراموش شده یا تغییر کرده)، می‌توانید با اسکریپت زیر رمز را ریست کنید:
@@ -324,3 +473,74 @@ node server/reset-password.js "321123" "admin"
 5. اجرای `scp` برای فایل‌های تغییرکرده  
 6. `systemctl restart tc-manager`  
 7. بررسی `systemctl status` و `journalctl`
+
+---
+
+## 11) عیب‌یابی ارسال به سامانه (RMTO) و IP پام
+
+### علائم
+- بخش «ارسال به سامانه» داده/لاگ به‌روز نمی‌شود
+- «بررسی اتصال» روی «در حال بررسی...» می‌ماند
+- IP پام (مثلاً `5.159.49.71`) تنظیم شده ولی ارسالی نیست
+
+### نکته حیاتی درباره IP مبدا
+`rmto_source_ip` فقط وقتی کار می‌کند که **همان IP روی خود سرور** به‌عنوان آدرس اینترفیس/alias ست شده باشد.
+اگر IP فقط «IP مجاز در سامانه» باشد ولی روی سرور وجود نداشته باشد، Node نمی‌تواند `localAddress` ببندد و ارسال fail می‌شود.
+
+### تشخیص سریع روی سرور
+
+```bash
+# 1) IPهای واقعی سرور
+ip -4 addr show
+hostname -I
+
+# 2) مقدار ذخیره‌شده در تنظیمات
+sqlite3 /opt/tc-manager/server/data.db "SELECT key,value FROM settings WHERE key LIKE 'rmto%';"
+
+# 3) صف واقعی ارسال (Add5)
+sqlite3 /opt/tc-manager/server/data.db "SELECT COUNT(*) AS unsent FROM rmto_queue_5class WHERE sent=0 AND IFNULL(retry_count,0)<5;"
+sqlite3 /opt/tc-manager/server/data.db "SELECT COUNT(*) AS abandoned FROM rmto_queue_5class WHERE sent=0 AND IFNULL(retry_count,0)>=5;"
+
+# 4) آخرین تلاش‌های ارسال
+sqlite3 /opt/tc-manager/server/data.db "SELECT id,success,source_ip,substr(error_message,1,120),created_at FROM send_log ORDER BY id DESC LIMIT 10;"
+
+# 5) محورها و فعال بودن ارسال
+sqlite3 /opt/tc-manager/server/data.db "SELECT code,name,send_enable FROM mehvar LIMIT 50;"
+sqlite3 /opt/tc-manager/server/data.db "SELECT device_code,name,rid1,rid2,route FROM devices LIMIT 50;"
+
+# 6) تست شبکه به RMTO از IP پام (اگر روی سرور است)
+SRC=5.159.49.71
+curl -4 --interface "$SRC" -m 10 -v "http://otf.rmto.ir/Companies/Companies.asmx" -o /dev/null || true
+# یا:
+# nc -vz -s "$SRC" otf.rmto.ir 80
+```
+
+### تنظیم/اصلاح IP پام در DB (در صورت نیاز)
+
+```bash
+# فقط اگر ip -4 addr نشان داد که 5.159.49.71 روی سرور هست:
+sqlite3 /opt/tc-manager/server/data.db "INSERT INTO settings(key,value) VALUES('rmto_source_ip','5.159.49.71') ON CONFLICT(key) DO UPDATE SET value=excluded.value;"
+
+# اگر IP روی سرور نیست، موقتا خالی کنید تا با IP پیش‌فرض تست شود:
+# sqlite3 /opt/tc-manager/server/data.db "UPDATE settings SET value='' WHERE key='rmto_source_ip';"
+
+systemctl restart tc-manager
+```
+
+### آپدیت فایل‌های این فیکس از Termux
+
+```bash
+cd ~/tc-deploy/web-monitoring-Intelligent-Vehicle-Traffic-
+git pull
+scp server/rmto-client.js server/index.js server/db.js server/scheduler.js root@SERVER_IP:/opt/tc-manager/server/
+scp js/app.js root@SERVER_IP:/opt/tc-manager/js/
+scp index.html root@SERVER_IP:/opt/tc-manager/
+ssh root@SERVER_IP 'systemctl restart tc-manager && sleep 2 && systemctl status tc-manager --no-pager -l | sed -n "1,30p"'
+```
+
+بعد از آپدیت، در پنل:
+1. تنظیمات → IP مبدا را ذخیره کنید (اگر IP روی سرور نباشد هشدار می‌دهد)
+2. ارسال به سامانه → «بررسی اتصال» (باید تا حدود ۱۵ ثانیه نتیجه + لیست IPهای سرور را نشان دهد)
+3. «ارسال الان» یا «تجمیع و ارسال»
+4. مانیتور ارسال را چک کنید
+

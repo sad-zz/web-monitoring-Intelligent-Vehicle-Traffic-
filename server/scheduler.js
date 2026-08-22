@@ -13,6 +13,10 @@ var rmto = require("./rmto-client");
 
 var INTERVAL = parseInt(process.env.SEND_INTERVAL_MINUTES, 10) || 5;
 
+function isValidDeviceCode(code) {
+    return /^\d{1,8}$/.test(String(code || "").trim());
+}
+
 /**
  * Send a notification message via Bale messenger bot.
  * Settings: bale_bot_token, bale_chat_id (stored in DB settings table)
@@ -98,7 +102,8 @@ function aggregateAndSend() {
     currentPeriodEnd.setMinutes(Math.floor(currentPeriodEnd.getMinutes() / INTERVAL) * INTERVAL, 0, 0);
 
     // Get all devices (not just online - they may have sent data before going offline)
-    var devices = db.prepare("SELECT device_code FROM devices").all();
+    var devices = db.prepare("SELECT device_code FROM devices").all()
+        .filter(function (d) { return isValidDeviceCode(d.device_code); });
 
     devices.forEach(function (dev) {
         var code = dev.device_code;
@@ -245,9 +250,9 @@ function aggregatePeriod(code, startStr, endStr) {
         );
         var iraw = aggStmt.get.apply(aggStmt, queryParams);
 
-        // RMTO class mapping: C1=a C2=b C3=c C4=d C5=e+x
+        // RMTO class mapping (class X is ignored): C1=a C2=b C3=c C4=d C5=e
         var c1 = (iraw && iraw.a)||0, c2 = (iraw && iraw.b)||0, c3 = (iraw && iraw.c)||0;
-        var c4 = (iraw && iraw.d)||0, c5 = ((iraw && iraw.e)||0) + ((iraw && iraw.x)||0);
+        var c4 = (iraw && iraw.d)||0, c5 = (iraw && iraw.e)||0;
         var totalVehicles = c1 + c2 + c3 + c4 + c5;
 
         // Mark all lanes in this group as read
@@ -265,14 +270,14 @@ function aggregatePeriod(code, startStr, endStr) {
         var s2 = c2 > 0 ? Math.round((iraw.sb||0) / c2) : 0;
         var s3 = c3 > 0 ? Math.round((iraw.sc||0) / c3) : 0;
         var s4 = c4 > 0 ? Math.round((iraw.sd||0) / c4) : 0;
-        var c5count = (iraw.e||0) + (iraw.x||0);
-        var s5 = c5count > 0 ? Math.round(((iraw.se||0) + (iraw.sx_sum||0)) / c5count) : 0;
+        var c5count = (iraw.e||0);
+        var s5 = c5count > 0 ? Math.round((iraw.se||0) / c5count) : 0;
 
-        var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0) + (iraw.sx_sum||0);
+        var totalSpeedSum = (iraw.sa||0) + (iraw.sb||0) + (iraw.sc||0) + (iraw.sd||0) + (iraw.se||0);
         var avgSpeed = totalVehicles > 0 ? Math.round(totalSpeedSum / totalVehicles) : 0;
 
         var so1 = iraw.sao||0, so2 = iraw.sbo||0, so3 = iraw.sco||0;
-        var so4 = iraw.sdo||0, so5 = (iraw.seo||0) + (iraw.sxo||0);
+        var so4 = iraw.sdo||0, so5 = iraw.seo||0;
         var sso = so1 + so2 + so3 + so4 + so5;
 
         var oo = iraw.overtaking||0;
@@ -582,7 +587,7 @@ function checkOfflineDevices() {
     var cutoff = toLocalISOString(new Date(Date.now() - cutoffMs));
     var stale = db.prepare(
         "SELECT device_code, name FROM devices WHERE status = 'online' AND last_seen < ?"
-    ).all(cutoff);
+    ).all(cutoff).filter(function (d) { return isValidDeviceCode(d.device_code); });
 
     stale.forEach(function (d) {
         db.prepare("UPDATE devices SET status = 'offline' WHERE device_code = ?").run(d.device_code);
