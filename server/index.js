@@ -289,6 +289,10 @@ app.use(express.static(path.join(__dirname, "..")));
 var liveLog = [];
 var MAX_LOG = 200;
 
+function isValidDeviceCode(code) {
+    return /^\d{1,8}$/.test(String(code || "").trim());
+}
+
 function addLiveLog(entry) {
     liveLog.unshift(entry);
     if (liveLog.length > MAX_LOG) liveLog.length = MAX_LOG;
@@ -314,7 +318,7 @@ app.post("/api/data", function (req, res) {
 
     addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "data", ip: req.ip, device: code, body: b });
 
-    if (!code || !/^\d+$/.test(code)) {
+    if (!isValidDeviceCode(code)) {
         return res.status(400).json({ error: "device_code required" });
     }
 
@@ -355,7 +359,7 @@ app.post("/api/irawdata", function (req, res) {
 
     addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "irawdata", ip: req.ip, device: code, a: b.a||0, b: b.b||0, c: b.c||0, d: b.d||0, e: b.e||0, x: b.x||0, lane: b.lane||1 });
 
-    if (!code || !/^\d+$/.test(code)) return res.status(400).json({ error: "device_id required" });
+    if (!isValidDeviceCode(code)) return res.status(400).json({ error: "device_id required" });
 
     autoRegisterDevice(code);
 
@@ -373,7 +377,7 @@ app.post("/api/irawdata", function (req, res) {
         var ca = r.create_at || r.start || now;
         var st = r.stop || r.end || now;
         var ln = r.lane || 1;
-        insertRaw.run(code, ca, st, ln, r.a||0, r.b||0, r.c||0, r.d||0, r.e||0, r.x||0, r.sa||0, r.sb||0, r.sc||0, r.sd||0, r.se||0, r.sx||0, r.sao||0, r.sbo||0, r.sco||0, r.sdo||0, r.seo||0, r.sxo||0, r.overtaking||0, r.tooclose||0);
+        insertRaw.run(code, ca, st, ln, r.a||0, r.b||0, r.c||0, r.d||0, r.e||0, 0, r.sa||0, r.sb||0, r.sc||0, r.sd||0, r.se||0, 0, r.sao||0, r.sbo||0, r.sco||0, r.sdo||0, r.seo||0, 0, r.overtaking||0, r.tooclose||0);
         count++;
         // Also store in traffic_data for RMTO aggregation
         var classes = [{cls:1,n:r.a||0,s:r.sa||0},{cls:2,n:r.b||0,s:r.sb||0},{cls:3,n:r.c||0,s:r.sc||0},{cls:4,n:r.d||0,s:r.sd||0},{cls:5,n:r.e||0,s:r.se||0}];
@@ -400,6 +404,10 @@ app.post("/api/irawdata", function (req, res) {
 
 // Auto-register unknown devices
 function autoRegisterDevice(code) {
+    if (!isValidDeviceCode(code)) {
+        console.warn("[Device] Invalid device_code ignored:", code);
+        return false;
+    }
     var existing = db.prepare("SELECT device_code, status, name FROM devices WHERE device_code = ?").get(code);
     if (!existing) {
         try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "Device " + code); } catch(e){}
@@ -410,6 +418,7 @@ function autoRegisterDevice(code) {
         scheduler.sendBaleNotification && scheduler.sendBaleNotification("🟢 دستگاه آنلاین شد\nکد: " + code + "\nنام: " + (existing.name || code));
     }
     db.prepare("UPDATE devices SET status = 'online', last_seen = datetime('now','localtime') WHERE device_code = ?").run(code);
+    return true;
 }
 
 // Log ALL POST requests to catch unknown device formats
@@ -859,10 +868,12 @@ app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
 // API: Device Management
 // ============================================================
 app.get("/api/devices", function (req, res) {
-    res.json(db.prepare("SELECT * FROM devices ORDER BY device_code").all());
+    var rows = db.prepare("SELECT * FROM devices ORDER BY device_code").all();
+    res.json(rows.filter(function (r) { return isValidDeviceCode(r.device_code); }));
 });
 
 app.get("/api/devices/:code", function (req, res) {
+    if (!isValidDeviceCode(req.params.code)) return res.status(404).json({ error: "not found" });
     var row = db.prepare("SELECT * FROM devices WHERE device_code = ?").get(req.params.code);
     if (!row) return res.status(404).json({ error: "not found" });
     res.json(row);
@@ -954,11 +965,13 @@ app.post("/api/devices/import", function (req, res) {
 // API: Dashboard Stats
 // ============================================================
 app.get("/api/stats", function (req, res) {
-    var totalDevices = db.prepare("SELECT COUNT(*) as c FROM devices").get().c;
-    var onlineDevices = db.prepare("SELECT COUNT(*) as c FROM devices WHERE status = 'online'").get().c;
+    var deviceRows = db.prepare("SELECT device_code, status FROM devices").all();
+    var validDevices = deviceRows.filter(function (d) { return isValidDeviceCode(d.device_code); });
+    var totalDevices = validDevices.length;
+    var onlineDevices = validDevices.filter(function (d) { return d.status === "online"; }).length;
     var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    // Count today's vehicles from irawdata (where TCP/HTTP device data is stored)
-    var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e+x), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStart.toISOString());
+    // Count today's vehicles from irawdata (class X is ignored by policy)
+    var todayIraw = db.prepare("SELECT COALESCE(SUM(a+b+c+d+e), 0) as c FROM irawdata WHERE create_at >= ?").get(todayStart.toISOString());
     var todayVehicles = (todayIraw && todayIraw.c) || 0;
     var unsentCount = db.prepare("SELECT COUNT(*) as c FROM rmto_queue WHERE sent = 0").get().c;
     var unsent5Count = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0").get().c;
@@ -1518,7 +1531,7 @@ function importPostgresDump(filePath) {
 
             if (copyMode === "device_device") {
                 var devCode = colVal("code");
-                if (devCode) {
+                if (isValidDeviceCode(devCode)) {
                     insertDevice.run(String(devCode), "Device " + devCode);
                     stats.devices++;
                 }
@@ -1526,15 +1539,15 @@ function importPostgresDump(filePath) {
                 var devId = colVal("device_id");
                 var createAt = colVal("create_at") || new Date().toISOString();
                 var stop = colVal("stop") || createAt;
-                if (devId) {
+                if (isValidDeviceCode(devId)) {
                     insertIraw.run(String(devId), createAt, stop,
                         parseInt(colVal("lane")) || 1, parseInt(colVal("is_read")) || 0,
                         parseInt(colVal("a")) || 0, parseInt(colVal("b")) || 0, parseInt(colVal("c")) || 0,
-                        parseInt(colVal("d")) || 0, parseInt(colVal("e")) || 0, parseInt(colVal("x")) || 0,
+                        parseInt(colVal("d")) || 0, parseInt(colVal("e")) || 0, 0,
                         parseInt(colVal("sa")) || 0, parseInt(colVal("sb")) || 0, parseInt(colVal("sc")) || 0,
-                        parseInt(colVal("sd")) || 0, parseInt(colVal("se")) || 0, parseInt(colVal("sx")) || 0,
+                        parseInt(colVal("sd")) || 0, parseInt(colVal("se")) || 0, 0,
                         parseInt(colVal("sao")) || 0, parseInt(colVal("sbo")) || 0, parseInt(colVal("sco")) || 0,
-                        parseInt(colVal("sdo")) || 0, parseInt(colVal("seo")) || 0, parseInt(colVal("sxo")) || 0,
+                        parseInt(colVal("sdo")) || 0, parseInt(colVal("seo")) || 0, 0,
                         parseInt(colVal("overtaking")) || 0, parseInt(colVal("tooclose")) || 0);
                     stats.irawdata++;
                 }
@@ -1751,15 +1764,15 @@ function ratcx1ToIrawdata(parsed) {
             create_at: parsed.create_at,
             stop: stopStr,
             lane: l.lane,
-            a: d.a.count, b: d.b.count, c: d.c.count, d: d.d.count, e: d.e.count, x: d.x.count,
+            a: d.a.count, b: d.b.count, c: d.c.count, d: d.d.count, e: d.e.count, x: 0,
             sa: d.a.avgSpeed * d.a.count, sb: d.b.avgSpeed * d.b.count,
             sc: d.c.avgSpeed * d.c.count, sd: d.d.avgSpeed * d.d.count,
-            se: d.e.avgSpeed * d.e.count, sx: d.x.avgSpeed * d.x.count,
+            se: d.e.avgSpeed * d.e.count, sx: 0,
             sao: d.a.speedViolation, sbo: d.b.speedViolation,
             sco: d.c.speedViolation, sdo: d.d.speedViolation,
-            seo: d.e.speedViolation, sxo: d.x.speedViolation,
-            overtaking: d.a.grab + d.b.grab + d.c.grab + d.d.grab + d.e.grab + d.x.grab,
-            tooclose: d.a.headway + d.b.headway + d.c.headway + d.d.headway + d.e.headway + d.x.headway
+            seo: d.e.speedViolation, sxo: 0,
+            overtaking: d.a.grab + d.b.grab + d.c.grab + d.d.grab + d.e.grab,
+            tooclose: d.a.headway + d.b.headway + d.c.headway + d.d.headway + d.e.headway
         });
     });
     return rows;
@@ -2068,7 +2081,7 @@ var tcpServer = net.createServer(function (socket) {
         var clean = line.replace(/[\r\n\x00]/g, "").trim();
         if (clean.substring(0, 4) === "8000" && clean.length >= 33) {
             var newId = clean.substring(25, 33).replace(/^0+/, "") || null;
-            if (newId && !pollStarted) {
+            if (newId && isValidDeviceCode(newId) && !pollStarted) {
                 deviceId = newId;
                 pollStarted = true;
                 connectedDevices[deviceId] = socket;
@@ -2180,7 +2193,7 @@ var tcpServer = net.createServer(function (socket) {
 });
 
 function storeIrawdata(parsed) {
-    var total = (parsed.a||0) + (parsed.b||0) + (parsed.c||0) + (parsed.d||0) + (parsed.e||0) + (parsed.x||0);
+    var total = (parsed.a||0) + (parsed.b||0) + (parsed.c||0) + (parsed.d||0) + (parsed.e||0);
     console.log("[DB] INSERT irawdata: device=" + parsed.device_code + " create_at=" + parsed.create_at + " stop=" + parsed.stop + " lane=" + parsed.lane + " total=" + total);
     var insertRaw = db.prepare(
         "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
@@ -2188,9 +2201,9 @@ function storeIrawdata(parsed) {
     );
     insertRaw.run(
         parsed.device_code, parsed.create_at, parsed.stop, parsed.lane,
-        parsed.a||0, parsed.b||0, parsed.c||0, parsed.d||0, parsed.e||0, parsed.x||0,
-        parsed.sa||0, parsed.sb||0, parsed.sc||0, parsed.sd||0, parsed.se||0, parsed.sx||0,
-        parsed.sao||0, parsed.sbo||0, parsed.sco||0, parsed.sdo||0, parsed.seo||0, parsed.sxo||0,
+        parsed.a||0, parsed.b||0, parsed.c||0, parsed.d||0, parsed.e||0, 0,
+        parsed.sa||0, parsed.sb||0, parsed.sc||0, parsed.sd||0, parsed.se||0, 0,
+        parsed.sao||0, parsed.sbo||0, parsed.sco||0, parsed.sdo||0, parsed.seo||0, 0,
         parsed.overtaking||0, parsed.tooclose||0
     );
 }
@@ -2264,6 +2277,11 @@ function processRawData(raw, ip) {
             addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 parse fail: need 262 chars, got " + intervalStr.length });
             return;
         }
+        if (!isValidDeviceCode(parsed.device_code)) {
+            console.warn("[TCP] RATCX1 invalid device_code ignored:", parsed.device_code);
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 invalid device_code ignored" });
+            return;
+        }
 
         // Validate device timestamp - detect clock drift and correct if needed
         var serverNow = new Date();
@@ -2309,7 +2327,7 @@ function processRawData(raw, ip) {
 
         try {
             rows.forEach(function (r) {
-                var t = r.a + r.b + r.c + r.d + r.e + r.x;
+                var t = r.a + r.b + r.c + r.d + r.e;
                 totalAll += t;
                 storeIrawdata(r);
             });
@@ -2441,8 +2459,15 @@ function processRawData(raw, ip) {
         });
         return;
     }
+    if (!isValidDeviceCode(parsed.device_code)) {
+        addLiveLog({
+            ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw",
+            ip: ip, device: "-", detail: "invalid device_code ignored"
+        });
+        return;
+    }
 
-    var total = parsed.a + parsed.b + parsed.c + parsed.d + parsed.e + parsed.x;
+    var total = parsed.a + parsed.b + parsed.c + parsed.d + parsed.e;
     addLiveLog({
         ts: Date.now(), time: new Date().toISOString(), type: "tcp",
         ip: ip, device: parsed.device_code,
