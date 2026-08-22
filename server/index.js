@@ -288,10 +288,32 @@ app.use(express.static(path.join(__dirname, "..")));
 // ============================================================
 var liveLog = [];
 var MAX_LOG = 200;
+var rateLimitBuckets = Object.create(null);
 
 function isValidDeviceCode(code) {
     return /^\d{1,8}$/.test(String(code || "").trim());
 }
+
+function makeRateLimiter(key, limit, windowMs) {
+    return function (req, res, next) {
+        var now = Date.now();
+        var user = req.session && req.session.user && req.session.user.username ? req.session.user.username : "anon";
+        var bucketKey = key + "|" + user + "|" + (req.ip || "");
+        var bucket = rateLimitBuckets[bucketKey];
+        if (!bucket || now >= bucket.resetAt) {
+            bucket = { count: 0, resetAt: now + windowMs };
+            rateLimitBuckets[bucketKey] = bucket;
+        }
+        bucket.count++;
+        if (bucket.count > limit) {
+            return res.status(429).json({ error: "تعداد درخواست بیش از حد مجاز است. کمی بعد دوباره تلاش کنید." });
+        }
+        next();
+    };
+}
+
+var readApiRateLimiter = makeRateLimiter("read", 120, 60 * 1000);
+var heavyApiRateLimiter = makeRateLimiter("heavy", 30, 60 * 1000);
 
 function addLiveLog(entry) {
     liveLog.unshift(entry);
@@ -867,7 +889,7 @@ app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
 // ============================================================
 // API: Device Management
 // ============================================================
-app.get("/api/devices", function (req, res) {
+app.get("/api/devices", readApiRateLimiter, function (req, res) {
     var rows = db.prepare("SELECT * FROM devices ORDER BY device_code").all();
     res.json(rows.filter(function (r) { return isValidDeviceCode(r.device_code); }));
 });
@@ -964,7 +986,7 @@ app.post("/api/devices/import", function (req, res) {
 // ============================================================
 // API: Dashboard Stats
 // ============================================================
-app.get("/api/stats", function (req, res) {
+app.get("/api/stats", readApiRateLimiter, function (req, res) {
     var deviceRows = db.prepare("SELECT device_code, status FROM devices").all();
     var validDevices = deviceRows.filter(function (d) { return isValidDeviceCode(d.device_code); });
     var totalDevices = validDevices.length;
@@ -1033,7 +1055,7 @@ app.post("/api/rmto/aggregate", function (req, res) {
 // Tests TCP reachability of the RMTO host from each configured source IP.
 // Always responds within HARD_TIMEOUT_MS (never hangs UI).
 // ============================================================
-app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
+app.get("/api/rmto/connectivity-check", requireAuth, heavyApiRateLimiter, function (req, res) {
     var net = require("net");
     var dns = require("dns");
     var url = require("url");
@@ -1256,7 +1278,7 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
     });
 });
 
-app.get("/api/rmto/queue", function (req, res) {
+app.get("/api/rmto/queue", readApiRateLimiter, function (req, res) {
     // Real send path uses rmto_queue_5class (Add5). Legacy rmto_queue is marked sent immediately.
     var unsent = db.prepare(
         "SELECT device_code, route_id, period_start, period_end, " +
