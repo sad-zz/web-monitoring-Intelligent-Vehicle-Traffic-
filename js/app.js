@@ -26,10 +26,19 @@
         return y + "/" + mo + "/" + dy + " " + h + ":" + m;
     }
 
-    function api(method, url, body, callback) {
+    function api(method, url, body, callback, timeoutMs) {
         var xhr = new XMLHttpRequest();
+        var settled = false;
+        function finish(status, data) {
+            if (settled) return;
+            settled = true;
+            callback(status, data);
+        }
         xhr.open(method, url, true);
         xhr.withCredentials = true;
+        if (timeoutMs && timeoutMs > 0) {
+            xhr.timeout = timeoutMs;
+        }
         if (body && method !== "GET") {
             xhr.setRequestHeader("Content-Type", "application/json");
         }
@@ -43,9 +52,10 @@
                 loginOverlay.classList.remove("hidden");
                 return;
             }
-            callback(xhr.status, data);
+            finish(xhr.status, data);
         };
-        xhr.onerror = function () { callback(0, null); };
+        xhr.onerror = function () { finish(0, null); };
+        xhr.ontimeout = function () { finish(0, { error: "timeout", message: "زمان انتظار به پایان رسید" }); };
         xhr.send(body ? JSON.stringify(body) : null);
     }
 
@@ -747,21 +757,24 @@
         api("GET", "/api/rmto/queue", null, function (status, data) {
             if (status !== 200 || !data) return;
 
-            // Unsent
+            // Unsent (real Add5 queue)
             var ubody = $("#rmto-unsent-body");
             if (data.unsent && data.unsent.length) {
                 ubody.innerHTML = data.unsent.map(function (r) {
+                    var retry = (r.retry_count || 0) > 0 ? (' <span style="color:#f59e0b;font-size:10px">r' + r.retry_count + "</span>") : "";
                     return "<tr>" +
-                        '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + "</td>" +
+                        '<td dir="ltr" style="text-align:right;font-weight:700">' + escapeHtml(r.device_code) + retry + "</td>" +
                         '<td dir="ltr" style="text-align:right">' + escapeHtml(formatTime(r.period_start)) + "</td>" +
                         '<td dir="ltr" style="text-align:center">' + (r.total_vehicles||0) + "</td>" +
                         '<td dir="ltr" style="text-align:center">' + (r.avg_speed||0) + "</td>" +
                         '<td dir="ltr" style="text-align:right;font-size:11px">' + escapeHtml(formatTime(r.created_at)) + "</td>" +
                         "</tr>";
                 }).join("");
-                $("#rmto-unsent-count").textContent = data.unsent.length;
+                $("#rmto-unsent-count").textContent = (data.unsentCount != null ? data.unsentCount : data.unsent.length);
             } else {
-                ubody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">صف ارسال خالی</td></tr>';
+                var emptyMsg = "صف ارسال خالی";
+                if (data.abandonedCount) emptyMsg += " (" + data.abandonedCount + " رکورد رها شده بعد از ۵ تلاش)";
+                ubody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">' + emptyMsg + "</td></tr>";
                 $("#rmto-unsent-count").textContent = "0";
             }
 
@@ -780,7 +793,15 @@
             // Error count
             var errEl = $("#rmto-error-count");
             if (errEl) errEl.textContent = data.todayErrors || "0";
-        });
+
+            // Source IP health banner
+            var resultEl = $("#rmto-send-result");
+            if (resultEl && data.sourceIp && data.sourceIpOk === false) {
+                resultEl.style.display = "inline-block";
+                resultEl.innerHTML = '<span style="color:#ef4444;font-weight:700">⚠ IP مبدا نامعتبر: ' +
+                    escapeHtml(data.sourceIpMessage || data.sourceIp) + "</span>";
+            }
+        }, 20000);
     }
 
     function loadRMTOMonitor() {
@@ -976,34 +997,55 @@
         var resultEl = $("#connectivity-result");
         var hostEl = $("#connectivity-host");
         panel.style.display = "";
-        resultEl.innerHTML = '<div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال...</div>';
+        resultEl.innerHTML = '<div style="color:#94a3b8;font-size:13px">در حال بررسی اتصال به سامانه...</div>';
         if (hostEl) hostEl.textContent = "";
         rmtoConnBtn.disabled = true;
         api("GET", "/api/rmto/connectivity-check", null, function (status, data) {
             rmtoConnBtn.disabled = false;
             if (status !== 200 || !data) {
-                resultEl.innerHTML = '<div style="color:#ef4444;font-size:13px">خطا در دریافت نتیجه</div>';
+                var why = (data && data.message) ? data.message : "خطا در دریافت نتیجه / تایم‌اوت";
+                resultEl.innerHTML = '<div style="color:#ef4444;font-size:13px">' + escapeHtml(why) + "</div>";
                 return;
             }
             if (hostEl) hostEl.textContent = data.host + ":" + data.port;
             var html = '<div style="display:grid;gap:8px">';
             (data.checks || []).forEach(function (c) {
-                var color = c.ok ? "#16a34a" : "#ef4444";
                 var badge = c.ok
                     ? '<span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:12px;font-size:12px">✓ متصل</span>'
                     : '<span style="background:#fee2e2;color:#ef4444;padding:2px 8px;border-radius:12px;font-size:12px">✗ قطع</span>';
                 var latency = c.ok ? ' &nbsp;<span style="color:#64748b;font-size:12px">' + c.latencyMs + 'ms</span>' : "";
                 var errMsg = c.error ? ' &nbsp;<span style="color:#ef4444;font-size:12px;direction:ltr">' + escapeHtml(c.error) + "</span>" : "";
-                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">' +
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;flex-wrap:wrap">' +
                     '<span style="min-width:160px;font-size:13px">' + escapeHtml(c.label) + "</span>" +
                     '<span style="color:#64748b;font-size:12px;direction:ltr;min-width:120px">' + escapeHtml(c.ip) + "</span>" +
                     badge + latency + errMsg +
                     "</div>";
             });
+
+            var d = data.diagnostics || {};
+            html += '<div style="margin-top:8px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;line-height:1.7">';
+            html += "<div><strong>IP مبدا تنظیم‌شده:</strong> <span dir='ltr'>" + escapeHtml(d.sourceIp || "(خالی = پیش‌فرض)") + "</span></div>";
+            html += "<div><strong>وضعیت IP مبدا:</strong> " + (d.sourceIpOk ? '<span style="color:#16a34a">معتبر روی سرور</span>' : '<span style="color:#ef4444">' + escapeHtml(d.sourceIpMessage || "نامعتبر") + "</span>") + "</div>";
+            html += "<div><strong>IPهای واقعی سرور:</strong> <span dir='ltr'>" + escapeHtml((d.localIps && d.localIps.length) ? d.localIps.join(" | ") : "-") + "</span></div>";
+            html += "<div><strong>اعتبارنامه RMTO:</strong> " + (d.credentialsConfigured ? '<span style="color:#16a34a">کد/کاربر/رمز تنظیم شده</span>' : '<span style="color:#ef4444">ناقص — در تنظیمات تکمیل کنید</span>') + "</div>";
+            html += "<div><strong>صف ارسال‌نشده:</strong> " + escapeHtml(String(d.unsentQueue5 != null ? d.unsentQueue5 : "-")) +
+                (d.abandonedQueue5 ? " | رها شده: " + escapeHtml(String(d.abandonedQueue5)) : "") + "</div>";
+            if (d.lastSend) {
+                html += "<div><strong>آخرین تلاش ارسال:</strong> <span dir='ltr'>" + escapeHtml(String(d.lastSend.created_at || "")) +
+                    "</span> — " + (d.lastSend.success === 1 ? "موفق" : ("خطا: " + escapeHtml(d.lastSend.error_message || "-"))) +
+                    " | IP: <span dir='ltr'>" + escapeHtml(d.lastSend.source_ip || "-") + "</span></div>";
+            } else {
+                html += "<div><strong>آخرین تلاش ارسال:</strong> هنوز هیچ لاگی ثبت نشده</div>";
+            }
+            if (data.timedOut) {
+                html += '<div style="color:#ef4444">⚠ پاسخ با تایم‌اوت کلی برگردانده شد</div>';
+            }
+            html += "</div>";
+
             var ts = data.checkedAt ? ' <span style="font-size:11px;color:#94a3b8">' + escapeHtml(data.checkedAt.replace("T", " ").substring(0, 19)) + "</span>" : "";
             html += "</div>" + ts;
             resultEl.innerHTML = html;
-        });
+        }, 15000);
     });
 
 
@@ -1136,9 +1178,16 @@
     }
 
     function saveSettings(body, msg) {
-        api("POST", "/api/settings", body, function (status) {
-            if (status === 200) alert(msg || "ذخیره شد");
-            else alert("خطا در ذخیره");
+        api("POST", "/api/settings", body, function (status, data) {
+            if (status === 200) {
+                var text = msg || "ذخیره شد";
+                if (data && data.warnings && data.warnings.length) {
+                    text += "\n\n⚠ هشدار:\n- " + data.warnings.join("\n- ");
+                }
+                alert(text);
+            } else {
+                alert("خطا در ذخیره");
+            }
         });
     }
 

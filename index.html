@@ -803,10 +803,14 @@
                                 <input type="password" id="setting-rmto-pass" dir="ltr">
                             </div>
                             <div class="form-group">
-                                <label>IP مبدا ارسال به سامانه (اختیاری)</label>
-                                <input type="text" id="setting-rmto-source-ip" dir="ltr" placeholder="مثال: 5.159.49.154">
+                                <label>IP مبدا ارسال به سامانه / IP پام (اختیاری)</label>
+                                <input type="text" id="setting-rmto-source-ip" dir="ltr" placeholder="مثال: 5.159.49.71">
                             </div>
-                            <small style="color:#94a3b8;display:block;margin-bottom:8px">در صورت خالی بودن، ارسال با IP پیش‌فرض سرور انجام می‌شود. تمام ارسال‌ها (لحظه‌ای و بک‌لاگ) از این IP خواهند بود.</small>
+                            <small style="color:#94a3b8;display:block;margin-bottom:8px">
+                                باید دقیقاً یکی از IPهای واقعی همین سرور باشد (خروجی <span dir="ltr">ip -4 addr</span>).
+                                اگر IP روی سرور نباشد، ارسال و تست اتصال با خطا متوقف می‌شود.
+                                خالی = مسیر پیش‌فرض سیستم‌عامل. تمام ارسال‌ها (لحظه‌ای و بک‌لاگ) از همین IP هستند.
+                            </small>
                             <button class="btn btn-primary" id="btn-save-rmto">ذخیره تنظیمات سامانه</button>
                         </div>
                     </div>

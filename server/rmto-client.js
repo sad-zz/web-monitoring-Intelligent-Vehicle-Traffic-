@@ -9,6 +9,7 @@
  * Callback signature: callback(err, response, soapXml)
  */
 var http = require("http");
+var os = require("os");
 var db = require("./db");
 
 var RMTO_URL = process.env.RMTO_URL || "http://otf.rmto.ir/Companies/Companies.asmx";
@@ -30,16 +31,72 @@ function loadDbSettings() {
         if (s.rmto_password !== undefined) PASSWORD = s.rmto_password;
         if (s.rmto_url) RMTO_URL = s.rmto_url;
         else if (s.rmto_wsdl) RMTO_URL = s.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "");
-        if (s.rmto_source_ip !== undefined) SOURCE_IP = s.rmto_source_ip || "";
+        if (s.rmto_source_ip !== undefined) SOURCE_IP = (s.rmto_source_ip || "").trim();
     } catch (e) {
         console.error("[RMTO] Failed to load DB settings:", e.message);
     }
 }
 
 /**
+ * List non-internal IPv4 addresses currently assigned to this host.
+ */
+function listLocalIPv4() {
+    var out = [];
+    try {
+        var ifaces = os.networkInterfaces() || {};
+        Object.keys(ifaces).forEach(function (name) {
+            (ifaces[name] || []).forEach(function (addr) {
+                if (!addr || addr.internal) return;
+                // Node may report family as "IPv4" or 4 depending on version
+                var fam = addr.family;
+                if (fam !== "IPv4" && fam !== 4) return;
+                out.push({ iface: name, address: addr.address });
+            });
+        });
+    } catch (e) {
+        console.error("[RMTO] listLocalIPv4 failed:", e.message);
+    }
+    return out;
+}
+
+/**
+ * Validate that a source IP can be used as localAddress (must exist on host).
+ * Empty IP is valid (= OS default route).
+ */
+function validateSourceIp(ip) {
+    var cleaned = (ip || "").trim();
+    if (!cleaned) {
+        return { ok: true, ip: "", local: true, localIps: listLocalIPv4(), message: "استفاده از IP پیش‌فرض سیستم" };
+    }
+    // Basic IPv4 shape check
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(cleaned)) {
+        return {
+            ok: false,
+            ip: cleaned,
+            local: false,
+            localIps: listLocalIPv4(),
+            message: "فرمت IP مبدا نامعتبر است: " + cleaned
+        };
+    }
+    var localIps = listLocalIPv4();
+    var found = localIps.some(function (x) { return x.address === cleaned; });
+    if (!found) {
+        return {
+            ok: false,
+            ip: cleaned,
+            local: false,
+            localIps: localIps,
+            message: "IP مبدا " + cleaned + " روی این سرور تنظیم نشده (localAddress). یکی از IPهای واقعی سرور را انتخاب کنید."
+        };
+    }
+    return { ok: true, ip: cleaned, local: true, localIps: localIps, message: "IP مبدا روی سرور موجود است" };
+}
+
+/**
  * Returns the configured source IP.
  */
 function getSourceIp() {
+    loadDbSettings();
     return SOURCE_IP || "";
 }
 
@@ -103,15 +160,30 @@ function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
             "Content-Length": Buffer.byteLength(soapEnvelope, "utf8")
         }
     };
-    // sourceIp param overrides module-level SOURCE_IP (null = OS default, "" = OS default)
-    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? sourceIp : SOURCE_IP;
+    // sourceIp param overrides module-level SOURCE_IP (null/undefined = module default)
+    loadDbSettings();
+    var effectiveIp = (sourceIp !== null && sourceIp !== undefined) ? String(sourceIp).trim() : SOURCE_IP;
     if (effectiveIp) {
+        var ipCheck = validateSourceIp(effectiveIp);
+        if (!ipCheck.ok) {
+            console.error("[RMTO] " + ipCheck.message);
+            return callback(new Error(ipCheck.message), null, soapEnvelope);
+        }
         options.localAddress = effectiveIp;
         console.log("[RMTO] Using source IP: " + effectiveIp);
+    } else {
+        console.log("[RMTO] Using OS default source IP");
     }
 
     console.log("[RMTO] SOAP " + soapAction + " to " + RMTO_URL);
     console.log("[RMTO] Request XML:\n" + bodyXml.substring(0, 500));
+
+    var settled = false;
+    function finish(err, parsed) {
+        if (settled) return;
+        settled = true;
+        callback(err, parsed, soapEnvelope);
+    }
 
     var req = http.request(options, function (res) {
         var data = "";
@@ -121,26 +193,36 @@ function sendSoapRequest(soapAction, bodyXml, sourceIp, callback) {
             console.log("[RMTO] Response body:\n" + data.substring(0, 1000));
 
             if (res.statusCode !== 200) {
-                return callback(new Error("HTTP " + res.statusCode + ": " + data.substring(0, 500)), null, soapEnvelope);
+                return finish(new Error("HTTP " + res.statusCode + ": " + data.substring(0, 500)), null);
             }
 
             // Parse response XML to extract Re fields
             var parsed = parseReResponse(data);
             if (parsed.error) {
-                return callback(new Error(parsed.error), null, soapEnvelope);
+                return finish(new Error(parsed.error), null);
             }
-            callback(null, parsed, soapEnvelope);
+            finish(null, parsed);
         });
     });
 
     req.on("error", function (err) {
         console.error("[RMTO] Request error:", err.message);
-        callback(err, null, soapEnvelope);
+        var msg = err.message || String(err);
+        if (err.code === "EADDRNOTAVAIL") {
+            msg = "IP مبدا روی سرور موجود نیست (EADDRNOTAVAIL): " + (effectiveIp || "");
+        } else if (err.code === "ECONNREFUSED") {
+            msg = "اتصال به RMTO رد شد (ECONNREFUSED) - فایروال/مسیر شبکه را بررسی کنید";
+        } else if (err.code === "ETIMEDOUT" || err.code === "ESOCKETTIMEDOUT") {
+            msg = "اتصال به RMTO تایم‌اوت شد - مسیر شبکه از IP مبدا را بررسی کنید";
+        } else if (err.code === "ENOTFOUND") {
+            msg = "DNS نام میزبان RMTO پیدا نشد: " + (options.hostname || "");
+        }
+        finish(new Error(msg), null);
     });
 
-    req.setTimeout(30000, function () {
+    req.setTimeout(20000, function () {
         req.destroy();
-        callback(new Error("RMTO request timeout (30s)"), null, soapEnvelope);
+        finish(new Error("RMTO request timeout (20s)"), null);
     });
 
     req.write(soapEnvelope);
@@ -325,5 +407,8 @@ module.exports = {
     initClient: initClient,
     sendAddData: sendAddData,
     sendAddData5: sendAddData5,
-    getSourceIp: getSourceIp
+    getSourceIp: getSourceIp,
+    listLocalIPv4: listLocalIPv4,
+    validateSourceIp: validateSourceIp,
+    loadDbSettings: loadDbSettings
 };

@@ -142,7 +142,11 @@ db.exec([
     "CREATE INDEX IF NOT EXISTS idx_traffic_time ON traffic_data(timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_rmto_unsent ON rmto_queue(sent, device_code);",
     "CREATE INDEX IF NOT EXISTS idx_rmto5_unsent ON rmto_queue_5class(sent, device_code);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto5_period ON rmto_queue_5class(period_start);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto5_sent_period ON rmto_queue_5class(sent, period_start);",
     "CREATE INDEX IF NOT EXISTS idx_rmto8_unsent ON rmto_queue_8class(sent, device_code);",
+    "CREATE INDEX IF NOT EXISTS idx_send_log_created ON send_log(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_send_log_success_created ON send_log(success, created_at);",
 
     // irawdata table - matches iccore device_irawdata format
     "CREATE TABLE IF NOT EXISTS irawdata (",
@@ -272,6 +276,16 @@ try {
     }
 } catch(e) {
     console.error("[DB] rmto_queue_5class retry_count migration error:", e.message);
+}
+
+// Ensure performance indexes exist on long-lived production DBs
+try {
+    db.exec("CREATE INDEX IF NOT EXISTS idx_rmto5_period ON rmto_queue_5class(period_start)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_rmto5_sent_period ON rmto_queue_5class(sent, period_start)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_send_log_created ON send_log(created_at)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_send_log_success_created ON send_log(success, created_at)");
+} catch (e) {
+    console.error("[DB] index ensure error:", e.message);
 }
 
 // Migration: add route1, route2, active columns to devices (replace single route column)

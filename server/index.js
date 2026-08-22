@@ -444,6 +444,18 @@ app.post("/api/settings", function (req, res) {
     var upsert = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?");
     var b = req.body;
     var allowed = ["system_name", "server_ip", "server_port", "tcp_port", "refresh_interval", "max_speed", "alert_offline", "alert_speed", "alert_error", "offline_timeout", "rmto_company_code", "rmto_username", "rmto_password", "rmto_wsdl", "rmto_source_ip", "bale_bot_token", "bale_chat_id"];
+    var warnings = [];
+
+    if (b.rmto_source_ip !== undefined) {
+        var ipCheck = rmto.validateSourceIp(String(b.rmto_source_ip || "").trim());
+        if (!ipCheck.ok) {
+            // Still allow save (ops may add the alias later), but surface a clear warning
+            warnings.push(ipCheck.message);
+            warnings.push("IPهای فعلی سرور: " + (ipCheck.localIps.map(function (x) { return x.address; }).join(", ") || "(هیچ)"));
+        }
+        b.rmto_source_ip = String(b.rmto_source_ip || "").trim();
+    }
+
     var updated = 0;
     allowed.forEach(function (k) {
         if (b[k] !== undefined) {
@@ -451,7 +463,7 @@ app.post("/api/settings", function (req, res) {
             updated++;
         }
     });
-    res.json({ success: true, updated: updated });
+    res.json({ success: true, updated: updated, warnings: warnings });
 });
 
 // ============================================================
@@ -1006,64 +1018,219 @@ app.post("/api/rmto/aggregate", function (req, res) {
 // ============================================================
 // API: RMTO Connectivity Check
 // Tests TCP reachability of the RMTO host from each configured source IP.
+// Always responds within HARD_TIMEOUT_MS (never hangs UI).
 // ============================================================
 app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
     var net = require("net");
+    var dns = require("dns");
     var url = require("url");
+    var responded = false;
+    var HARD_TIMEOUT_MS = 12000;
+    var PER_CHECK_MS = 7000;
+    var results = [];
+    var diagnostics = {};
+    var host = "otf.rmto.ir";
+    var port = 80;
+    var rmtoUrl = "http://otf.rmto.ir/Companies/Companies.asmx";
+
+    function done(payload) {
+        if (responded) return;
+        responded = true;
+        try { res.json(payload); } catch (e) { /* headers may be gone */ }
+    }
+
+    var hardTimer = setTimeout(function () {
+        done({
+            host: host || "otf.rmto.ir",
+            port: port || 80,
+            url: rmtoUrl || "",
+            checks: results.length ? results : [{
+                label: "سراسری",
+                ip: "(n/a)",
+                host: host || "otf.rmto.ir",
+                port: port || 80,
+                ok: false,
+                latencyMs: null,
+                error: "timeout کلی بررسی اتصال (" + HARD_TIMEOUT_MS + "ms)"
+            }],
+            diagnostics: diagnostics,
+            checkedAt: new Date().toISOString(),
+            timedOut: true
+        });
+    }, HARD_TIMEOUT_MS);
 
     // Reload latest settings from DB
     var settingsRows = db.prepare(
-        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_source_ip')"
+        "SELECT key, value FROM settings WHERE key IN ('rmto_wsdl', 'rmto_url', 'rmto_source_ip', 'rmto_company_code', 'rmto_username', 'rmto_password')"
     ).all();
     var cfg = {};
     settingsRows.forEach(function (r) { cfg[r.key] = r.value || ""; });
 
-    var rmtoUrl = cfg.rmto_url || (cfg.rmto_wsdl
+    rmtoUrl = cfg.rmto_url || (cfg.rmto_wsdl
         ? cfg.rmto_wsdl.replace("?WSDL", "").replace("?wsdl", "")
         : "http://otf.rmto.ir/Companies/Companies.asmx");
 
     var parsedUrl = url.parse(rmtoUrl);
-    var host = parsedUrl.hostname || "otf.rmto.ir";
-    var port = parseInt(parsedUrl.port, 10) || 80;
+    host = parsedUrl.hostname || "otf.rmto.ir";
+    port = parseInt(parsedUrl.port, 10) || ((parsedUrl.protocol === "https:") ? 443 : 80);
+
+    var sourceIp = (cfg.rmto_source_ip || "").trim();
+    var ipCheck = rmto.validateSourceIp(sourceIp);
+    var localIps = ipCheck.localIps || rmto.listLocalIPv4();
+
+    var unsent5 = 0, abandoned5 = 0, lastSend = null;
+    try {
+        unsent5 = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5)").get().c;
+        abandoned5 = db.prepare("SELECT COUNT(*) as c FROM rmto_queue_5class WHERE sent = 0 AND retry_count >= 5").get().c;
+        lastSend = db.prepare("SELECT id, success, error_message, source_ip, created_at FROM send_log ORDER BY id DESC LIMIT 1").get() || null;
+    } catch (e) { /* ignore */ }
+
+    diagnostics = {
+        sourceIp: sourceIp || "",
+        sourceIpOk: ipCheck.ok,
+        sourceIpMessage: ipCheck.message,
+        localIps: localIps.map(function (x) { return x.address + " (" + x.iface + ")"; }),
+        credentialsConfigured: !!(cfg.rmto_username && cfg.rmto_password && cfg.rmto_company_code),
+        companyCode: cfg.rmto_company_code || "",
+        usernameSet: !!cfg.rmto_username,
+        passwordSet: !!cfg.rmto_password,
+        unsentQueue5: unsent5,
+        abandonedQueue5: abandoned5,
+        lastSend: lastSend
+    };
 
     var ipsToCheck = [
-        { label: "IP پیش‌فرض سرور", ip: "" },
-        { label: "IP ارسال (rmto_source_ip)", ip: cfg.rmto_source_ip || "" }
+        { label: "IP پیش‌فرض سرور", ip: "" }
     ];
+    if (sourceIp) {
+        ipsToCheck.push({ label: "IP ارسال (rmto_source_ip)", ip: sourceIp });
+    }
 
-    var results = [];
     var remaining = ipsToCheck.length;
-    var TIMEOUT_MS = 8000;
 
-    function checkOne(entry, done) {
-        var start = Date.now();
-        var timedOut = false;
-        var sock = new net.Socket();
-
-        var connectOpts = { host: host, port: port };
-        if (entry.ip) connectOpts.localAddress = entry.ip;
-
-        var timer = setTimeout(function () {
-            timedOut = true;
-            sock.destroy();
-            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
-                   ok: false, latencyMs: null, error: "timeout (" + TIMEOUT_MS + "ms)" });
-        }, TIMEOUT_MS);
-
-        sock.connect(connectOpts, function () {
-            clearTimeout(timer);
-            var latency = Date.now() - start;
-            sock.destroy();
-            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
-                   ok: true, latencyMs: latency, error: null });
+    function finishIfReady() {
+        if (remaining > 0) return;
+        clearTimeout(hardTimer);
+        done({
+            host: host,
+            port: port,
+            url: rmtoUrl,
+            checks: results,
+            diagnostics: diagnostics,
+            checkedAt: new Date().toISOString(),
+            timedOut: false
         });
+    }
 
-        sock.on("error", function (err) {
-            if (timedOut) return;
-            clearTimeout(timer);
-            sock.destroy();
-            done({ label: entry.label, ip: entry.ip || "(پیش‌فرض)", host: host, port: port,
-                   ok: false, latencyMs: null, error: err.message });
+    function checkOne(entry, cb) {
+        // If a non-empty source IP is not on this host, fail fast without hanging
+        if (entry.ip) {
+            var v = rmto.validateSourceIp(entry.ip);
+            if (!v.ok) {
+                return cb({
+                    label: entry.label,
+                    ip: entry.ip,
+                    host: host,
+                    port: port,
+                    ok: false,
+                    latencyMs: null,
+                    error: v.message,
+                    localIps: v.localIps.map(function (x) { return x.address; })
+                });
+            }
+        }
+
+        var start = Date.now();
+        var settled = false;
+        function settle(result) {
+            if (settled) return;
+            settled = true;
+            cb(result);
+        }
+
+        // Resolve DNS first with timeout so connect cannot hang forever on getaddrinfo
+        var dnsDone = false;
+        var dnsTimer = setTimeout(function () {
+            if (dnsDone) return;
+            dnsDone = true;
+            settle({
+                label: entry.label,
+                ip: entry.ip || "(پیش‌فرض)",
+                host: host,
+                port: port,
+                ok: false,
+                latencyMs: null,
+                error: "DNS timeout for " + host
+            });
+        }, PER_CHECK_MS);
+
+        dns.lookup(host, { family: 4 }, function (dnsErr, address) {
+            if (dnsDone) return;
+            dnsDone = true;
+            clearTimeout(dnsTimer);
+            if (dnsErr) {
+                return settle({
+                    label: entry.label,
+                    ip: entry.ip || "(پیش‌فرض)",
+                    host: host,
+                    port: port,
+                    ok: false,
+                    latencyMs: null,
+                    error: "DNS: " + dnsErr.message
+                });
+            }
+
+            var sock = new net.Socket();
+            var connectOpts = { host: address, port: port };
+            if (entry.ip) connectOpts.localAddress = entry.ip;
+
+            var timer = setTimeout(function () {
+                sock.destroy();
+                settle({
+                    label: entry.label,
+                    ip: entry.ip || "(پیش‌فرض)",
+                    host: host,
+                    port: port,
+                    ok: false,
+                    latencyMs: null,
+                    error: "timeout (" + PER_CHECK_MS + "ms) via " + address
+                });
+            }, PER_CHECK_MS);
+
+            sock.connect(connectOpts, function () {
+                clearTimeout(timer);
+                var latency = Date.now() - start;
+                sock.destroy();
+                settle({
+                    label: entry.label,
+                    ip: entry.ip || "(پیش‌فرض)",
+                    host: host,
+                    port: port,
+                    ok: true,
+                    latencyMs: latency,
+                    error: null,
+                    resolvedIp: address
+                });
+            });
+
+            sock.on("error", function (err) {
+                clearTimeout(timer);
+                sock.destroy();
+                var msg = err.message || String(err);
+                if (err.code === "EADDRNOTAVAIL") {
+                    msg = "IP مبدا روی سرور نیست (EADDRNOTAVAIL)";
+                }
+                settle({
+                    label: entry.label,
+                    ip: entry.ip || "(پیش‌فرض)",
+                    host: host,
+                    port: port,
+                    ok: false,
+                    latencyMs: null,
+                    error: msg,
+                    resolvedIp: address
+                });
+            });
         });
     }
 
@@ -1071,24 +1238,65 @@ app.get("/api/rmto/connectivity-check", requireAuth, function (req, res) {
         checkOne(entry, function (result) {
             results.push(result);
             remaining--;
-            if (remaining === 0) {
-                res.json({ host: host, port: port, url: rmtoUrl, checks: results, checkedAt: new Date().toISOString() });
-            }
+            finishIfReady();
         });
     });
 });
 
 app.get("/api/rmto/queue", function (req, res) {
-    var unsent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, created_at FROM rmto_queue WHERE sent = 0 ORDER BY period_start DESC LIMIT 100").all();
-    var sent = db.prepare("SELECT device_code, period_start, total_vehicles, avg_speed, sent_at, rmto_response FROM rmto_queue WHERE sent = 1 ORDER BY sent_at DESC LIMIT 50").all();
-    // Error stats
+    // Real send path uses rmto_queue_5class (Add5). Legacy rmto_queue is marked sent immediately.
+    var unsent = db.prepare(
+        "SELECT device_code, route_id, period_start, period_end, " +
+        "(COALESCE(c1,0)+COALESCE(c2,0)+COALESCE(c3,0)+COALESCE(c4,0)+COALESCE(c5,0)) AS total_vehicles, " +
+        "avg_speed, retry_count, created_at " +
+        "FROM rmto_queue_5class " +
+        "WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5) " +
+        "ORDER BY period_start DESC LIMIT 100"
+    ).all();
+    var sent = db.prepare(
+        "SELECT device_code, route_id, period_start, " +
+        "(COALESCE(c1,0)+COALESCE(c2,0)+COALESCE(c3,0)+COALESCE(c4,0)+COALESCE(c5,0)) AS total_vehicles, " +
+        "avg_speed, sent_at, rmto_response " +
+        "FROM rmto_queue_5class WHERE sent = 1 " +
+        "ORDER BY COALESCE(sent_at, period_start) DESC LIMIT 50"
+    ).all();
+    var unsentCount = db.prepare(
+        "SELECT COUNT(*) AS c FROM rmto_queue_5class WHERE sent = 0 AND (retry_count IS NULL OR retry_count < 5)"
+    ).get().c;
+    var abandonedCount = db.prepare(
+        "SELECT COUNT(*) AS c FROM rmto_queue_5class WHERE sent = 0 AND retry_count >= 5"
+    ).get().c;
+
+    // Error stats (indexed by created_at when available)
     var errorCount = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0").get().c;
     var todayErrors = 0;
     try {
         var todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-        todayErrors = db.prepare("SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?").get(todayStart.toISOString()).c;
+        var todayLocal =
+            todayStart.getFullYear() + "-" +
+            String(todayStart.getMonth() + 1).padStart(2, "0") + "-" +
+            String(todayStart.getDate()).padStart(2, "0") + " 00:00:00";
+        todayErrors = db.prepare(
+            "SELECT COUNT(*) as c FROM send_log WHERE success = 0 AND created_at >= ?"
+        ).get(todayLocal).c;
     } catch (e) { /* ok */ }
-    res.json({ unsent: unsent, sent: sent, errorCount: errorCount, todayErrors: todayErrors });
+
+    var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
+    var sourceIp = sourceIpRow && sourceIpRow.value ? String(sourceIpRow.value).trim() : "";
+    var sourceIpInfo = rmto.validateSourceIp(sourceIp);
+
+    res.json({
+        unsent: unsent,
+        sent: sent,
+        unsentCount: unsentCount,
+        abandonedCount: abandonedCount,
+        errorCount: errorCount,
+        todayErrors: todayErrors,
+        sourceIp: sourceIp,
+        sourceIpOk: sourceIpInfo.ok,
+        sourceIpMessage: sourceIpInfo.message,
+        localIps: sourceIpInfo.localIps
+    });
 });
 
 // ============================================================
