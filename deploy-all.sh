@@ -4084,7 +4084,7 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.09.01-v4";
+var BUILD_VERSION = "2026.09.01-v5";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -4300,8 +4300,19 @@ app.post("/api/irawdata", function (req, res) {
     res.json({ success: true, received: count });
 });
 
+// A real device code is all digits (leading zeros already stripped) and not "0".
+// Corrupted TCP frames produce junk substrings - without this check every bad
+// frame auto-registered a phantom device with a garbled name.
+function isValidDeviceCode(code) {
+    return typeof code === "string" && /^[0-9]{1,10}$/.test(code) && code !== "0";
+}
+
 // Auto-register unknown devices
 function autoRegisterDevice(code) {
+    if (!isValidDeviceCode(code)) {
+        console.log("[TCP] Ignoring invalid device code: " + JSON.stringify(code));
+        return;
+    }
     var existing = db.prepare("SELECT device_code, status, name FROM devices WHERE device_code = ?").get(code);
     if (!existing) {
         try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "Device " + code); } catch(e){}
@@ -5751,6 +5762,7 @@ var tcpServer = net.createServer(function (socket) {
         var clean = line.replace(/[\r\n\x00]/g, "").trim();
         if (clean.substring(0, 4) === "8000" && clean.length >= 33) {
             var newId = clean.substring(25, 33).replace(/^0+/, "") || null;
+            if (newId && !isValidDeviceCode(newId)) newId = null;
             if (newId && !pollStarted) {
                 deviceId = newId;
                 pollStarted = true;
@@ -5888,8 +5900,12 @@ function processRawData(raw, ip) {
     // --- RATCX1 Handshake: "8000" + datetime(21) + system_id(8) + model + version + "READY" ---
     if (clean.substring(0, 4) === "8000") {
         var datetime = clean.substring(4, 25);
-        var sysId = clean.substring(25, 33);
+        var sysId = clean.substring(25, 33).replace(/^0+/, "") || "0";
         var rest = clean.substring(33);
+        if (!isValidDeviceCode(sysId)) {
+            console.log("[TCP] Discarding 8000 handshake with invalid device code: " + JSON.stringify(sysId));
+            return;
+        }
         console.log("[TCP] RATCX1 handshake: device=" + sysId + " time=" + datetime + " info=" + rest);
 
         // Check device clock drift on handshake and store for poll decision
@@ -5945,6 +5961,11 @@ function processRawData(raw, ip) {
         if (!parsed) {
             console.error("[TCP]   PARSE FAILED - need >= 262 chars, got " + intervalStr.length);
             addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 parse fail: need 262 chars, got " + intervalStr.length });
+            return;
+        }
+        if (!isValidDeviceCode(parsed.device_code)) {
+            console.log("[TCP] Discarding 8821 data with invalid device code: " + JSON.stringify(parsed.device_code));
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "داده با کد دستگاه نامعتبر رد شد" });
             return;
         }
 
@@ -6502,6 +6523,15 @@ db.exec([
     "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
     "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
 
+    // Indexes for the RMTO monitor queries - without them, ORDER BY / COUNT
+    // on the ever-growing send_log and rmto_queue tables scan the whole table
+    // and the monitor UI appears empty / frozen.
+    "CREATE INDEX IF NOT EXISTS idx_sendlog_created ON send_log(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_sendlog_success ON send_log(success, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto_sent_period ON rmto_queue(sent, period_start);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto_sent_sentat ON rmto_queue(sent, sent_at);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto5_sent_period ON rmto_queue_5class(sent, period_start);",
+
     // Settings (key-value store)
     "CREATE TABLE IF NOT EXISTS settings (",
     "  key TEXT PRIMARY KEY,",
@@ -6613,6 +6643,44 @@ try {
     }
 } catch(e) {
     console.error("[DB] devices migration error:", e.message);
+}
+
+// Migration: purge phantom devices registered from corrupted TCP frames.
+// The TCP handlers used to call autoRegisterDevice with unvalidated substrings
+// of the raw stream, so garbled GSM frames created devices with junk codes.
+// Runs only while invalid rows exist; once the code validation is in place no
+// new ones appear.
+try {
+    var invalidDevCount = db.prepare("SELECT COUNT(*) as c FROM devices WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").get().c;
+    if (invalidDevCount > 0) {
+        console.log("[DB] Purging " + invalidDevCount + " phantom devices with invalid codes...");
+        db.prepare("DELETE FROM devices WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").run();
+        var invIraw = db.prepare("DELETE FROM irawdata WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").run();
+        var invTraffic = db.prepare("DELETE FROM traffic_data WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").run();
+        console.log("[DB] Phantom device purge done (irawdata: " + invIraw.changes + ", traffic_data: " + invTraffic.changes + " rows removed)");
+    }
+} catch (e) {
+    console.error("[DB] phantom device purge error:", e.message);
+}
+
+// Migration: merge zero-padded duplicate devices. The 8000 handshake used to
+// register the raw 8-char system id (e.g. "00123456") while 8821 data stripped
+// leading zeros ("123456"), so one physical device could appear twice.
+try {
+    var paddedDevs = db.prepare("SELECT device_code FROM devices WHERE device_code LIKE '0%'").all();
+    paddedDevs.forEach(function (r) {
+        var stripped = r.device_code.replace(/^0+/, "");
+        if (!stripped || stripped === r.device_code) return;
+        var existsStripped = db.prepare("SELECT 1 AS x FROM devices WHERE device_code = ?").get(stripped);
+        if (existsStripped) {
+            db.prepare("DELETE FROM devices WHERE device_code = ?").run(r.device_code);
+        } else {
+            db.prepare("UPDATE devices SET device_code = ? WHERE device_code = ?").run(stripped, r.device_code);
+        }
+        console.log("[DB] Merged zero-padded device " + r.device_code + " -> " + stripped);
+    });
+} catch (e) {
+    console.error("[DB] zero-padded device merge error:", e.message);
 }
 
 // Migration: dedupe irawdata and add UNIQUE index.

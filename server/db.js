@@ -188,6 +188,15 @@ db.exec([
     "CREATE INDEX IF NOT EXISTS idx_irawdata_time ON irawdata(create_at);",
     "CREATE INDEX IF NOT EXISTS idx_irawdata_read ON irawdata(is_read);",
 
+    // Indexes for the RMTO monitor queries - without them, ORDER BY / COUNT
+    // on the ever-growing send_log and rmto_queue tables scan the whole table
+    // and the monitor UI appears empty / frozen.
+    "CREATE INDEX IF NOT EXISTS idx_sendlog_created ON send_log(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_sendlog_success ON send_log(success, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto_sent_period ON rmto_queue(sent, period_start);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto_sent_sentat ON rmto_queue(sent, sent_at);",
+    "CREATE INDEX IF NOT EXISTS idx_rmto5_sent_period ON rmto_queue_5class(sent, period_start);",
+
     // Settings (key-value store)
     "CREATE TABLE IF NOT EXISTS settings (",
     "  key TEXT PRIMARY KEY,",
@@ -299,6 +308,44 @@ try {
     }
 } catch(e) {
     console.error("[DB] devices migration error:", e.message);
+}
+
+// Migration: purge phantom devices registered from corrupted TCP frames.
+// The TCP handlers used to call autoRegisterDevice with unvalidated substrings
+// of the raw stream, so garbled GSM frames created devices with junk codes.
+// Runs only while invalid rows exist; once the code validation is in place no
+// new ones appear.
+try {
+    var invalidDevCount = db.prepare("SELECT COUNT(*) as c FROM devices WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").get().c;
+    if (invalidDevCount > 0) {
+        console.log("[DB] Purging " + invalidDevCount + " phantom devices with invalid codes...");
+        db.prepare("DELETE FROM devices WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").run();
+        var invIraw = db.prepare("DELETE FROM irawdata WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").run();
+        var invTraffic = db.prepare("DELETE FROM traffic_data WHERE device_code = '' OR device_code = '0' OR device_code GLOB '*[^0-9]*'").run();
+        console.log("[DB] Phantom device purge done (irawdata: " + invIraw.changes + ", traffic_data: " + invTraffic.changes + " rows removed)");
+    }
+} catch (e) {
+    console.error("[DB] phantom device purge error:", e.message);
+}
+
+// Migration: merge zero-padded duplicate devices. The 8000 handshake used to
+// register the raw 8-char system id (e.g. "00123456") while 8821 data stripped
+// leading zeros ("123456"), so one physical device could appear twice.
+try {
+    var paddedDevs = db.prepare("SELECT device_code FROM devices WHERE device_code LIKE '0%'").all();
+    paddedDevs.forEach(function (r) {
+        var stripped = r.device_code.replace(/^0+/, "");
+        if (!stripped || stripped === r.device_code) return;
+        var existsStripped = db.prepare("SELECT 1 AS x FROM devices WHERE device_code = ?").get(stripped);
+        if (existsStripped) {
+            db.prepare("DELETE FROM devices WHERE device_code = ?").run(r.device_code);
+        } else {
+            db.prepare("UPDATE devices SET device_code = ? WHERE device_code = ?").run(stripped, r.device_code);
+        }
+        console.log("[DB] Merged zero-padded device " + r.device_code + " -> " + stripped);
+    });
+} catch (e) {
+    console.error("[DB] zero-padded device merge error:", e.message);
 }
 
 // Migration: dedupe irawdata and add UNIQUE index.

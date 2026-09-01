@@ -47,7 +47,7 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.09.01-v4";
+var BUILD_VERSION = "2026.09.01-v5";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -263,8 +263,19 @@ app.post("/api/irawdata", function (req, res) {
     res.json({ success: true, received: count });
 });
 
+// A real device code is all digits (leading zeros already stripped) and not "0".
+// Corrupted TCP frames produce junk substrings - without this check every bad
+// frame auto-registered a phantom device with a garbled name.
+function isValidDeviceCode(code) {
+    return typeof code === "string" && /^[0-9]{1,10}$/.test(code) && code !== "0";
+}
+
 // Auto-register unknown devices
 function autoRegisterDevice(code) {
+    if (!isValidDeviceCode(code)) {
+        console.log("[TCP] Ignoring invalid device code: " + JSON.stringify(code));
+        return;
+    }
     var existing = db.prepare("SELECT device_code, status, name FROM devices WHERE device_code = ?").get(code);
     if (!existing) {
         try { db.prepare("INSERT INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'online')").run(code, "Device " + code); } catch(e){}
@@ -1714,6 +1725,7 @@ var tcpServer = net.createServer(function (socket) {
         var clean = line.replace(/[\r\n\x00]/g, "").trim();
         if (clean.substring(0, 4) === "8000" && clean.length >= 33) {
             var newId = clean.substring(25, 33).replace(/^0+/, "") || null;
+            if (newId && !isValidDeviceCode(newId)) newId = null;
             if (newId && !pollStarted) {
                 deviceId = newId;
                 pollStarted = true;
@@ -1851,8 +1863,12 @@ function processRawData(raw, ip) {
     // --- RATCX1 Handshake: "8000" + datetime(21) + system_id(8) + model + version + "READY" ---
     if (clean.substring(0, 4) === "8000") {
         var datetime = clean.substring(4, 25);
-        var sysId = clean.substring(25, 33);
+        var sysId = clean.substring(25, 33).replace(/^0+/, "") || "0";
         var rest = clean.substring(33);
+        if (!isValidDeviceCode(sysId)) {
+            console.log("[TCP] Discarding 8000 handshake with invalid device code: " + JSON.stringify(sysId));
+            return;
+        }
         console.log("[TCP] RATCX1 handshake: device=" + sysId + " time=" + datetime + " info=" + rest);
 
         // Check device clock drift on handshake and store for poll decision
@@ -1908,6 +1924,11 @@ function processRawData(raw, ip) {
         if (!parsed) {
             console.error("[TCP]   PARSE FAILED - need >= 262 chars, got " + intervalStr.length);
             addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "RATCX1 parse fail: need 262 chars, got " + intervalStr.length });
+            return;
+        }
+        if (!isValidDeviceCode(parsed.device_code)) {
+            console.log("[TCP] Discarding 8821 data with invalid device code: " + JSON.stringify(parsed.device_code));
+            addLiveLog({ ts: Date.now(), time: new Date().toISOString(), type: "tcp-raw", ip: ip, device: "-", detail: "داده با کد دستگاه نامعتبر رد شد" });
             return;
         }
 
