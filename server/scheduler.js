@@ -591,6 +591,79 @@ function checkOfflineDevices() {
     });
 }
 
+/**
+ * Delete old rows in batches so the synchronous DELETE never blocks the
+ * event loop (and the TCP sockets) for long. Uses id IN (SELECT ... LIMIT n)
+ * which works without SQLITE_ENABLE_UPDATE_DELETE_LIMIT.
+ */
+function deleteOldRows(table, whereClause, params, onDone) {
+    var BATCH = 20000;
+    var total = 0;
+    var stmt = db.prepare(
+        "DELETE FROM " + table + " WHERE id IN (SELECT id FROM " + table + " WHERE " + whereClause + " LIMIT " + BATCH + ")"
+    );
+    function step() {
+        var changes = 0;
+        try {
+            changes = stmt.run.apply(stmt, params).changes;
+        } catch (e) {
+            console.error("[Cleanup] " + table + " delete error:", e.message);
+            if (onDone) onDone(total);
+            return;
+        }
+        total += changes;
+        if (changes >= BATCH) {
+            setTimeout(step, 250); // let the event loop breathe between batches
+        } else {
+            if (total > 0) console.log("[Cleanup] " + table + ": deleted " + total + " old rows");
+            if (onDone) onDone(total);
+        }
+    }
+    step();
+}
+
+/**
+ * Daily retention cleanup. Without it the database grows without bound
+ * (raw interval rows, per-vehicle traffic rows and full SOAP XML in send_log).
+ * Retention is configurable via settings: retention_raw_days (default 90)
+ * and retention_log_days (default 30).
+ */
+function cleanupOldData(onComplete) {
+    var s = {};
+    try {
+        db.prepare("SELECT key, value FROM settings WHERE key IN ('retention_raw_days','retention_log_days')").all()
+            .forEach(function (r) { s[r.key] = r.value; });
+    } catch (e) { /* use defaults */ }
+    var rawDays = parseInt(s.retention_raw_days, 10) || 90;
+    var logDays = parseInt(s.retention_log_days, 10) || 30;
+    var rawCutoff = toLocalISOString(new Date(Date.now() - rawDays * 24 * 60 * 60 * 1000));
+    var logCutoff = toLocalISOString(new Date(Date.now() - logDays * 24 * 60 * 60 * 1000));
+    console.log("[Cleanup] Starting retention cleanup (raw < " + rawCutoff + ", logs < " + logCutoff + ")");
+
+    var jobs = [
+        // Only aggregated raw rows are deleted; unread rows are kept for the scheduler.
+        ["irawdata", "is_read = 1 AND create_at < ?", [rawCutoff]],
+        ["traffic_data", "timestamp < ?", [rawCutoff]],
+        ["send_log", "created_at < ?", [logCutoff]],
+        ["rmto_queue", "sent = 1 AND created_at < ?", [logCutoff]],
+        ["rmto_queue_5class", "sent = 1 AND created_at < ?", [rawCutoff]]
+    ];
+    var idx = 0;
+    function next() {
+        if (idx >= jobs.length) {
+            try {
+                db.pragma("wal_checkpoint(TRUNCATE)");
+            } catch (e) { /* ignore */ }
+            console.log("[Cleanup] Retention cleanup finished");
+            if (onComplete) onComplete();
+            return;
+        }
+        var j = jobs[idx++];
+        deleteOldRows(j[0], j[1], j[2], next);
+    }
+    next();
+}
+
 var scheduledTasks = [];
 
 function start() {
@@ -608,6 +681,17 @@ function start() {
         console.log("[Scheduler] Retry unsent data...");
         try { sendUnsentData(); } catch (e) { console.error("[Scheduler] sendUnsentData error:", e.message, e.stack); }
     }));
+
+    // Daily retention cleanup at 03:30 (low-traffic hours)
+    scheduledTasks.push(cron.schedule("30 3 * * *", function () {
+        try { cleanupOldData(); } catch (e) { console.error("[Scheduler] cleanupOldData error:", e.message, e.stack); }
+    }));
+
+    // Also run once shortly after startup so an oversized database starts
+    // shrinking right after deploy instead of waiting for 03:30.
+    setTimeout(function () {
+        try { cleanupOldData(); } catch (e) { console.error("[Scheduler] startup cleanup error:", e.message, e.stack); }
+    }, 5 * 60 * 1000);
 }
 
 function stop() {
@@ -625,6 +709,7 @@ module.exports = {
     aggregatePeriod: aggregatePeriod,
     sendUnsentData: sendUnsentData,
     checkOfflineDevices: checkOfflineDevices,
+    cleanupOldData: cleanupOldData,
     sendBaleNotification: sendBaleNotification,
     // Alias for backward compatibility with older index.js versions
     processAndSendIrawdata: aggregateAndSend

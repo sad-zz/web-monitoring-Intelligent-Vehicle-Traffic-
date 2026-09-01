@@ -47,7 +47,7 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.04.07-v3";
+var BUILD_VERSION = "2026.09.01-v4";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -225,7 +225,7 @@ app.post("/api/irawdata", function (req, res) {
     autoRegisterDevice(code);
 
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertTraffic = db.prepare(
@@ -1126,7 +1126,7 @@ function importPostgresDump(filePath) {
 
     var insertDevice = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'offline')");
     var insertIraw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertMehvar = db.prepare("INSERT OR IGNORE INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)");
@@ -1641,7 +1641,10 @@ function startDevicePoll(deviceCode, socket) {
 function startDataRequests(deviceCode, socket) {
     var now = new Date();
     var requests = [];
-    for (var i = 0; i < 3; i++) {
+    // Request the last 3 COMPLETED intervals (i=1..3). i=0 would be the current
+    // in-progress interval, which the periodic poll fetches later anyway -
+    // requesting it here produced duplicate 8821 responses for the same period.
+    for (var i = 1; i <= 3; i++) {
         var t = new Date(now.getTime() - i * 5 * 60 * 1000);
         t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
         requests.push(formatPollTimestamp(t));
@@ -1672,15 +1675,8 @@ function startDataRequests(deviceCode, socket) {
  */
 function startPeriodicPoll(deviceCode, socket) {
     console.log("[TCP] Starting periodic poll for device " + deviceCode + " (every 5 min)");
-
-    // Immediate first request for the last completed interval (don't wait 5 min)
-    if (!socket.destroyed) {
-        var firstReq = new Date();
-        firstReq.setMinutes(Math.floor(firstReq.getMinutes() / 5) * 5, 0, 0);
-        firstReq = new Date(firstReq.getTime() - 5 * 60 * 1000); // last COMPLETED interval
-        var firstCmd = "0197" + formatPollTimestamp(firstReq);
-        sendToDevice(deviceCode, socket, firstCmd, "IMMEDIATE_POLL");
-    }
+    // Note: no immediate poll here - startDataRequests already fetched the last
+    // completed intervals, so an immediate re-request only created duplicates.
 
     var intervalId = setInterval(function () {
         if (socket.destroyed) {

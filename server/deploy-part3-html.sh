@@ -637,7 +637,7 @@ cat > index.html << 'ENDFILE'
                         <h3 class="panel-title">⏱ ارسال زمانبندی شده (تکرار هر ۵ دقیقه)</h3>
                     </div>
                     <div class="panel-body">
-                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده تست را با کد محور دلخواه و مدت زمان مشخص (تا ۱۵ روز) هر ۵ دقیقه به سامانه ارسال کنید.</p>
+                        <p style="color:#64748b;font-size:13px;margin-bottom:16px">داده تست را با کد محور دلخواه و مدت زمان مشخص (تا ۱۵ روز) هر ۵ دقیقه به سامانه ارسال کنید. مقادیر را از بخش بالا یا تاریخچه وارد نمایید.</p>
                         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:12px">
                             <div class="form-group" style="margin:0">
                                 <label>کد محور (RID) <span style="color:#ef4444">*</span></label>
@@ -649,11 +649,26 @@ cat > index.html << 'ENDFILE'
                             </div>
                         </div>
                         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px">
-                            <div class="form-group" style="margin:0"><label>C1 موتور</label><input type="number" id="sched-c1" value="10" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C2 سواری</label><input type="number" id="sched-c2" value="50" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C3 وانت</label><input type="number" id="sched-c3" value="5" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C4 اتوبوس</label><input type="number" id="sched-c4" value="2" min="0" dir="ltr"></div>
-                            <div class="form-group" style="margin:0"><label>C5 کامیون</label><input type="number" id="sched-c5" value="3" min="0" dir="ltr"></div>
+                            <div class="form-group" style="margin:0">
+                                <label>C1 موتور</label>
+                                <input type="number" id="sched-c1" value="10" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C2 سواری</label>
+                                <input type="number" id="sched-c2" value="50" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C3 وانت</label>
+                                <input type="number" id="sched-c3" value="5" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C4 اتوبوس</label>
+                                <input type="number" id="sched-c4" value="2" min="0" dir="ltr">
+                            </div>
+                            <div class="form-group" style="margin:0">
+                                <label>C5 کامیون</label>
+                                <input type="number" id="sched-c5" value="3" min="0" dir="ltr">
+                            </div>
                         </div>
                         <div class="form-group" style="margin-bottom:12px">
                             <label>میانگین سرعت (ASP) km/h</label>
@@ -678,8 +693,15 @@ cat > index.html << 'ENDFILE'
                             <table class="data-table" id="sched-jobs-table">
                                 <thead>
                                     <tr>
-                                        <th>شناسه</th><th>محور</th><th>مدت (روز)</th><th>ارسال شده</th>
-                                        <th>موفق</th><th>خطا</th><th>آخرین ارسال</th><th>وضعیت</th><th>عملیات</th>
+                                        <th>شناسه</th>
+                                        <th>محور</th>
+                                        <th>مدت (روز)</th>
+                                        <th>ارسال شده</th>
+                                        <th>موفق</th>
+                                        <th>خطا</th>
+                                        <th>آخرین ارسال</th>
+                                        <th>وضعیت</th>
+                                        <th>عملیات</th>
                                     </tr>
                                 </thead>
                                 <tbody id="sched-jobs-tbody">
@@ -978,7 +1000,6 @@ cat > index.html << 'ENDFILE'
     <script src="js/app.js"></script>
 </body>
 </html>
-
 ENDFILE
 
 echo "=== Part 3 done: index.html deployed ==="

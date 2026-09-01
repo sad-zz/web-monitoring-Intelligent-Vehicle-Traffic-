@@ -312,6 +312,26 @@ try {
     console.error("[DB] devices migration error:", e.message);
 }
 
+// Migration: dedupe irawdata and add UNIQUE index.
+// The TCP server re-polls recent intervals on every device reconnect (0197),
+// and storeIrawdata uses INSERT OR IGNORE which only works with a UNIQUE
+// constraint. Without it, every re-poll inserted a duplicate row, inflating
+// aggregated counts sent to RMTO and growing the database without bound.
+try {
+    var hasUniqueIdx = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_irawdata_unique'").get();
+    if (!hasUniqueIdx) {
+        console.log("[DB] Deduplicating irawdata (one-time, may take a while on large databases)...");
+        var dedupeInfo = db.prepare(
+            "DELETE FROM irawdata WHERE id NOT IN (SELECT MIN(id) FROM irawdata GROUP BY device_code, create_at, lane)"
+        ).run();
+        console.log("[DB] Removed " + dedupeInfo.changes + " duplicate irawdata rows");
+        db.exec("CREATE UNIQUE INDEX idx_irawdata_unique ON irawdata(device_code, create_at, lane)");
+        console.log("[DB] Unique index idx_irawdata_unique created");
+    }
+} catch (e) {
+    console.error("[DB] irawdata dedupe migration error:", e.message);
+}
+
 // Migration: consolidate dual-lane source IPs into single rmto_source_ip
 try {
     var liveIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_live_source_ip'").get();
@@ -347,7 +367,9 @@ var defaultSettings = {
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
     rmto_source_ip: "",
     bale_bot_token: "",
-    bale_chat_id: ""
+    bale_chat_id: "",
+    retention_raw_days: "90",
+    retention_log_days: "30"
 };
 var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
 Object.keys(defaultSettings).forEach(function (k) {
@@ -355,7 +377,6 @@ Object.keys(defaultSettings).forEach(function (k) {
 });
 
 module.exports = db;
-
 ENDFILE
 
 # --- server/rmto-client.js ---
@@ -689,7 +710,6 @@ module.exports = {
     sendAddData5: sendAddData5,
     getSourceIp: getSourceIp
 };
-
 ENDFILE
 
 # --- server/scheduler.js ---
@@ -1114,6 +1134,7 @@ function sendUnsentData(onComplete) {
             var e = g.record;
             var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
             var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            // Weighted average per-class speeds (compute before summing counts)
             var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
             var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
             var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
@@ -1286,6 +1307,79 @@ function checkOfflineDevices() {
     });
 }
 
+/**
+ * Delete old rows in batches so the synchronous DELETE never blocks the
+ * event loop (and the TCP sockets) for long. Uses id IN (SELECT ... LIMIT n)
+ * which works without SQLITE_ENABLE_UPDATE_DELETE_LIMIT.
+ */
+function deleteOldRows(table, whereClause, params, onDone) {
+    var BATCH = 20000;
+    var total = 0;
+    var stmt = db.prepare(
+        "DELETE FROM " + table + " WHERE id IN (SELECT id FROM " + table + " WHERE " + whereClause + " LIMIT " + BATCH + ")"
+    );
+    function step() {
+        var changes = 0;
+        try {
+            changes = stmt.run.apply(stmt, params).changes;
+        } catch (e) {
+            console.error("[Cleanup] " + table + " delete error:", e.message);
+            if (onDone) onDone(total);
+            return;
+        }
+        total += changes;
+        if (changes >= BATCH) {
+            setTimeout(step, 250); // let the event loop breathe between batches
+        } else {
+            if (total > 0) console.log("[Cleanup] " + table + ": deleted " + total + " old rows");
+            if (onDone) onDone(total);
+        }
+    }
+    step();
+}
+
+/**
+ * Daily retention cleanup. Without it the database grows without bound
+ * (raw interval rows, per-vehicle traffic rows and full SOAP XML in send_log).
+ * Retention is configurable via settings: retention_raw_days (default 90)
+ * and retention_log_days (default 30).
+ */
+function cleanupOldData(onComplete) {
+    var s = {};
+    try {
+        db.prepare("SELECT key, value FROM settings WHERE key IN ('retention_raw_days','retention_log_days')").all()
+            .forEach(function (r) { s[r.key] = r.value; });
+    } catch (e) { /* use defaults */ }
+    var rawDays = parseInt(s.retention_raw_days, 10) || 90;
+    var logDays = parseInt(s.retention_log_days, 10) || 30;
+    var rawCutoff = toLocalISOString(new Date(Date.now() - rawDays * 24 * 60 * 60 * 1000));
+    var logCutoff = toLocalISOString(new Date(Date.now() - logDays * 24 * 60 * 60 * 1000));
+    console.log("[Cleanup] Starting retention cleanup (raw < " + rawCutoff + ", logs < " + logCutoff + ")");
+
+    var jobs = [
+        // Only aggregated raw rows are deleted; unread rows are kept for the scheduler.
+        ["irawdata", "is_read = 1 AND create_at < ?", [rawCutoff]],
+        ["traffic_data", "timestamp < ?", [rawCutoff]],
+        ["send_log", "created_at < ?", [logCutoff]],
+        ["rmto_queue", "sent = 1 AND created_at < ?", [logCutoff]],
+        ["rmto_queue_5class", "sent = 1 AND created_at < ?", [rawCutoff]]
+    ];
+    var idx = 0;
+    function next() {
+        if (idx >= jobs.length) {
+            try {
+                db.pragma("wal_checkpoint(TRUNCATE)");
+            } catch (e) { /* ignore */ }
+            console.log("[Cleanup] Retention cleanup finished");
+            if (onComplete) onComplete();
+            return;
+        }
+        var j = jobs[idx++];
+        deleteOldRows(j[0], j[1], j[2], next);
+    }
+    next();
+}
+
 var scheduledTasks = [];
 
 function start() {
@@ -1303,6 +1397,17 @@ function start() {
         console.log("[Scheduler] Retry unsent data...");
         try { sendUnsentData(); } catch (e) { console.error("[Scheduler] sendUnsentData error:", e.message, e.stack); }
     }));
+
+    // Daily retention cleanup at 03:30 (low-traffic hours)
+    scheduledTasks.push(cron.schedule("30 3 * * *", function () {
+        try { cleanupOldData(); } catch (e) { console.error("[Scheduler] cleanupOldData error:", e.message, e.stack); }
+    }));
+
+    // Also run once shortly after startup so an oversized database starts
+    // shrinking right after deploy instead of waiting for 03:30.
+    setTimeout(function () {
+        try { cleanupOldData(); } catch (e) { console.error("[Scheduler] startup cleanup error:", e.message, e.stack); }
+    }, 5 * 60 * 1000);
 }
 
 function stop() {
@@ -1320,11 +1425,11 @@ module.exports = {
     aggregatePeriod: aggregatePeriod,
     sendUnsentData: sendUnsentData,
     checkOfflineDevices: checkOfflineDevices,
+    cleanupOldData: cleanupOldData,
     sendBaleNotification: sendBaleNotification,
     // Alias for backward compatibility with older index.js versions
     processAndSendIrawdata: aggregateAndSend
 };
-
 ENDFILE
 
 # --- server/index.js ---
@@ -1378,7 +1483,7 @@ var PORT = process.env.PORT || 3000;
 var HOST = process.env.HOST || "0.0.0.0";
 
 // Build version for deployment verification
-var BUILD_VERSION = "2026.04.07-v3";
+var BUILD_VERSION = "2026.09.01-v4";
 
 // --- Session & Auth Setup ---
 var SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -1556,7 +1661,7 @@ app.post("/api/irawdata", function (req, res) {
     autoRegisterDevice(code);
 
     var insertRaw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertTraffic = db.prepare(
@@ -1794,8 +1899,41 @@ app.post("/api/rmto/archive-send", requireAuth, function (req, res) {
     sql += " AND period_start >= ? AND period_start <= ? ORDER BY period_start ASC";
     params.push(from, to);
 
-    var records = db.prepare(sql).all.apply(db.prepare(sql), params);
-    if (records.length === 0) return res.status(404).json({ error: "رکوردی در بازه مشخص‌شده یافت نشد" });
+    var rawRecords = db.prepare(sql).all.apply(db.prepare(sql), params);
+    if (rawRecords.length === 0) return res.status(404).json({ error: "رکوردی در بازه مشخص‌شده یافت نشد" });
+
+    // Merge records sharing the same route_id + period_start to prevent RMTO duplicates
+    var mergeMap = {};
+    rawRecords.forEach(function (r) {
+        if (!r.route_id) return;
+        var key = r.route_id + "|" + r.period_start;
+        if (!mergeMap[key]) {
+            mergeMap[key] = JSON.parse(JSON.stringify(r));
+        } else {
+            var e = mergeMap[key];
+            var eTotal = (e.c1||0) + (e.c2||0) + (e.c3||0) + (e.c4||0) + (e.c5||0);
+            var rTotal = (r.c1||0) + (r.c2||0) + (r.c3||0) + (r.c4||0) + (r.c5||0);
+            var ns1 = (e.c1||0) + (r.c1||0) > 0 ? Math.round(((e.c1||0) * (e.s1||0) + (r.c1||0) * (r.s1||0)) / ((e.c1||0) + (r.c1||0))) : 0;
+            var ns2 = (e.c2||0) + (r.c2||0) > 0 ? Math.round(((e.c2||0) * (e.s2||0) + (r.c2||0) * (r.s2||0)) / ((e.c2||0) + (r.c2||0))) : 0;
+            var ns3 = (e.c3||0) + (r.c3||0) > 0 ? Math.round(((e.c3||0) * (e.s3||0) + (r.c3||0) * (r.s3||0)) / ((e.c3||0) + (r.c3||0))) : 0;
+            var ns4 = (e.c4||0) + (r.c4||0) > 0 ? Math.round(((e.c4||0) * (e.s4||0) + (r.c4||0) * (r.s4||0)) / ((e.c4||0) + (r.c4||0))) : 0;
+            var ns5 = (e.c5||0) + (r.c5||0) > 0 ? Math.round(((e.c5||0) * (e.s5||0) + (r.c5||0) * (r.s5||0)) / ((e.c5||0) + (r.c5||0))) : 0;
+            var nTotal = eTotal + rTotal;
+            e.avg_speed = nTotal > 0 ? Math.round((eTotal * (e.avg_speed||0) + rTotal * (r.avg_speed||0)) / nTotal) : 0;
+            e.c1 = (e.c1||0) + (r.c1||0); e.c2 = (e.c2||0) + (r.c2||0); e.c3 = (e.c3||0) + (r.c3||0);
+            e.c4 = (e.c4||0) + (r.c4||0); e.c5 = (e.c5||0) + (r.c5||0);
+            e.s1 = ns1; e.s2 = ns2; e.s3 = ns3; e.s4 = ns4; e.s5 = ns5;
+            e.sso = (e.sso||0) + (r.sso||0);
+            e.so1 = (e.so1||0) + (r.so1||0); e.so2 = (e.so2||0) + (r.so2||0); e.so3 = (e.so3||0) + (r.so3||0);
+            e.so4 = (e.so4||0) + (r.so4||0); e.so5 = (e.so5||0) + (r.so5||0);
+            e.oo = (e.oo||0) + (r.oo||0); e.esd = (e.esd||0) + (r.esd||0);
+            e.device_code = e.device_code + "+" + r.device_code;
+        }
+    });
+    var records = Object.keys(mergeMap).map(function (k) { return mergeMap[k]; });
+    if (records.length < rawRecords.length) {
+        console.log("[ArchiveSend] Merged " + rawRecords.length + " records into " + records.length + " (same-route dedup)");
+    }
 
     var jobId = ++archiveJobSeq;
     var sourceIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_source_ip'").get();
@@ -1881,6 +2019,7 @@ app.delete("/api/rmto/archive-send/:jobId", requireAuth, function (req, res) {
 var testScheduleJobs = {};
 var testScheduleSeq = 0;
 
+// POST /api/rmto/test-schedule - start a scheduled test send
 app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var b = req.body;
     var rid = parseInt(b.rid, 10) || 0;
@@ -1914,17 +2053,26 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     }
 
     var job = {
-        id: jobId, rid: rid,
+        id: jobId,
+        rid: rid,
         data: { c1: c1, c2: c2, c3: c3, c4: c4, c5: c5, asp: asp, s1: s1, s2: s2, s3: s3, s4: s4, s5: s5 },
-        durationDays: durationDays, expiresAt: expiresAt.toISOString(), startedAt: new Date().toISOString(),
-        sendCount: 0, successCount: 0, failedCount: 0, lastSendAt: null, lastError: null, stopped: false, status: "running"
+        durationDays: durationDays,
+        expiresAt: expiresAt.toISOString(),
+        startedAt: new Date().toISOString(),
+        sendCount: 0,
+        successCount: 0,
+        failedCount: 0,
+        lastSendAt: null,
+        lastError: null,
+        stopped: false,
+        status: "running"
     };
 
     function sendOnce() {
         if (job.stopped || new Date() >= expiresAt) {
             job.status = job.stopped ? "stopped" : "expired";
             if (job.timerId) { clearInterval(job.timerId); job.timerId = null; }
-            console.log("[TestSchedule] Job #" + jobId + " " + job.status);
+            console.log("[TestSchedule] Job #" + jobId + " " + job.status + " (" + job.successCount + "/" + job.sendCount + " success)");
             return;
         }
         var now = new Date();
@@ -1944,8 +2092,13 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
         }, function (err, response, soapXml) {
             var success = !err && response && (response.ID > 0 || response.CFL === 100);
             job.lastSendAt = new Date().toISOString();
-            if (success) { job.successCount++; job.lastError = null; }
-            else { job.failedCount++; job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا"); }
+            if (success) {
+                job.successCount++;
+                job.lastError = null;
+            } else {
+                job.failedCount++;
+                job.lastError = err ? err.message : (response && response.ERR ? response.ERR : "خطا");
+            }
             try {
                 db.prepare("INSERT INTO send_log (method, device_code, request_data, response_data, success, error_message, soap_xml, source_ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                     .run("Add5-Scheduled", "test-schedule-" + jobId,
@@ -1955,6 +2108,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
         });
     }
 
+    // Send immediately, then every 5 minutes
     sendOnce();
     job.timerId = setInterval(sendOnce, 5 * 60 * 1000);
     testScheduleJobs[jobId] = job;
@@ -1963,6 +2117,7 @@ app.post("/api/rmto/test-schedule", requireAuth, function (req, res) {
     res.json({ success: true, jobId: jobId, message: "ارسال زمانبندی شده شروع شد (" + durationDays + " روز)" });
 });
 
+// GET /api/rmto/test-schedule - list active scheduled jobs
 app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
     var jobs = Object.keys(testScheduleJobs).map(function (k) {
         var j = testScheduleJobs[k];
@@ -1974,6 +2129,7 @@ app.get("/api/rmto/test-schedule", requireAuth, function (req, res) {
     res.json(jobs);
 });
 
+// DELETE /api/rmto/test-schedule/:jobId - stop a scheduled job
 app.delete("/api/rmto/test-schedule/:jobId", requireAuth, function (req, res) {
     var jobId = parseInt(req.params.jobId, 10);
     var job = testScheduleJobs[jobId];
@@ -2406,7 +2562,7 @@ function importPostgresDump(filePath) {
 
     var insertDevice = db.prepare("INSERT OR IGNORE INTO devices (device_code, name, type, status) VALUES (?, ?, 'counter', 'offline')");
     var insertIraw = db.prepare(
-        "INSERT INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
+        "INSERT OR IGNORE INTO irawdata (device_code, create_at, stop, lane, is_read, a,b,c,d,e,x, sa,sb,sc,sd,se,sx, sao,sbo,sco,sdo,seo,sxo, overtaking, tooclose) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     var insertMehvar = db.prepare("INSERT OR IGNORE INTO mehvar (code, name, send_enable, repair, ostan) VALUES (?, ?, ?, ?, ?)");
@@ -2921,7 +3077,10 @@ function startDevicePoll(deviceCode, socket) {
 function startDataRequests(deviceCode, socket) {
     var now = new Date();
     var requests = [];
-    for (var i = 0; i < 3; i++) {
+    // Request the last 3 COMPLETED intervals (i=1..3). i=0 would be the current
+    // in-progress interval, which the periodic poll fetches later anyway -
+    // requesting it here produced duplicate 8821 responses for the same period.
+    for (var i = 1; i <= 3; i++) {
         var t = new Date(now.getTime() - i * 5 * 60 * 1000);
         t.setMinutes(Math.floor(t.getMinutes() / 5) * 5, 0, 0);
         requests.push(formatPollTimestamp(t));
@@ -2952,15 +3111,8 @@ function startDataRequests(deviceCode, socket) {
  */
 function startPeriodicPoll(deviceCode, socket) {
     console.log("[TCP] Starting periodic poll for device " + deviceCode + " (every 5 min)");
-
-    // Immediate first request for the last completed interval (don't wait 5 min)
-    if (!socket.destroyed) {
-        var firstReq = new Date();
-        firstReq.setMinutes(Math.floor(firstReq.getMinutes() / 5) * 5, 0, 0);
-        firstReq = new Date(firstReq.getTime() - 5 * 60 * 1000); // last COMPLETED interval
-        var firstCmd = "0197" + formatPollTimestamp(firstReq);
-        sendToDevice(deviceCode, socket, firstCmd, "IMMEDIATE_POLL");
-    }
+    // Note: no immediate poll here - startDataRequests already fetched the last
+    // completed intervals, so an immediate re-request only created duplicates.
 
     var intervalId = setInterval(function () {
         if (socket.destroyed) {
@@ -3555,7 +3707,6 @@ function gracefulShutdown(signal) {
 
 process.on("SIGTERM", function () { gracefulShutdown("SIGTERM"); });
 process.on("SIGINT", function () { gracefulShutdown("SIGINT"); });
-
 ENDFILE
 
 # --- Update systemd service to include ExecStartPre (kill stale ports) ---

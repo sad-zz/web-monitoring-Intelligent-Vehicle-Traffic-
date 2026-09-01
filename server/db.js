@@ -301,6 +301,26 @@ try {
     console.error("[DB] devices migration error:", e.message);
 }
 
+// Migration: dedupe irawdata and add UNIQUE index.
+// The TCP server re-polls recent intervals on every device reconnect (0197),
+// and storeIrawdata uses INSERT OR IGNORE which only works with a UNIQUE
+// constraint. Without it, every re-poll inserted a duplicate row, inflating
+// aggregated counts sent to RMTO and growing the database without bound.
+try {
+    var hasUniqueIdx = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_irawdata_unique'").get();
+    if (!hasUniqueIdx) {
+        console.log("[DB] Deduplicating irawdata (one-time, may take a while on large databases)...");
+        var dedupeInfo = db.prepare(
+            "DELETE FROM irawdata WHERE id NOT IN (SELECT MIN(id) FROM irawdata GROUP BY device_code, create_at, lane)"
+        ).run();
+        console.log("[DB] Removed " + dedupeInfo.changes + " duplicate irawdata rows");
+        db.exec("CREATE UNIQUE INDEX idx_irawdata_unique ON irawdata(device_code, create_at, lane)");
+        console.log("[DB] Unique index idx_irawdata_unique created");
+    }
+} catch (e) {
+    console.error("[DB] irawdata dedupe migration error:", e.message);
+}
+
 // Migration: consolidate dual-lane source IPs into single rmto_source_ip
 try {
     var liveIpRow = db.prepare("SELECT value FROM settings WHERE key = 'rmto_live_source_ip'").get();
@@ -336,7 +356,9 @@ var defaultSettings = {
     rmto_wsdl: "http://otf.rmto.ir/Companies/Companies.asmx?WSDL",
     rmto_source_ip: "",
     bale_bot_token: "",
-    bale_chat_id: ""
+    bale_chat_id: "",
+    retention_raw_days: "90",
+    retention_log_days: "30"
 };
 var insertSetting = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
 Object.keys(defaultSettings).forEach(function (k) {

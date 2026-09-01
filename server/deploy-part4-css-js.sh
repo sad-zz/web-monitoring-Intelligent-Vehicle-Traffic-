@@ -952,7 +952,6 @@ body {
     font-size: 13px;
     color: var(--text-light);
 }
-
 ENDFILE
 
 echo "=== Deploying js/app.js ==="
@@ -2860,6 +2859,7 @@ cat > js/app.js << 'ENDFILE'
                 if (tbody) {
                     api("GET", "/api/rmto/archive-jobs", null, function (s, jobs) {
                         if (!jobs) return;
+                        // trigger re-render by calling refreshArchiveJobs equivalent inline
                         var evt = document.createEvent("Event");
                         evt.initEvent("click", true, true);
                         var rb = $("#btn-arch-refresh");
@@ -3016,7 +3016,6 @@ cat > js/app.js << 'ENDFILE'
 
 
 })();
-
 ENDFILE
 
 echo ""
